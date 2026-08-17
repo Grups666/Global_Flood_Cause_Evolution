@@ -14,7 +14,7 @@ conditions.
 - Official source: <https://www.hydrosheds.org/products/hydrobasins>.
 - Tested Pfafstetter levels: 3, 4, and 5.
 - Primary spatial grain: level 5, the finest tested level that still retains a
-  useful number of units with at least 20 eligible catchments.
+  useful number of units under the declared sample-support requirements.
 - Assignment: each gauge coordinate is spatially joined to its containing
   polygon. If a point lies on a shared boundary, the smallest matching polygon
   is selected deterministically.
@@ -27,8 +27,13 @@ silently reassigned to a nearest mainland polygon.
 
 A basin unit is estimated only when it contains:
 
-- at least 20 eligible catchments; and
+- at least 5 eligible catchments; and
 - at least 300 nonmissing event observations for the outcome.
+
+The 300-observation requirement means the smallest realized units contain nine
+catchments. Units with 5–19 catchments are retained in the formal test family
+but are marked as limited-sample estimates in the interactive map; units with
+at least 20 catchments have stronger cluster support.
 
 The estimator is the same within-catchment fixed-effect linear probability
 model used for the global and continental results. Time is measured in decades,
@@ -43,8 +48,8 @@ The primary HydroBASINS level-5 family contains two project-defined outcomes:
 1. intensity-dominated events under `Pmax/Pvolume > 0.50`; and
 2. wet one-day antecedent conditions under `SSI > 0.56`.
 
-With 28 eligible level-5 units, this produces 56 primary tests. Benjamini–
-Hochberg adjustment is applied across the complete 56-test family. Outcome-wise
+With 72 eligible level-5 units, this produces 144 primary tests. Benjamini–
+Hochberg adjustment is applied across the complete 144-test family. Outcome-wise
 and all-outcome adjusted values are retained as diagnostics but do not replace
 the primary-family adjustment.
 
@@ -82,4 +87,3 @@ change or causal attribution. Catchment-clustered uncertainty does not fully
 model residual correlation among neighboring catchments; spatial block
 bootstrap or Conley-type uncertainty remains a required publication-stage
 extension.
-

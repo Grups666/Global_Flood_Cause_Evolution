@@ -1,6 +1,6 @@
 # Method Freeze — 2026-08-15
 
-## Decisions fixed for the baseline analysis
+## Decisions fixed for the analysis
 
 1. The verified study period is 1982–2019. The meeting target of approximately
    1970–2020 is not imputed or inferred.
@@ -25,4 +25,3 @@ retain continuous descriptors, align the primary sample with the closest
 observational precedent, and preserve the ambiguity of the meeting phrase
 “annual top 5%” as a documented sensitivity question rather than silently
 choosing an interpretation.
-

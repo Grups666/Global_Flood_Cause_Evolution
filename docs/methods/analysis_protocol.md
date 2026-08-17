@@ -127,5 +127,4 @@ does not replace the time-trend model.
 - Do not call a rainfall-organization trend robust unless its direction is
   stable across defensible classification and event-sample choices.
 - Explicitly flag regions with fewer than five catchments; Asia is not assigned
-  a regional trend in the baseline run.
-
+  a regional trend in the current analysis.

@@ -4,7 +4,7 @@ This repository contains a reproducible global analysis of whether the
 hydrometeorological conditions associated with large rainfall-driven floods
 changed during 1982–2019.
 
-The completed baseline analysis uses 1,407,121 rain-event records reconstructed
+The completed analysis uses 1,407,121 rain-event records reconstructed
 from daily precipitation, streamflow, and Soil Saturation Index data. The
 primary trend sample contains 100,788 annual maximum events from 2,839
 low-snow catchments. A 95th-percentile peaks-over-threshold sample is retained as
@@ -15,7 +15,10 @@ a sensitivity branch.
 Global averages are weak because localized HydroBASINS units change in opposite
 directions. Seventeen level-5 basin signals remain after primary-family FDR,
 POT/Q95, paired-period, definition-stability, and leave-one-catchment-out checks;
-their magnitudes reach roughly 2–7 percentage points per decade. Almost no
+their magnitudes reach roughly 2–11 percentage points per decade. The formal
+level-5 family contains 72 units with at least 5 catchments and 300 observations;
+44 units with fewer than 20 catchments are explicitly marked as limited-sample
+estimates. Almost no
 individual-catchment trends survive false-discovery-rate correction, so the
 supported evidence scale is a group of neighboring catchments rather than an
 isolated gauge.

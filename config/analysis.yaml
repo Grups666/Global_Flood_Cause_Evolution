@@ -43,7 +43,7 @@ trends:
 local_analysis:
   hydrobasins_levels: [3, 4, 5]
   primary_level: 5
-  minimum_catchments: 20
+  minimum_catchments: 5
   minimum_observations: 300
   primary_outcomes: [intensity_050, wet_1d]
   outcomes:

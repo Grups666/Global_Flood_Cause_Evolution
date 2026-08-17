@@ -394,6 +394,18 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
             edgecolor="white",
             linewidth=0.55,
         )
+        limited_sample = mapped[
+            (mapped["catchments"] < 20)
+            & ~mapped["high_confidence_local_signal"].fillna(False)
+        ]
+        if not limited_sample.empty:
+            limited_sample.boundary.plot(
+                ax=ax,
+                color=palette["ink"],
+                linewidth=0.7,
+                linestyle=":",
+                alpha=0.8,
+            )
         replicated = mapped[mapped["high_confidence_local_signal"].fillna(False)]
         if not replicated.empty:
             replicated.boundary.plot(ax=ax, color=palette["ink"], linewidth=1.25)
@@ -415,7 +427,10 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
     colorbar = fig.colorbar(scatter_for_colorbar, cax=colorbar_ax, orientation="vertical")
     colorbar.set_label("Percentage points per decade")
     axes[0].legend(
-        handles=[Patch(facecolor="white", edgecolor=palette["ink"], linewidth=1.25, label="High-confidence local signal")],
+        handles=[
+            Patch(facecolor="white", edgecolor=palette["ink"], linewidth=1.25, label="High-confidence local signal"),
+            Patch(facecolor="white", edgecolor=palette["ink"], linewidth=0.7, linestyle=":", label="Limited sample: 5–19 catchments"),
+        ],
         loc="lower left",
         frameon=False,
         fontsize=7.5,
@@ -423,7 +438,7 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
     _header(
         fig,
         f"HydroBASINS level-{level} fixed-effect trends",
-        "Only units with at least 20 catchments are estimated; outlines mark high-confidence local signals",
+        f"Minimum {int(config['local_analysis']['minimum_catchments'])} catchments and 300 observations; dotted outlines mark limited-sample units",
         palette,
     )
     _footer(
@@ -449,11 +464,11 @@ def figure_local_hydrobasin_ranked(config: dict[str, Any]) -> None:
         & robustness["outcome"].isin(["intensity_050", "wet_1d"])
     ].copy()
 
-    fig, axes = plt.subplots(2, 1, figsize=(12.4, 8.4))
+    fig, axes = plt.subplots(2, 1, figsize=(12.4, 9.2))
     fig.subplots_adjust(left=0.30, right=0.94, bottom=0.10, top=0.80, hspace=0.46)
     specs = [
-        ("intensity_050", "Intensity-dominated annual maxima", palette["orange"], 9),
-        ("wet_1d", "Wet one-day antecedent conditions", palette["blue"], 6),
+        ("intensity_050", "Intensity-dominated annual maxima", palette["orange"], 10),
+        ("wet_1d", "Wet one-day antecedent conditions", palette["blue"], 7),
     ]
     for ax, (outcome, title, color, limit_rows) in zip(axes, specs):
         subset = selected[selected["outcome"] == outcome].copy()
@@ -470,13 +485,23 @@ def figure_local_hydrobasin_ranked(config: dict[str, Any]) -> None:
             color=color,
             linewidth=1.8,
         )
+        larger = subset["catchments"] >= 20
         ax.scatter(
-            subset["slope_per_decade"],
-            positions,
+            subset.loc[larger, "slope_per_decade"],
+            positions[larger.to_numpy()],
             color=color,
             s=42,
             edgecolor="white",
             linewidth=0.7,
+            zorder=3,
+        )
+        ax.scatter(
+            subset.loc[~larger, "slope_per_decade"],
+            positions[(~larger).to_numpy()],
+            facecolor="white",
+            s=42,
+            edgecolor=color,
+            linewidth=1.3,
             zorder=3,
         )
         for position, row in zip(positions, subset.itertuples()):
@@ -504,7 +529,7 @@ def figure_local_hydrobasin_ranked(config: dict[str, Any]) -> None:
     _header(
         fig,
         f"Replicated HydroBASINS level-{level} trend estimates",
-        "Largest effects also stable across definitions, paired-period and POT/Q95 checks, and leave-one-catchment-out tests",
+        "All high-confidence signals; open markers identify limited-sample units with 5–19 catchments",
         palette,
     )
     _footer(
