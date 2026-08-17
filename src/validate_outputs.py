@@ -390,9 +390,15 @@ def main() -> None:
             "colorFor(metric.slope, 20)",
             "metric.largerSample",
             "analysisMinimumCatchments",
+            "ctx.setLineDash([])",
+            "#D946EF",
+            "ctx.shadowBlur = 12",
         ]:
             if marker not in web_module:
                 web_failures.append(f"module marker missing: {marker}")
+        for forbidden in ['hovered ? "#ffffff"', "fine-dot", "border:1px dashed"]:
+            if forbidden in web_module:
+                web_failures.append(f"obsolete boundary/highlight style present: {forbidden}")
     except (OSError, ValueError, TypeError) as error:
         web_failures.append(str(error))
     _record(

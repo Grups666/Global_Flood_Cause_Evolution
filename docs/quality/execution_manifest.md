@@ -33,7 +33,7 @@ and 1-, 3-, 7-, and 30-day antecedent SSI.
 | Statistical analysis | 75.46 seconds |
 | Local HydroBASINS analysis | 2,835 matched catchments; 72 eligible level-5 units; 144 primary tests; 36 FDR results; 17 high-confidence signals; 35.86 seconds |
 | Figure generation | Nine PNG/SVG pairs plus synchronized report-local PNG assets |
-| Browser report | Focused 3,067,264-byte HTML with four Base64-embedded core figures and click-to-enlarge lightbox; all nine canonical figure pairs remain available |
+| Browser report | Focused 3,068,460-byte HTML with four Base64-embedded core figures and click-to-enlarge lightbox; all nine canonical figure pairs remain available |
 | Final validation | 21 of 21 checks passed |
 
 The exact machine receipts are stored in:

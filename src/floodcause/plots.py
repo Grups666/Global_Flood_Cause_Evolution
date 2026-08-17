@@ -391,21 +391,9 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
             column="slope_per_decade",
             cmap=cmap,
             norm=norm,
-            edgecolor="white",
-            linewidth=0.55,
+            edgecolor=palette["ink"],
+            linewidth=0.38,
         )
-        limited_sample = mapped[
-            (mapped["catchments"] < 20)
-            & ~mapped["high_confidence_local_signal"].fillna(False)
-        ]
-        if not limited_sample.empty:
-            limited_sample.boundary.plot(
-                ax=ax,
-                color=palette["ink"],
-                linewidth=0.7,
-                linestyle=":",
-                alpha=0.8,
-            )
         replicated = mapped[mapped["high_confidence_local_signal"].fillna(False)]
         if not replicated.empty:
             replicated.boundary.plot(ax=ax, color=palette["ink"], linewidth=1.25)
@@ -429,7 +417,7 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
     axes[0].legend(
         handles=[
             Patch(facecolor="white", edgecolor=palette["ink"], linewidth=1.25, label="High-confidence local signal"),
-            Patch(facecolor="white", edgecolor=palette["ink"], linewidth=0.7, linestyle=":", label="Limited sample: 5–19 catchments"),
+            Patch(facecolor="white", edgecolor=palette["ink"], linewidth=0.38, label="Included HydroBASINS boundary"),
         ],
         loc="lower left",
         frameon=False,
@@ -438,7 +426,7 @@ def figure_local_hydrobasin_maps(config: dict[str, Any]) -> None:
     _header(
         fig,
         f"HydroBASINS level-{level} fixed-effect trends",
-        f"Minimum {int(config['local_analysis']['minimum_catchments'])} catchments and 300 observations; dotted outlines mark limited-sample units",
+        f"Minimum {int(config['local_analysis']['minimum_catchments'])} catchments and 300 observations; thicker outlines mark high-confidence signals",
         palette,
     )
     _footer(
