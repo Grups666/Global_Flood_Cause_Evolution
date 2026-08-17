@@ -24,6 +24,11 @@ lines. Hover uses an electric magenta keyline with a restrained glow over a dark
 under-stroke, so it remains visible on the white basemap and across both ends of
 the diverging fill scale.
 
+Interface typography keeps secondary labels at 11 px or larger. The module also
+raises the host layer list, legend card, toolbar, hover label, and inspector
+content sizes so that supporting text remains legible without flattening the
+hierarchy between labels, values, and headings.
+
 ## Interpretation boundary
 
 The regional layer is the primary inferential result. A level-5 unit enters the
