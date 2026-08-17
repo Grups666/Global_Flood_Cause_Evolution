@@ -391,8 +391,11 @@ def main() -> None:
             "metric.largerSample",
             "analysisMinimumCatchments",
             "ctx.setLineDash([])",
-            "#D946EF",
+            'ctx.shadowColor = "rgba(34,211,238,.95)"',
             "ctx.shadowBlur = 12",
+            "ctx.shadowBlur = 14",
+            "ctx.lineWidth = 1.1",
+            "ctx.arc(x, y, radius + 2.6",
             'ctx.font = "600 12px Inter, system-ui, sans-serif"',
             ".legend-card{font-size:12px",
             ".fce-fact span{font-size:11px",
@@ -406,6 +409,10 @@ def main() -> None:
             "font-size:9px",
             "font-size:10px",
             "font:600 9px",
+            "#D946EF",
+            "217,70,239",
+            "Hover highlight",
+            'ctx.strokeStyle = "rgba(15,23,42,.88)"',
         ]:
             if forbidden in web_module:
                 web_failures.append(f"obsolete boundary/highlight style present: {forbidden}")

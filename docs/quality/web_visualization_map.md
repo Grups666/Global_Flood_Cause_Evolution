@@ -20,9 +20,10 @@ catchment probability changes. Values outside the displayed range are clipped.
 Every included basin uses a quiet, thin, dark solid boundary. A thicker dark
 boundary identifies a high-confidence signal. Sample support is stated directly
 in the hover label and inspector rather than encoded with dashed or dotted
-lines. Hover uses an electric magenta keyline with a restrained glow over a dark
-under-stroke, so it remains visible on the white basemap and across both ends of
-the diverging fill scale.
+lines. Hover is intentionally omitted from the legend because it is an
+interaction state rather than an analytical encoding. A thin cyan keyline and
+soft luminous halo emphasize a region edge without a heavy solid under-stroke;
+catchments use a separate outer halo that preserves the point fill.
 
 Interface typography keeps secondary labels at 11 px or larger. The module also
 raises the host layer list, legend card, toolbar, hover label, and inspector
