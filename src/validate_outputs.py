@@ -210,7 +210,7 @@ def main() -> None:
     _record(
         checks,
         "local_primary_fdr_recalculation",
-        len(local_primary) == 56 and missingness_matches and local_q_error < 1e-12,
+        len(local_primary) == 144 and missingness_matches and local_q_error < 1e-12,
         f"tests={len(local_primary)}; valid={int(finite_local_q.sum())}; max_abs_error={local_q_error:.3g}",
     )
 
@@ -328,14 +328,38 @@ def main() -> None:
             for basin in web_basins
             for metric in basin.get("metrics", {}).values()
         )
-        if len(web_basins) != 28:
+        if len(web_basins) != 72:
             web_failures.append(f"basins={len(web_basins)}")
         if len(web_catchments) != 2839:
             web_failures.append(f"catchments={len(web_catchments)}")
         if web_signals != 17:
             web_failures.append(f"high_confidence={web_signals}")
+        expected_meta = {
+            "eligibleHydrobasins": 72,
+            "limitedSampleHydrobasins": 44,
+            "largerSampleHydrobasins": 28,
+            "unitedStatesHydrobasins": 17,
+            "analysisMinimumCatchments": 5,
+            "largerSampleCatchments": 20,
+            "minimumObservations": 300,
+        }
+        observed_meta = {key: web_data.get("meta", {}).get(key) for key in expected_meta}
+        if observed_meta != expected_meta:
+            web_failures.append(f"map metadata={observed_meta}")
         if any(set(basin.get("metrics", {})) != {"intensity_050", "wet_1d"} for basin in web_basins):
             web_failures.append("one or more basins lack both primary metrics")
+        tier_counts = {
+            "limited": sum(
+                all(not metric.get("largerSample") for metric in basin.get("metrics", {}).values())
+                for basin in web_basins
+            ),
+            "larger": sum(
+                all(metric.get("largerSample") for metric in basin.get("metrics", {}).values())
+                for basin in web_basins
+            ),
+        }
+        if tier_counts != {"limited": 44, "larger": 28}:
+            web_failures.append(f"sample tiers={tier_counts}")
         if any(basin.get("geometry", {}).get("type") not in {"Polygon", "MultiPolygon"} for basin in web_basins):
             web_failures.append("invalid basin geometry")
         if web_manifest.get("className") != "FloodCauseEvolutionModule":
@@ -364,6 +388,8 @@ def main() -> None:
             "drawHoverLabel",
             "if (!metric) continue",
             "colorFor(metric.slope, 20)",
+            "metric.largerSample",
+            "analysisMinimumCatchments",
         ]:
             if marker not in web_module:
                 web_failures.append(f"module marker missing: {marker}")
@@ -374,7 +400,7 @@ def main() -> None:
         "interactive_web_explorer",
         not web_failures,
         (
-            f"28 HydroBASINS regions; 2,839 catchments; 17 high-confidence signals; "
+            f"72 HydroBASINS regions; 2,839 catchments; 17 high-confidence signals; "
             f"data_bytes={web_data_path.stat().st_size:,}"
             if not web_failures
             else "; ".join(web_failures)

@@ -31,10 +31,10 @@ and 1-, 3-, 7-, and 30-day antecedent SSI.
 | Catchment binary trends | 14,087 fitted catchment–outcome rows |
 | Catchment continuous trends | 14,195 fitted catchment–variable rows |
 | Statistical analysis | 75.46 seconds |
-| Local HydroBASINS analysis | 2,835 matched catchments; 28 eligible level-5 units; 56 primary tests; 17 high-confidence signals; 22.34 seconds |
+| Local HydroBASINS analysis | 2,835 matched catchments; 72 eligible level-5 units; 144 primary tests; 36 FDR results; 17 high-confidence signals; 35.86 seconds |
 | Figure generation | Nine PNG/SVG pairs plus synchronized report-local PNG assets |
-| Browser report | Focused 2,964,009-byte HTML with four Base64-embedded core figures and click-to-enlarge lightbox; all nine canonical figure pairs remain available |
-| Final validation | 20 of 20 checks passed |
+| Browser report | Focused 3,067,264-byte HTML with four Base64-embedded core figures and click-to-enlarge lightbox; all nine canonical figure pairs remain available |
+| Final validation | 21 of 21 checks passed |
 
 The exact machine receipts are stored in:
 
@@ -56,7 +56,7 @@ The 2026-08-17 extension reused the validated derived event tables and ran:
 
 ```powershell
 & 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/run_pipeline.py --stage local
+  src/run_pipeline.py --stage local --force
 & 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
   src/run_pipeline.py --stage figures
 & 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `

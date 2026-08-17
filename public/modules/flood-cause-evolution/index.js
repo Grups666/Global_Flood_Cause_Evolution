@@ -108,18 +108,19 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ctx.save();
         this.traceGeometry(ctx, basin.geometry, viewport, shift);
         ctx.fillStyle = this.colorFor(metric.slope, 7);
-        ctx.globalAlpha = metric.highConfidence ? 0.82 : 0.42;
+        ctx.globalAlpha = metric.highConfidence ? 0.82 : metric.largerSample ? 0.56 : 0.40;
         ctx.fill("evenodd");
         ctx.globalAlpha = 1;
         const active = this.selected?._kind === "basin" && this.selected.id === basin.id;
         ctx.strokeStyle = active ? "#101827" : hovered ? "#ffffff" : metric.highConfidence ? "#172235" : "rgba(30,41,59,.34)";
-        ctx.lineWidth = active ? 2.8 : hovered ? 2.6 : metric.highConfidence ? 1.7 : 0.7;
-        ctx.setLineDash(metric.highConfidence || hovered ? [] : [2, 1.8]);
+        ctx.lineWidth = active ? 2.8 : hovered ? 2.6 : metric.highConfidence ? 1.7 : metric.largerSample ? 1.05 : 0.8;
+        ctx.setLineDash(metric.highConfidence || hovered ? [] : metric.largerSample ? [5, 3] : [1.2, 2.5]);
         ctx.stroke();
         ctx.restore();
         if (hovered) {
           const center = this.project(basin.center[0] + shift, basin.center[1], viewport);
-          if (center.x > -80 && center.x < viewport.width + 80) this.drawHoverLabel(ctx, center.x, center.y, `${basin.code} · ${this.signed(metric.slope)} pp/dec`);
+          const tier = metric.largerSample ? "≥20 catchments" : "5–19 catchments";
+          if (center.x > -100 && center.x < viewport.width + 100) this.drawHoverLabel(ctx, center.x, center.y, `${basin.code} · ${this.signed(metric.slope)} pp/dec · ${tier}`);
         }
       }
     }
@@ -298,7 +299,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-legend-axis"><span>−20</span><span>0</span><span>+20</span></div>
         <div class="fce-legend-unit">Percentage points per decade · values outside the scale are clipped</div>
         <div class="fce-legend-key"><i class="solid"></i> High-confidence HydroBASINS signal</div>
-        <div class="fce-legend-key"><i class="dash"></i> Estimated regional context</div>
+        <div class="fce-legend-key"><i class="dash"></i> Larger-sample estimate (≥20 catchments)</div>
+        <div class="fce-legend-key"><i class="fine-dot"></i> Limited-sample estimate (5–19 catchments)</div>
         <div class="fce-legend-key"><i class="dot"></i> Individual catchment</div>`
     });
   }
@@ -307,19 +309,28 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const metric = feature.metrics?.[this.metric];
     const outcome = this.data.meta.outcomes[this.metric];
     if (layerId === this.basinLayerId) {
+      const limitedSample = metric && !metric.largerSample;
+      const tierLabel = metric?.highConfidence
+        ? `High-confidence regional signal${limitedSample ? " · limited sample" : ""}`
+        : limitedSample
+        ? "Primary estimate · limited sample (5–19 catchments)"
+        : "Primary estimate · larger sample (≥20 catchments)";
       this.app.showInspector?.(`${feature.code} · ${feature.countries}`, `
         <p class="fce-inspector-lead">HydroBASINS level-5 fixed-effect estimate · ${this.escape(outcome.label)}</p>
+        <div class="fce-status ${metric?.highConfidence ? "pass" : limitedSample ? "limited" : "neutral"}">${tierLabel}</div>
         ${this.signal(metric)}
         <div class="fce-grid">
           ${this.fact("95% CI", metric ? `${this.num(metric.ci[0])} to ${this.num(metric.ci[1])}` : "—")}
-          ${this.fact("Primary q", this.prob(metric?.q))}
+          ${this.fact("Primary-family q (≥5)", this.prob(metric?.analysisQ))}
           ${this.fact("Catchments", metric?.catchments ?? "—")}
           ${this.fact("Event observations", metric?.observations?.toLocaleString?.() ?? "—")}
-          ${this.fact("POT/Q95 slope", this.signed(metric?.potSlope))}
           ${this.fact("Early–late change", this.signed(metric?.pairedChange, " pp"))}
+          ${this.fact("POT/Q95 slope", this.signed(metric?.potSlope))}
         </div>
         ${this.gates(metric)}
-        <p class="fce-note">Solid outlines identify signals that passed the prespecified FDR, alternative-sample, paired-period, scale, definition and leave-one-catchment-out checks. Color alone is not a significance claim.</p>`);
+        <p class="fce-note">${limitedSample
+          ? `This unit meets the formal ≥${this.data.meta.analysisMinimumCatchments}-catchment and ≥${this.data.meta.minimumObservations}-observation analysis floor, but its cluster-robust uncertainty is based on fewer than ${this.data.meta.largerSampleCatchments} catchments; interpret it more cautiously.`
+          : "This unit has at least 20 catchments, providing stronger cluster support."} Solid outlines identify signals that passed the prespecified high-confidence screen; nested-scale stability remains a separate diagnostic. Color alone is not a significance claim.</p>`);
       return;
     }
     this.app.showInspector?.(`GCIN ${feature.id} · ${feature.country}`, `
@@ -347,7 +358,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   gates(metric) {
     if (!metric) return "";
     const gates = [
-      ["Primary FDR", Number(metric.q) < 0.05],
+      ["Primary FDR", Number(metric.analysisQ) < 0.05],
       ["POT direction", metric.sameDirectionPot],
       ["Paired periods", metric.sameDirectionPaired],
       ["Scale stability", metric.scaleStable],
@@ -370,15 +381,15 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <p>Global averages conceal directionally opposed local signals. Explore fixed-effect trends across eligible HydroBASINS level-5 regions, then inspect the individual catchments that supply spatial context.</p>
       </section>
       <div class="fce-kpis">
-        ${this.kpi(this.data.meta.eligibleHydrobasins, "eligible L5 regions")}
+        ${this.kpi(this.data.meta.eligibleHydrobasins, "mapped L5 regions (≥5)")}
+        ${this.kpi(this.data.meta.limitedSampleHydrobasins, "limited-sample L5 regions")}
+        ${this.kpi(this.data.meta.largerSampleHydrobasins, "larger-sample L5 regions")}
         ${this.kpi(this.data.meta.highConfidenceSignals, "high-confidence basin–metric signals")}
-        ${this.kpi(this.data.meta.primaryCatchments.toLocaleString(), "primary catchments")}
-        ${this.kpi(this.data.meta.annualMaximumEvents.toLocaleString(), "annual-maximum events")}
       </div>
       <section><h3>How to read the map</h3><div class="fce-reading">
         <div><b>Hydrological regions</b><span>Area colors estimate within-catchment temporal change, pooled over neighboring catchments with fixed effects.</span></div>
         <div><b>Individual catchments</b><span>Points show fitted logistic probability changes from 2000 to 2010. Their FDR status is visible on click.</span></div>
-        <div><b>Evidence boundary</b><span>Outlined regions pass all robustness gates; magnitude and statistical support are kept separate.</span></div>
+        <div><b>Evidence boundary</b><span>Dotted outlines mark 5–19-catchment limited-sample estimates; dashed outlines mark ≥20-catchment estimates; solid outlines pass all robustness gates.</span></div>
       </div></section>
       <section><h3>Largest robust local signals</h3><p class="fce-section-note">Ranked by absolute effect size across both primary indicators.</p>
         <div class="fce-ranking">${signals.slice(0, 10).map((item) => `<button data-basin="${item.basin.id}" data-outcome="${item.outcome}"><span>${this.escape(item.basin.code)} · ${this.escape(this.data.meta.outcomes[item.outcome].short)}</span><strong>${this.signed(item.metric.slope)}</strong><i style="width:${Math.min(100, Math.abs(item.metric.slope) / 7 * 100)}%;background:${this.colorFor(item.metric.slope, 7)}"></i></button>`).join("")}</div>
@@ -425,7 +436,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const style = document.createElement("style");
     style.id = "fce-styles";
     style.textContent = `
-      .fce-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:850;display:flex;align-items:center;gap:10px;padding:8px 9px 8px 13px;border:1px solid rgba(148,163,184,.35);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 10px 30px rgba(15,23,42,.12);backdrop-filter:blur(16px);font:12px/1.2 Inter,system-ui,sans-serif;color:#334155}.fce-toolbar-label{font-weight:700;white-space:nowrap}.fce-segmented{display:flex;padding:3px;border-radius:10px;background:#edf1f4}.fce-segmented button,.fce-overview-button{border:0;border-radius:8px;padding:7px 10px;background:transparent;color:#526171;font:600 11px Inter,system-ui;cursor:pointer}.fce-segmented button.active{background:#fff;color:#173d55;box-shadow:0 2px 8px rgba(15,23,42,.1)}.fce-overview-button{background:#173d55;color:#fff}.fce-legend-scale-title{margin:5px 0 4px;font-size:10px;font-weight:700;color:#475569}.fce-legend-scale-title.catchment{margin-top:9px}.fce-legend-bar{height:10px;border-radius:99px;background:linear-gradient(90deg,#275f83,#ece7d8 50%,#c75c36)}.fce-legend-axis{display:flex;justify-content:space-between;margin-top:3px;font:10px/1.2 ui-monospace,monospace;color:#64748b}.fce-legend-unit{margin:7px 0 8px;font-size:10px;color:#64748b}.fce-legend-key{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:10px;color:#475569}.fce-legend-key i{display:inline-block;width:18px;height:9px}.fce-legend-key .solid{border:2px solid #172235;background:#d5c9a8}.fce-legend-key .dash{border:1px dashed #475569;background:#d5c9a8}.fce-legend-key .dot{width:8px;height:8px;border-radius:50%;background:#527b95;border:1px solid #334155}.fce-inspector-lead,.fce-note{font-size:11px;line-height:1.55;color:#64748b}.fce-signal{margin:12px 0;padding:14px;border-radius:12px;background:#f4f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:10px}.fce-signal strong{display:block;margin:5px 0 2px;font-size:28px;letter-spacing:-.04em}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fce-fact{padding:10px;border:1px solid #e2e8f0;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#7c8b99}.fce-fact strong{margin-top:4px;font-size:12px;color:#263646}.fce-gates{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}.fce-gates span,.fce-status{padding:5px 8px;border-radius:99px;font:600 9px Inter,system-ui}.fce-gates .pass,.fce-status.pass{background:#e4eee7;color:#315e45}.fce-gates .fail,.fce-status.neutral{background:#eef1f3;color:#788592}.fce-status{display:inline-block;margin-top:12px}.fce-modal{position:fixed;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(15,23,42,.48);backdrop-filter:blur(9px)}.fce-modal.visible{display:flex}.fce-modal-card{position:relative;width:min(900px,94vw);max-height:90vh;overflow:auto;border:1px solid rgba(255,255,255,.5);border-radius:22px;background:#f8fafb;box-shadow:0 32px 90px rgba(15,23,42,.28);color:#223143;font:13px/1.6 Inter,system-ui,sans-serif}.fce-close{position:sticky;float:right;top:14px;margin:14px 14px -50px 0;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#e7ecef;color:#415161;font-size:22px;cursor:pointer}.fce-modal-body{padding:40px}.fce-hero{padding:4px 48px 26px 0;border-bottom:1px solid #dce3e8}.fce-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9b6a26}.fce-hero h2{max-width:680px;margin:9px 0 12px;font-size:34px;line-height:1.08;letter-spacing:-.04em;color:#172638}.fce-hero p{max-width:720px;margin:0;color:#5f6f7e}.fce-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0}.fce-kpis div{padding:15px;border:1px solid #dce3e8;border-radius:13px;background:#fff}.fce-kpis strong,.fce-kpis span{display:block}.fce-kpis strong{font-size:22px;color:#173d55}.fce-kpis span{margin-top:4px;font-size:10px;color:#73818f}.fce-modal section h3{margin:26px 0 8px;font-size:15px;color:#243648}.fce-reading{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fce-reading div{padding:15px;border-radius:13px;background:#edf2f4}.fce-reading b,.fce-reading span{display:block}.fce-reading span{margin-top:5px;font-size:11px;color:#667684}.fce-section-note{margin-top:-5px;color:#788795;font-size:11px}.fce-ranking{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-ranking button{position:relative;overflow:hidden;display:flex;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid #dce3e8;border-radius:10px;background:#fff;color:#3e4e5d;text-align:left;cursor:pointer}.fce-ranking button span,.fce-ranking button strong{position:relative;z-index:1;font-size:11px}.fce-ranking button i{position:absolute;bottom:0;left:0;height:3px}.fce-ranking button:hover{border-color:#8fa7b5;transform:translateY(-1px)}@media(max-width:760px){.fce-toolbar{top:auto;bottom:12px;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}.fce-toolbar-label{display:none}.fce-modal{padding:0}.fce-modal-card{width:100%;max-height:100%;height:100%;border-radius:0}.fce-modal-body{padding:24px}.fce-hero h2{font-size:27px}.fce-kpis{grid-template-columns:1fr 1fr}.fce-reading{grid-template-columns:1fr}.fce-ranking{grid-template-columns:1fr}}
+      .fce-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:850;display:flex;align-items:center;gap:10px;padding:8px 9px 8px 13px;border:1px solid rgba(148,163,184,.35);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 10px 30px rgba(15,23,42,.12);backdrop-filter:blur(16px);font:12px/1.2 Inter,system-ui,sans-serif;color:#334155}.fce-toolbar-label{font-weight:700;white-space:nowrap}.fce-segmented{display:flex;padding:3px;border-radius:10px;background:#edf1f4}.fce-segmented button,.fce-overview-button{border:0;border-radius:8px;padding:7px 10px;background:transparent;color:#526171;font:600 11px Inter,system-ui;cursor:pointer}.fce-segmented button.active{background:#fff;color:#173d55;box-shadow:0 2px 8px rgba(15,23,42,.1)}.fce-overview-button{background:#173d55;color:#fff}.fce-legend-scale-title{margin:5px 0 4px;font-size:10px;font-weight:700;color:#475569}.fce-legend-scale-title.catchment{margin-top:9px}.fce-legend-bar{height:10px;border-radius:99px;background:linear-gradient(90deg,#275f83,#ece7d8 50%,#c75c36)}.fce-legend-axis{display:flex;justify-content:space-between;margin-top:3px;font:10px/1.2 ui-monospace,monospace;color:#64748b}.fce-legend-unit{margin:7px 0 8px;font-size:10px;color:#64748b}.fce-legend-key{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:10px;color:#475569}.fce-legend-key i{display:inline-block;width:18px;height:9px}.fce-legend-key .solid{border:2px solid #172235;background:#d5c9a8}.fce-legend-key .dash{border:1px dashed #475569;background:#d5c9a8}.fce-legend-key .fine-dot{border:1px dotted #475569;background:#e7dfc8}.fce-legend-key .dot{width:8px;height:8px;border-radius:50%;background:#527b95;border:1px solid #334155}.fce-inspector-lead,.fce-note{font-size:11px;line-height:1.55;color:#64748b}.fce-signal{margin:12px 0;padding:14px;border-radius:12px;background:#f4f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:10px}.fce-signal strong{display:block;margin:5px 0 2px;font-size:28px;letter-spacing:-.04em}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fce-fact{padding:10px;border:1px solid #e2e8f0;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#7c8b99}.fce-fact strong{margin-top:4px;font-size:12px;color:#263646}.fce-gates{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}.fce-gates span,.fce-status{padding:5px 8px;border-radius:99px;font:600 9px Inter,system-ui}.fce-gates .pass,.fce-status.pass{background:#e4eee7;color:#315e45}.fce-gates .fail,.fce-status.neutral{background:#eef1f3;color:#788592}.fce-status.limited{background:#f4ede0;color:#80612e}.fce-status{display:inline-block;margin-top:12px}.fce-modal{position:fixed;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(15,23,42,.48);backdrop-filter:blur(9px)}.fce-modal.visible{display:flex}.fce-modal-card{position:relative;width:min(900px,94vw);max-height:90vh;overflow:auto;border:1px solid rgba(255,255,255,.5);border-radius:22px;background:#f8fafb;box-shadow:0 32px 90px rgba(15,23,42,.28);color:#223143;font:13px/1.6 Inter,system-ui,sans-serif}.fce-close{position:sticky;float:right;top:14px;margin:14px 14px -50px 0;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#e7ecef;color:#415161;font-size:22px;cursor:pointer}.fce-modal-body{padding:40px}.fce-hero{padding:4px 48px 26px 0;border-bottom:1px solid #dce3e8}.fce-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9b6a26}.fce-hero h2{max-width:680px;margin:9px 0 12px;font-size:34px;line-height:1.08;letter-spacing:-.04em;color:#172638}.fce-hero p{max-width:720px;margin:0;color:#5f6f7e}.fce-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0}.fce-kpis div{padding:15px;border:1px solid #dce3e8;border-radius:13px;background:#fff}.fce-kpis strong,.fce-kpis span{display:block}.fce-kpis strong{font-size:22px;color:#173d55}.fce-kpis span{margin-top:4px;font-size:10px;color:#73818f}.fce-modal section h3{margin:26px 0 8px;font-size:15px;color:#243648}.fce-reading{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fce-reading div{padding:15px;border-radius:13px;background:#edf2f4}.fce-reading b,.fce-reading span{display:block}.fce-reading span{margin-top:5px;font-size:11px;color:#667684}.fce-section-note{margin-top:-5px;color:#788795;font-size:11px}.fce-ranking{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-ranking button{position:relative;overflow:hidden;display:flex;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid #dce3e8;border-radius:10px;background:#fff;color:#3e4e5d;text-align:left;cursor:pointer}.fce-ranking button span,.fce-ranking button strong{position:relative;z-index:1;font-size:11px}.fce-ranking button i{position:absolute;bottom:0;left:0;height:3px}.fce-ranking button:hover{border-color:#8fa7b5;transform:translateY(-1px)}@media(max-width:760px){.fce-toolbar{top:auto;bottom:12px;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}.fce-toolbar-label{display:none}.fce-modal{padding:0}.fce-modal-card{width:100%;max-height:100%;height:100%;border-radius:0}.fce-modal-body{padding:24px}.fce-hero h2{font-size:27px}.fce-kpis{grid-template-columns:1fr 1fr}.fce-reading{grid-template-columns:1fr}.fce-ranking{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
   }

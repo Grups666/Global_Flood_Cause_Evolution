@@ -10,19 +10,26 @@ separate.
 
 | Layer | Visual mark | Analytical field | Question answered | Interaction |
 |---|---|---|---|---|
-| HydroBASINS L5 regions | Filled polygons with solid or dashed outline | Catchment fixed-effect slope, percentage points per decade | Which sampled hydrological subregions show coherent changes? | Click for slope, confidence interval, FDR, alternative sample, paired-period and stability gates |
+| HydroBASINS L5 regions | Filled polygons with solid, dashed, or dotted outline | Catchment fixed-effect slope, percentage points per decade | Which sampled hydrological subregions show coherent changes? | Hover for region, trend, and sample tier; click for slope, confidence interval, FDR, alternative sample, paired-period and stability gates |
 | Individual catchments | Semi-transparent points | Fitted logistic probability change from 2000 to 2010, percentage points per decade | What is the fine-grained spatial context inside and outside eligible regions? | Hover for identifier and change; click for record length, odds ratio, q value, FDR status and HydroBASINS assignment |
 
 Both layers support `intensity_050` and `wet_1d`. A common zero-centered blue–sand–orange
 palette is used, with separate scales appropriate to each estimator: −7 to +7
 percentage points per decade for HydroBASINS estimates and −20 to +20 for
 catchment probability changes. Values outside the displayed range are clipped.
-The basin outline, not the fill magnitude, encodes whether the full
-high-confidence evidence gate is met.
+The basin outline, not the fill magnitude, encodes evidence support. Solid
+outlines pass the complete high-confidence gate, dashed outlines identify
+non-robust estimates with at least 20 catchments, and dotted outlines identify
+limited-sample estimates with 5–19 catchments. The three states remain legible
+without relying on color.
 
 ## Interpretation boundary
 
-The regional layer is the primary inferential result. Catchment points are
+The regional layer is the primary inferential result. A level-5 unit enters the
+formal family with at least 5 catchments and 300 outcome observations. The
+300-observation gate makes the smallest realized unit nine catchments. Units
+with fewer than 20 catchments remain formally included but carry a persistent
+limited-sample label in the hover text, legend, and inspector. Catchment points are
 descriptive context because very few single-catchment trends survive multiple
 testing. The probability change contrasts fitted probabilities in 2000 and
 2010. The model intercept is recovered from the saved log-odds slope, positive
@@ -41,7 +48,7 @@ as uninformative gray points.
 
 - Web data are rebuilt by `src/build_web_data.py` from auditable output tables
   and official HydroBASINS v1.c geometry.
-- Only 28 eligible level-5 polygons are exported and geometries are simplified
+- Only 72 eligible level-5 polygons are exported and geometries are simplified
   with topology preserved. The 2,839 primary catchments are exported as points.
 - Source parquet files and HydroBASINS archives are not copied into the website.
 - `.github/workflows/pages.yml` publishes `public/` after changes reach `main`.

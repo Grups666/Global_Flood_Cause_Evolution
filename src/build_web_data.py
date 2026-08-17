@@ -7,7 +7,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from floodcause.local_analysis import _load_hydrobasins
+from floodcause.local_analysis import (
+    _add_multiple_testing,
+    _fit_local_trends,
+    _load_hydrobasins,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +26,9 @@ DESTINATION = (
     / "flood-cause-explorer.json"
 )
 PRIMARY_OUTCOMES = ("intensity_050", "wet_1d")
+MAP_MINIMUM_CATCHMENTS = 5
+LARGER_SAMPLE_CATCHMENTS = 20
+MINIMUM_OBSERVATIONS = 300
 
 
 def _native(value: Any, digits: int | None = None) -> Any:
@@ -126,16 +133,69 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
         & (robustness["level"] == 5)
         & robustness["outcome"].isin(PRIMARY_OUTCOMES)
     ].copy()
-    eligible_ids = sorted(primary["HYBAS_ID"].astype("int64").unique())
+    mapped_trends = _fit_local_trends(
+        annual,
+        membership,
+        "annual_maximum",
+        [5],
+        list(PRIMARY_OUTCOMES),
+        MAP_MINIMUM_CATCHMENTS,
+        MINIMUM_OBSERVATIONS,
+    )
+    mapped_trends = _add_multiple_testing(mapped_trends, list(PRIMARY_OUTCOMES), 0.05)
+    labels = pd.read_csv(TABLES / "hydrobasin_sample_summary.csv")
+    labels = labels.loc[labels["level"] == 5].copy()
+    mapped_trends = mapped_trends.merge(
+        labels,
+        on=["level", "HYBAS_ID"],
+        how="left",
+        validate="many_to_one",
+    )
+    primary_lookup = {
+        (int(row["HYBAS_ID"]), str(row["outcome"])): row
+        for _, row in primary.iterrows()
+    }
+
+    eligible_ids = sorted(mapped_trends["HYBAS_ID"].astype("int64").unique())
     basins = _load_hydrobasins(HYDROBASINS, 5)
     basins = basins.loc[basins["HYBAS_ID"].isin(eligible_ids)].to_crs("EPSG:4326")
     basins["geometry"] = basins.geometry.simplify(0.035, preserve_topology=True)
 
     basin_metrics: dict[int, dict[str, Any]] = {}
     basin_meta: dict[int, pd.Series] = {}
-    for _, row in primary.iterrows():
+    for _, row in mapped_trends.iterrows():
         basin_id = int(row["HYBAS_ID"])
-        basin_metrics.setdefault(basin_id, {})[str(row["outcome"])] = _metric(row)
+        outcome = str(row["outcome"])
+        metric = _metric(row)
+        metric["mapQ"] = metric["q"]
+        metric["mapFdrSignificant"] = bool(row["primary_fdr_significant"])
+        metric["largerSample"] = bool(int(row["catchments"]) >= LARGER_SAMPLE_CATCHMENTS)
+        primary_row = primary_lookup.get((basin_id, outcome))
+        if primary_row is not None:
+            primary_metric = _metric(primary_row)
+            metric["analysisQ"] = primary_metric["q"]
+            for key in [
+                "potSlope",
+                "pairedChange",
+                "sameDirectionPot",
+                "sameDirectionPaired",
+                "scaleStable",
+                "definitionStable",
+                "jackknifeStable",
+                "highConfidence",
+            ]:
+                metric[key] = primary_metric[key]
+        else:
+            metric["analysisQ"] = None
+            metric["highConfidence"] = False
+        metric["evidenceTier"] = (
+            "high-confidence"
+            if metric["highConfidence"]
+            else "larger-sample-20plus"
+            if metric["largerSample"]
+            else "limited-sample-5to19"
+        )
+        basin_metrics.setdefault(basin_id, {})[outcome] = metric
         basin_meta[basin_id] = row
 
     basin_records: list[dict[str, Any]] = []
@@ -197,6 +257,16 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             }
         )
 
+    limited_sample_ids = {
+        basin_id
+        for basin_id, metrics in basin_metrics.items()
+        if any(not metric["largerSample"] for metric in metrics.values())
+    }
+    us_ids = set(
+        membership.loc[membership["country"].eq("US"), "hybas_id_l5"]
+        .dropna()
+        .astype("int64")
+    )
     payload = {
         "meta": {
             "title": "Local evolution of rainfall-driven flood causes",
@@ -204,9 +274,15 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             "annualMaximumEvents": 100788,
             "primaryCatchments": 2839,
             "eligibleHydrobasins": len(basin_records),
+            "limitedSampleHydrobasins": len(limited_sample_ids),
+            "largerSampleHydrobasins": len(basin_records) - len(limited_sample_ids),
+            "unitedStatesHydrobasins": len(set(eligible_ids) & us_ids),
             "highConfidenceSignals": int(
                 primary["high_confidence_local_signal"].fillna(False).astype(bool).sum()
             ),
+            "analysisMinimumCatchments": MAP_MINIMUM_CATCHMENTS,
+            "largerSampleCatchments": LARGER_SAMPLE_CATCHMENTS,
+            "minimumObservations": MINIMUM_OBSERVATIONS,
             "outcomes": {
                 "intensity_050": {
                     "short": "Intensity-dominated",
@@ -225,7 +301,12 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
                 "HydroBASINS v1.c level 5",
             ],
             "interpretation": (
-                "HydroBASINS colors are catchment fixed-effect trends. Catchment colors are "
+                "HydroBASINS colors are catchment fixed-effect trends. The formal analysis "
+                "requires at least 5 catchments and 300 observations. Regions with 5-19 "
+                "catchments are marked as limited-sample estimates, while regions with at least "
+                "20 catchments have stronger cluster support. Full robustness gates are evaluated "
+                "for all included regions. "
+                "Catchment colors are "
                 "fitted logistic probability changes from 2000 to 2010; FDR support is reported "
                 "separately. Sen slopes are retained only as audit fields because binary "
                 "annual series make them degenerate at zero."
