@@ -25,6 +25,12 @@ interaction state rather than an analytical encoding. A thin cyan keyline and
 soft luminous halo emphasize a region edge without a heavy solid under-stroke;
 catchments use a separate outer halo that preserves the point fill.
 
+Selected regions use a 1.25 px deep-cyan edge with a restrained glow rather
+than a heavy black outline. Basin paths use round joins and caps with a limited
+miter length; this prevents complex coastlines and small polygon fragments from
+producing dark spikes at high zoom. High-confidence boundaries remain distinct
+at 1.2 px, compared with 0.7 px for other included regions.
+
 Interface typography keeps secondary labels at 11 px or larger. The module also
 raises the host layer list, legend card, toolbar, hover label, and inspector
 content sizes so that supporting text remains legible without flattening the
