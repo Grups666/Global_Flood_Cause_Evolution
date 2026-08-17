@@ -46,7 +46,7 @@ is implemented in [`src/validate_outputs.py`](../../src/validate_outputs.py).
 All nine PNG figures were inspected after generation. Titles, legends,
 confidence intervals, map keys, footnotes, whitespace, and text collisions were
 checked. The focused report uses four of these figures; the other five remain
-available as supporting analysis outputs. The self-contained HTML is 3,067,264
+available as supporting analysis outputs. The self-contained HTML is 3,068,460
 bytes and has no local image dependency. It contains the figure lightbox, zoom
 cursor, and Escape-key close handler. SVG counterparts are retained for
 publication editing.
