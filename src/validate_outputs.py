@@ -340,12 +340,30 @@ def main() -> None:
             web_failures.append("invalid basin geometry")
         if web_manifest.get("className") != "FloodCauseEvolutionModule":
             web_failures.append("manifest className mismatch")
+        catchment_metric_counts = {
+            outcome: sum(outcome in catchment.get("metrics", {}) for catchment in web_catchments)
+            for outcome in ["intensity_050", "wet_1d"]
+        }
+        if catchment_metric_counts != {"intensity_050": 2516, "wet_1d": 837}:
+            web_failures.append(f"catchment metric counts={catchment_metric_counts}")
+        catchment_slopes = [
+            float(metric["slope"])
+            for catchment in web_catchments
+            for metric in catchment.get("metrics", {}).values()
+            if metric.get("slope") is not None
+        ]
+        nonzero_share = float(np.mean(np.abs(catchment_slopes) > 1e-12))
+        if nonzero_share < 0.95:
+            web_failures.append(f"catchment nonzero slope share={nonzero_share:.3f}")
         for marker in [
             "flood-cause-hydrobasins",
             "flood-cause-catchments",
             "renderBasins",
             "renderCatchments",
             "showInspector",
+            "drawHoverLabel",
+            "if (!metric) continue",
+            "colorFor(metric.slope, 20)",
         ]:
             if marker not in web_module:
                 web_failures.append(f"module marker missing: {marker}")

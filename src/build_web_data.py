@@ -65,10 +65,40 @@ def _metric(row: pd.Series) -> dict[str, Any]:
     }
 
 
-def _catchment_metric(row: pd.Series) -> dict[str, Any]:
+def _expit(value: float | np.ndarray) -> float | np.ndarray:
+    clipped = np.clip(value, -40.0, 40.0)
+    return 1.0 / (1.0 + np.exp(-clipped))
+
+
+def _catchment_metric(row: pd.Series, centered_decades: np.ndarray) -> dict[str, Any]:
     sen = _native(row.get("sen_slope_per_decade"), 5)
+    if len(centered_decades) != int(row["n_years"]):
+        raise ValueError(
+            f"Trend-year mismatch for GCIN {int(row['GCIN'])} {row['outcome']}: "
+            f"table={int(row['n_years'])}, annual={len(centered_decades)}"
+        )
+    log_odds_per_decade = float(row["log_odds_per_decade"])
+    target_positive = float(row["n_positive"])
+    lower, upper = -40.0, 40.0
+    for _ in range(80):
+        intercept = (lower + upper) / 2.0
+        fitted_positive = float(
+            np.asarray(_expit(intercept + log_odds_per_decade * centered_decades)).sum()
+        )
+        if fitted_positive < target_positive:
+            lower = intercept
+        else:
+            upper = intercept
+    intercept = (lower + upper) / 2.0
+    probability_2000 = float(_expit(intercept))
+    probability_2010 = float(_expit(intercept + log_odds_per_decade))
+    probability_change = (probability_2010 - probability_2000) * 100.0
     return {
-        "slope": round(sen * 100.0, 3) if sen is not None else None,
+        "slope": round(float(probability_change), 3),
+        "senSlope": round(sen * 100.0, 3) if sen is not None else None,
+        "logOdds": _native(row.get("log_odds_per_decade"), 4),
+        "probability2000": round(probability_2000 * 100.0, 2),
+        "probability2010": round(probability_2010 * 100.0, 2),
         "oddsRatio": _native(row.get("odds_ratio_per_decade"), 3),
         "oddsRatioCi": [
             _native(row.get("odds_ratio_ci_low"), 3),
@@ -86,6 +116,10 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
     robustness = pd.read_csv(TABLES / "local_hydrobasin_robustness.csv")
     membership = pd.read_csv(TABLES / "hydrobasin_catchment_membership.csv")
     catchment_trends = pd.read_csv(TABLES / "catchment_binary_trends.csv")
+    annual = pd.read_parquet(
+        PROJECT_ROOT / "data" / "derived" / "annual_maximum_events.parquet",
+        columns=["GCIN", "peak_year", *PRIMARY_OUTCOMES],
+    )
 
     primary = robustness.loc[
         (robustness["sample"] == "annual_maximum")
@@ -132,10 +166,19 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
     selected_trends = catchment_trends.loc[
         catchment_trends["outcome"].isin(PRIMARY_OUTCOMES)
     ].copy()
+    trend_years: dict[tuple[int, str], np.ndarray] = {}
+    for outcome in PRIMARY_OUTCOMES:
+        valid = annual[["GCIN", "peak_year", outcome]].dropna()
+        for gcin, frame in valid.groupby("GCIN", sort=False):
+            trend_years[(int(gcin), outcome)] = (
+                frame["peak_year"].to_numpy(dtype=float) - 2000.0
+            ) / 10.0
     trend_lookup: dict[int, dict[str, Any]] = {}
     for _, row in selected_trends.iterrows():
-        trend_lookup.setdefault(int(row["GCIN"]), {})[str(row["outcome"])] = (
-            _catchment_metric(row)
+        gcin = int(row["GCIN"])
+        outcome = str(row["outcome"])
+        trend_lookup.setdefault(gcin, {})[outcome] = _catchment_metric(
+            row, trend_years[(gcin, outcome)]
         )
 
     catchment_records: list[dict[str, Any]] = []
@@ -183,8 +226,14 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             ],
             "interpretation": (
                 "HydroBASINS colors are catchment fixed-effect trends. Catchment colors are "
-                "descriptive Sen slopes; FDR support is reported separately."
+                "fitted logistic probability changes from 2000 to 2010; FDR support is reported "
+                "separately. Sen slopes are retained only as audit fields because binary "
+                "annual series make them degenerate at zero."
             ),
+            "mapScales": {
+                "hydrobasinMaxAbs": 7,
+                "catchmentMaxAbs": 20,
+            },
         },
         "basins": basin_records,
         "catchments": catchment_records,
