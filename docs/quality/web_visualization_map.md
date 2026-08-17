@@ -21,15 +21,16 @@ Every included basin uses a quiet, thin, dark solid boundary. A thicker dark
 boundary identifies a high-confidence signal. Sample support is stated directly
 in the hover label and inspector rather than encoded with dashed or dotted
 lines. Hover is intentionally omitted from the legend because it is an
-interaction state rather than an analytical encoding. A thin cyan keyline and
-soft luminous halo emphasize a region edge without a heavy solid under-stroke;
-catchments use a separate outer halo that preserves the point fill.
+interaction state rather than an analytical encoding. A 1.45 px cyan keyline
+and broader luminous halo emphasize a region edge without a heavy dark
+under-stroke; catchments use a separate outer halo that preserves the point
+fill.
 
-Selected regions use a 1.25 px deep-cyan edge with a restrained glow rather
-than a heavy black outline. Basin paths use round joins and caps with a limited
-miter length; this prevents complex coastlines and small polygon fragments from
-producing dark spikes at high zoom. High-confidence boundaries remain distinct
-at 1.2 px, compared with 0.7 px for other included regions.
+Selected regions and catchments use a 1.5 px bright-cyan edge with a luminous
+halo rather than a black outline. Basin paths use round joins and caps with a
+limited miter length; this prevents complex coastlines and small polygon
+fragments from producing dark spikes at high zoom. High-confidence boundaries
+remain distinct at 1.2 px, compared with 0.7 px for other included regions.
 
 Interface typography keeps secondary labels at 11 px or larger. The module also
 raises the host layer list, legend card, toolbar, hover label, and inspector

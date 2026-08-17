@@ -117,16 +117,16 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         const active = this.selected?._kind === "basin" && this.selected.id === basin.id;
         ctx.setLineDash([]);
         if (hovered) {
-          ctx.shadowColor = "rgba(34,211,238,.95)";
-          ctx.shadowBlur = 14;
-          ctx.strokeStyle = "rgba(103,232,249,.92)";
-          ctx.lineWidth = 1.1;
+          ctx.shadowColor = "rgba(34,211,238,.98)";
+          ctx.shadowBlur = 19;
+          ctx.strokeStyle = "rgba(103,232,249,.98)";
+          ctx.lineWidth = 1.45;
           ctx.stroke();
         } else if (active) {
-          ctx.shadowColor = "rgba(34,211,238,.52)";
-          ctx.shadowBlur = 7;
-          ctx.strokeStyle = "rgba(14,116,144,.94)";
-          ctx.lineWidth = 1.25;
+          ctx.shadowColor = "rgba(34,211,238,.90)";
+          ctx.shadowBlur = 13;
+          ctx.strokeStyle = "rgba(34,211,238,.98)";
+          ctx.lineWidth = 1.5;
           ctx.stroke();
         } else {
           ctx.strokeStyle = metric.highConfidence ? "rgba(15,23,42,.82)" : "rgba(15,23,42,.58)";
@@ -166,16 +166,24 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         if (hovered) {
           ctx.save();
           ctx.beginPath();
-          ctx.arc(x, y, radius + 2.6, 0, Math.PI * 2);
-          ctx.shadowColor = "rgba(34,211,238,.95)";
-          ctx.shadowBlur = 12;
-          ctx.strokeStyle = "rgba(103,232,249,.94)";
-          ctx.lineWidth = 1.1;
+          ctx.arc(x, y, radius + 3.1, 0, Math.PI * 2);
+          ctx.shadowColor = "rgba(34,211,238,.98)";
+          ctx.shadowBlur = 16;
+          ctx.strokeStyle = "rgba(103,232,249,.98)";
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+          ctx.restore();
+        } else if (active) {
+          ctx.save();
+          ctx.shadowColor = "rgba(34,211,238,.90)";
+          ctx.shadowBlur = 13;
+          ctx.strokeStyle = "rgba(34,211,238,.98)";
+          ctx.lineWidth = 1.5;
           ctx.stroke();
           ctx.restore();
         } else {
-          ctx.strokeStyle = active ? "#0f172a" : metric.fdrSignificant ? "#172235" : "rgba(15,23,42,.42)";
-          ctx.lineWidth = active ? 2.1 : metric.fdrSignificant ? 1.35 : 0.5;
+          ctx.strokeStyle = metric.fdrSignificant ? "#172235" : "rgba(15,23,42,.42)";
+          ctx.lineWidth = metric.fdrSignificant ? 1.35 : 0.5;
           ctx.stroke();
         }
         if (hovered) this.drawHoverLabel(ctx, x, y, `GCIN ${catchment.id} · ${this.signed(metric.slope)} pp/dec`);
