@@ -1,84 +1,37 @@
-# Full Experiment Execution Manifest
+# Execution manifest
 
-**Execution date:** 2026-08-16  
-**Execution mode:** forced raw-to-output rebuild (`--stage all --force`)  
-**Exit status:** success
+**Execution date:** 2026-08-18
 
-**Local-analysis extension:** 2026-08-17; official HydroBASINS levels 3–5,
-figures, self-contained HTML, and validation rebuilt successfully.
+**Study period:** 1982–2019
 
-## What was actually executed
+**Primary sample:** catchment-specific POT/Q95
 
-This project does not use simulated rows or a demonstration subset. The forced
-run read the source event catalogues, catchment metadata, boundary data, and the
-daily observation CSV for every eligible catchment from the read-only
-`Event_Typology` project.
+## Sample flow
 
-The feature stage iterated over 4,150 catchments and reconstructed 1,407,121
-rain-event records from daily `water_input_mm`, `streamflow_mm`, and
-`soil_saturation_index` series. For every event it calculated the response-window
-peak flow, event precipitation total and maximum, temporal precipitation CV,
-and 1-, 3-, 7-, and 30-day antecedent SSI.
+| Output | Count |
+|---|---:|
+| Reconstructed feature rows | 1,407,121 |
+| Long-record eligible catchments | 2,839 |
+| Primary POT/Q95 events | 59,048 |
+| Primary POT/Q95 catchments | 2,624 |
+| Annual-maximum sensitivity events | 100,788 |
+| POT/Q90 sensitivity events | 119,605 |
+| Q95 with 10-day declustering | 56,792 |
+| POT/Q97.5 sensitivity events | 24,170 |
 
-## Forced-run receipt
+## Spatial inference
 
-| Stage | Result |
-|---|---|
-| Source audit | 4,838 daily files; 3,770,893,799 bytes; 1,671,449 source events |
-| Feature reconstruction | 1,407,121 events from 4,150 catchments; 153.93 seconds |
-| Annual-maximum analysis | 100,788 events from 2,839 catchments |
-| POT/Q95 sensitivity | 68,135 events from 3,206 catchments |
-| Catchment binary trends | 14,087 fitted catchment–outcome rows |
-| Catchment continuous trends | 14,195 fitted catchment–variable rows |
-| Statistical analysis | 75.46 seconds |
-| Local HydroBASINS analysis | 2,835 matched catchments; 72 eligible level-5 units; 144 primary tests; 36 FDR results; 17 high-confidence signals; 35.86 seconds |
-| Figure generation | Nine PNG/SVG pairs plus synchronized report-local PNG assets |
-| Browser report | Focused 3,068,460-byte HTML with four Base64-embedded core figures and click-to-enlarge lightbox; all nine canonical figure pairs remain available |
-| Final validation | 21 of 21 checks passed |
+| Output | Count |
+|---|---:|
+| Eligible HydroBASINS L5 units | 98 |
+| Complete primary-family tests | 490 |
+| Tests passing 5% FDR | 160 |
+| Strong basin–metric signals | 63 |
+| Basins containing a strong signal | 23 |
 
-The exact machine receipts are stored in:
+## Generated artifacts
 
-- [`feature_build.json`](../../outputs/logs/feature_build.json)
-- [`analysis_summary.json`](../../outputs/logs/analysis_summary.json)
-- [`local_analysis_summary.json`](../../outputs/logs/local_analysis_summary.json)
-- [`validation.json`](../../outputs/logs/validation.json)
-
-## Executed command
-
-```powershell
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/run_pipeline.py --stage all --force
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/validate_outputs.py
-```
-
-The 2026-08-17 extension reused the validated derived event tables and ran:
-
-```powershell
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/run_pipeline.py --stage local --force
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/run_pipeline.py --stage figures
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/run_pipeline.py --stage html
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' `
-  src/validate_outputs.py
-```
-
-## Code-to-output trace
-
-| Code | Responsibility | Principal output |
-|---|---|---|
-| `src/floodcause/audit.py` | Source inventory and integrity checks | `outputs/tables/source_*.csv` |
-| `src/floodcause/features.py` | Raw daily event reconstruction | `data/derived/event_features.parquet` |
-| `src/floodcause/analysis.py` | Extreme samples, classifications, panel and period estimates | derived samples and result CSVs |
-| `src/floodcause/statistics.py` | Logistic, Sen, Mann–Kendall, and FDR calculations | catchment trend CSVs |
-| `src/floodcause/local_analysis.py` | HydroBASINS assignment, local panel trends, paired-period and stability checks | local basin trend and robustness CSVs |
-| `src/floodcause/plots.py` | Publication figures and report asset synchronization | `outputs/figures/`, `reports/assets/` |
-| `src/validate_outputs.py` | Independent output checks | `outputs/logs/validation.json` |
-
-## Reproducibility boundary
-
-The source directory is only read. All project-owned derived data and outputs
-are written beneath this project. Rerunning with `--force` replaces only those
-regenerable derived products; it does not modify the source project.
+- Six PNG/SVG figure pairs.
+- Markdown technical report and self-contained HTML report.
+- Interactive JSON with 98 polygons and 2,624 catchment points.
+- Machine-readable validation receipt at `outputs/logs/validation.json`.

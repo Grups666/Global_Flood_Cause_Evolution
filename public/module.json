@@ -1,18 +1,18 @@
 {
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
-  "description": "Local HydroBASINS and catchment-scale changes in rainfall-driven flood-generating conditions, 1982–2019.",
-  "version": "1.7.0",
+  "description": "Continuous changes in rainfall organization and antecedent wetness during large rainfall-driven floods, 1982–2019.",
+  "version": "2.0.0",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js?release=expanded-cyan-selection",
+  "entry": "./modules/flood-cause-evolution/index.js?release=mechanism-trajectories",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=expanded-cyan-selection",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=mechanism-trajectories",
   "datasets": [
     {
       "id": "flood-cause-explorer",
-      "name": "HydroBASINS and catchment trend explorer",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=expanded-cyan-selection",
+      "name": "Flood-generating-condition trajectories",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=mechanism-trajectories",
       "format": "json"
     }
   ],

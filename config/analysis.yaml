@@ -20,9 +20,16 @@ study:
   minimum_record_coverage: 0.80
 
 event_samples:
-  primary: "annual_maximum"
-  pot_quantile: 0.95
-  minimum_pot_events: 10
+  primary: "pot_q95"
+  pot_quantiles: [0.90, 0.95, 0.975]
+  minimum_events: 10
+  minimum_selected_span_years: 20
+  declustering_gap_days: 10
+  sensitivity_samples:
+    - annual_maximum
+    - pot_q90
+    - pot_q95_gap10
+    - pot_q975
 
 classification:
   intensity_fraction_threshold: 0.50
@@ -37,29 +44,42 @@ trends:
   minimum_nonoccurrences: 5
   alpha: 0.05
   fdr_method: "benjamini_hochberg"
-  early_period: [1982, 2000]
-  late_period: [2001, 2019]
+  continuous_primary_metrics:
+    - intensity_fraction
+    - ssi_1d
+    - ssi_3d
+    - ssi_7d
+    - ssi_30d
+  interpretive_metrics:
+    - intensity_050
+  physical_driver_metrics:
+    - log_p_max
+    - log_p_volume
+    - log_precip_duration
 
 local_analysis:
   hydrobasins_levels: [3, 4, 5]
   primary_level: 5
   minimum_catchments: 5
-  minimum_observations: 300
-  primary_outcomes: [intensity_050, wet_1d]
-  outcomes:
+  minimum_observations: 100
+  strong_evidence_minimum_catchments: 20
+  primary_metrics:
+    - intensity_fraction
+    - ssi_1d
+    - ssi_3d
+    - ssi_7d
+    - ssi_30d
+  displayed_metrics:
+    - intensity_fraction
     - intensity_050
-    - intensity_joint_050_cv1
-    - intensity_075
-    - wet_1d
-    - wet_3d
-    - wet_7d
-    - wet_30d
-    - cause_intensity_dry
-    - cause_intensity_moderate
-    - cause_intensity_wet
-    - cause_volume_dry
-    - cause_volume_moderate
-    - cause_volume_wet
+    - ssi_1d
+    - ssi_3d
+    - ssi_7d
+    - ssi_30d
+  driver_metrics:
+    - log_p_max
+    - log_p_volume
+    - log_precip_duration
 
 plotting:
   dpi: 300

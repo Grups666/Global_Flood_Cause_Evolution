@@ -1,40 +1,32 @@
-# Reproducibility Guide
+# Reproducibility guide
 
 ## Environment
 
-The run used Python 3.14 with project dependencies installed at:
+The project environment is located outside the repository:
 
 ```text
 D:/Program Files/python-envs/Global_Flood_Cause_Evolution
 ```
 
-Declared dependencies are recorded in `pyproject.toml`. Analysis parameters and
-all project paths are recorded in `config/analysis.yaml`.
+Dependencies are declared in `pyproject.toml`; parameters and paths are declared in `config/analysis.yaml`.
 
-## Execution order
-
-```powershell
-$python = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
-& $python src/run_pipeline.py --stage audit
-& $python src/run_pipeline.py --stage features
-& $python src/run_pipeline.py --stage analysis
-& $python src/run_pipeline.py --stage local
-& $python src/run_pipeline.py --stage figures
-& $python src/run_pipeline.py --stage html
-& $python src/validate_outputs.py
-```
-
-Use `--force` to rebuild a stage whose reusable output already exists.
-
-For remote browser reading across the Lenovo-to-Tsinghua SSH boundary, serve
-the self-contained HTML over the Tailscale interface:
+## Complete execution
 
 ```powershell
-$tailscaleIp = tailscale ip -4
-& $python -m http.server 8787 --bind $tailscaleIp --directory reports
+$projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
+& $projectPython src/run_pipeline.py --stage audit --force
+& $projectPython src/run_pipeline.py --stage features --force
+& $projectPython src/run_pipeline.py --stage analysis --force
+& $projectPython src/run_pipeline.py --stage local --force
+& $projectPython src/run_pipeline.py --stage figures --force
+& $projectPython src/run_pipeline.py --stage html --force
+& $projectPython src/run_pipeline.py --stage web --force
+& $projectPython src/validate_outputs.py
 ```
 
-## Source-data boundary
+`--stage all --force` runs the same stages in sequence.
+
+## Data boundary
 
 The pipeline reads but never modifies:
 
@@ -42,34 +34,12 @@ The pipeline reads but never modifies:
 D:/MyPaper/papers/Event_Typology/submission/data/Global Data
 ```
 
-Large source datasets are not copied into this repository. Project-owned
-derived Parquet files are written to `data/derived/` and can be regenerated.
+Derived Parquet files are written to `data/derived/`. Generated tables, figures, and receipts are written to `outputs/`. Both directories can be rebuilt from source.
 
 ## Reference geography
 
-The map background is Natural Earth 1:110m admin-0 countries:
+Map context uses Natural Earth 1:110m admin-0 boundaries. Hydrological-region analysis uses official HydroBASINS v1.c levels 3, 4, and 5. Reference archive checksums are recorded in `outputs/logs/hydrobasins_reference_sha256.csv`.
 
-```text
-https://naturalearth.s3.amazonaws.com/110m_cultural/ne_110m_admin_0_countries.zip
-```
+## Reading remotely
 
-The downloaded archive is stored under `data/reference/` with its source named
-explicitly; analytical catchment locations come from the source metadata.
-
-Local spatial analysis additionally uses the official HydroBASINS v1.c standard
-polygon archives for levels 3, 4, and 5:
-
-```text
-https://www.hydrosheds.org/products/hydrobasins
-```
-
-The unmodified ZIP files and a source README are stored under
-`data/reference/hydrobasins/`; exact SHA-256 values are generated in
-`outputs/logs/hydrobasins_reference_sha256.csv`.
-
-## Execution receipts
-
-JSON receipts in `outputs/logs/` record source audit, feature construction,
-analysis counts, and final validation. CSV tables under `outputs/tables/`
-contain the result-level audit trail. A successful final validation exits with
-status zero and records all checks in `outputs/logs/validation.json`.
+`reports/global_flood_cause_evolution.html` embeds its styles and six figures in one file. It can be opened directly through the remote Codex workspace without copying an asset folder to the client computer.

@@ -1,74 +1,42 @@
 # Global Flood Cause Evolution
 
-This repository contains a reproducible global analysis of whether the
-hydrometeorological conditions associated with large rainfall-driven floods
-changed during 1982–2019.
+This repository contains a reproducible event-based analysis of how the conditions producing large rainfall-driven floods changed during 1982–2019.
 
-The completed analysis uses 1,407,121 rain-event records reconstructed
-from daily precipitation, streamflow, and Soil Saturation Index data. The
-primary trend sample contains 100,788 annual maximum events from 2,839
-low-snow catchments. A 95th-percentile peaks-over-threshold sample is retained as
-a sensitivity branch.
+The primary sample is the catchment-specific upper 5% of reconstructed flood peaks (POT/Q95): **59,048 events in 2,624 long-record, low-snow catchments**. Two continuous process dimensions are analyzed:
+
+- rainfall organization, measured as the share of event rainfall falling in the wettest day (`Pmax/Pvolume`); and
+- antecedent catchment wetness, measured by Soil Saturation Index over 1, 3, 7, and 30 days before rainfall begins.
 
 ## Main result
 
-Global averages are weak because localized HydroBASINS units change in opposite
-directions. Seventeen level-5 basin signals remain after primary-family FDR,
-POT/Q95, paired-period, definition-stability, and leave-one-catchment-out checks;
-their magnitudes reach roughly 2–11 percentage points per decade. The formal
-level-5 family contains 72 units with at least 5 catchments and 300 observations;
-44 units with fewer than 20 catchments are explicitly marked as limited-sample
-estimates. Almost no
-individual-catchment trends survive false-discovery-rate correction, so the
-supported evidence scale is a group of neighboring catchments rather than an
-isolated gauge.
+The evidence is local and directionally opposed, not one spatially uniform global trend. Among 98 eligible HydroBASINS level-5 units, 63 basin–metric signals in 23 units satisfy the full evidence screen. Strong rainfall-concentration trends range from −2.56 to +2.92 percentage points of event rainfall per decade.
 
-Read the full technical report:
-[reports/global_flood_cause_evolution.md](reports/global_flood_cause_evolution.md).
-For remote reading, use the self-contained browser version:
-[reports/global_flood_cause_evolution.html](reports/global_flood_cause_evolution.html).
+- [Technical report](reports/global_flood_cause_evolution.md)
+- [Self-contained browser report](reports/global_flood_cause_evolution.html)
+- [Interactive GitHub Pages explorer](https://grups666.github.io/Global_Flood_Cause_Evolution/)
+- [Analysis protocol](docs/methods/analysis_protocol.md)
+- [Validation report](docs/quality/validation_report.md)
 
-The Tereon-based interactive explorer is published through GitHub Pages at
-[grups666.github.io/Global_Flood_Cause_Evolution](https://grups666.github.io/Global_Flood_Cause_Evolution/).
-It provides separately toggleable HydroBASINS level-5 polygons and individual
-catchment points, with metric switching and click-through evidence details.
+## Repository structure
 
-## Repository map
-
-- `config/analysis.yaml`: frozen analysis parameters and paths.
-- `data/`: compact project-owned reference and derived assets; source data remain read-only in `Event_Typology`.
-- `docs/background/`: literature synthesis and scientific framing.
-- `docs/methods/`: canonical protocol and data dictionary.
-- `docs/decisions/`: dated records of consequential method decisions.
-- `docs/quality/`: data and analysis validation records.
-- `docs/meeting_notes/`: dated source notes from project meetings.
-- `docs/archive/`: superseded design documents organized by date.
-- `src/floodcause/`: reusable pipeline modules.
-- `outputs/tables/`: auditable analysis tables.
-- `outputs/figures/`: publication-ready PNG and SVG figures.
-- `outputs/logs/`: machine-readable execution receipts.
-- `reports/`: reader-facing research report.
-- `public/`: Tereon module, compact web dataset, and GitHub Pages entry point.
+- `config/analysis.yaml` — declared analysis parameters and project paths.
+- `data/derived/` — reproducible project-derived Parquet data; ignored by Git.
+- `data/reference/` — compact map references and official HydroBASINS archives.
+- `docs/background/` — literature and scientific positioning.
+- `docs/meeting_notes/` — source scope notes, kept distinct from analyst choices.
+- `docs/methods/` — canonical protocol and data dictionary.
+- `docs/quality/` — execution, figure, web, data, and validation records.
+- `src/floodcause/` — reusable analysis modules.
+- `outputs/` — generated tables, figures, and logs; ignored by Git.
+- `reports/` — Markdown and self-contained HTML research reports.
+- `public/` — Tereon module and GitHub Pages entry point.
 
 ## Reproduce
 
-The Python environment used for this run is located outside the repository at:
-
-```text
-D:/Program Files/python-envs/Global_Flood_Cause_Evolution
-```
-
-From the project root:
-
 ```powershell
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage audit
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage features
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage analysis
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage local
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage figures
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage html
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/run_pipeline.py --stage web
-& 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe' src/validate_outputs.py
+$projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
+& $projectPython src/run_pipeline.py --stage all --force
+& $projectPython src/validate_outputs.py
 ```
 
-The source project `D:/MyPaper/papers/Event_Typology` is treated as read-only.
+The source project `D:/MyPaper/papers/Event_Typology` is read-only. Large source data are referenced in place and are not duplicated in this repository.

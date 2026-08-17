@@ -1,118 +1,70 @@
-# Literature Review and Scientific Positioning
+# Literature review and scientific positioning
 
 ## Research gap
 
-Observed flood trends are difficult to interpret from discharge or extreme
-precipitation alone because rainfall organization, antecedent catchment state,
-snow processes, and catchment properties can amplify, offset, or reverse one
-another. The defensible scientific question is therefore not simply whether
-floods became larger, but whether the **composition of conditions producing
-large floods** changed through time.
+Changes in flood peak or frequency do not reveal which hydrometeorological conditions produced those floods. Rainfall organization, antecedent catchment state, snow processes, and stable catchment properties can reinforce or offset one another. The project therefore asks whether the **conditions accompanying large rainfall-driven floods** changed through time and where the changes are spatially coherent.
 
-This project addresses that question globally for rainfall-driven floods by
-separating two event attributes:
+Two continuous process dimensions are retained:
 
-1. temporal concentration of event rainfall, represented continuously by
-   maximum daily rainfall divided by event rainfall volume; and
-2. antecedent wetness, represented by 1-, 3-, 7-, and 30-day Soil Saturation
-   Index means before event onset.
+1. the share of event rainfall concentrated in the wettest day (`Pmax/Pvolume`); and
+2. Soil Saturation Index means over the 1, 3, 7, and 30 complete days before event rainfall begins.
 
-## Direct methodological foundations
+## Methodological foundations
 
-### Causative classifications must be treated as uncertain models
+### Flood-cause classifications are uncertain models
 
-Tarasova et al. (2019) reviewed flood-cause classification and showed that
-event labels depend on input data, indicators, thresholds, and temporal and
-spatial resolution. The review recommends testing classifications rather than
-treating one decision tree as physical truth. This directly motivates retaining
-continuous predictors and reporting threshold sensitivity.
+Tarasova et al. (2019) showed that flood-cause labels depend on indicators, thresholds, data resolution, and spatial scale. This motivates preserving continuous event predictors, using any discrete label only as an interpretive aid, and testing sensitivity to analysis choices.
 
 Source: [Tarasova et al. (2019), WIREs Water](https://doi.org/10.1002/wat2.1353).
 
-### Dimensionless rainfall descriptors transfer better than absolute thresholds
+### Dimensionless descriptors improve transferability
 
-Tarasova et al. (2020) developed a process-based typology using dimensionless
-ratio and covariance indicators. Its intensity-dominated rainfall rule uses the
-combination of temporal rainfall variability and the ratio of maximum intensity
-to total volume; the ratio threshold alone is not the complete original rule.
-The present project therefore uses `Pmax/Pvolume > 0.50` as the transparent
-primary operational definition requested by the project design, then tests the
-joint `CV > 1` rule and a `0.75` ratio threshold.
+Tarasova et al. (2020) used dimensionless rainfall descriptors, including maximum-intensity-to-volume ratios and temporal variability, in a process-based typology. The current analysis adopts the continuous daily `Pmax/Pvolume` ratio as a transparent rainfall-organization axis. The auxiliary `>0.50` label is not presented as the complete Tarasova classification.
 
 Source: [Tarasova et al. (2020), Water Resources Research](https://doi.org/10.1029/2019WR026951).
 
-### Global event classification is feasible but local process mixtures remain heterogeneous
+### Event-level process mixtures matter
 
-Stein et al. (2020) demonstrated a location-independent classification of more
-than 113,000 flood events in 4,155 catchments. They found strong within-site
-variability in flood-generating processes, supporting event-level analysis
-rather than assigning a single timeless type to each catchment.
+Stein et al. (2020) classified more than 113,000 events in 4,155 catchments and found substantial within-catchment process variability. A catchment should therefore not receive one timeless flood-cause label.
 
 Source: [Stein et al. (2020), Hydrological Processes](https://doi.org/10.1002/hyp.13678).
 
-### Event selection and cause classification are separate decisions
+### Event selection and mechanism description are separate decisions
 
-Brunner et al. (2021) showed that conclusions about precipitation–flood change
-depend on the extremeness threshold. Their precipitation events used a
-full-record 99th percentile and a 10-day independence rule. This does not define
-the meeting phrase “annual top 5%,” but it establishes the need to separate
-declustering, threshold population, ranked variable, and response pairing.
+Brunner et al. (2021) demonstrated that conclusions about precipitation–flood changes depend on the extremeness threshold and used a 10-day independence rule. Their design supports explicit separation of the ranked variable, percentile population, declustering rule, and flood-response pairing.
 
 Source: [Brunner et al. (2021), Communications Earth & Environment](https://doi.org/10.1038/s43247-021-00248-x).
 
-### Annual maxima provide the closest observed-process precedent
+### Annual maxima are useful as a sensitivity population
 
-Tarasova et al. (2023) classified annual maximum floods in 1,353 European
-catchments and estimated changes in process frequency using Sen slopes and
-Mann–Kendall tests, requiring at least five events of a process at a catchment.
-Their results show that changing flood-generation processes can explain flood
-anomalies beyond changes in extreme rainfall alone. This is the closest direct
-precedent for the present global analysis.
+Tarasova et al. (2023) analyzed changes in process frequencies among annual maximum floods in European catchments. Annual maxima provide a close scientific precedent, but they force every year to contribute one event regardless of absolute extremeness. The present project therefore uses catchment-specific POT/Q95 as the primary extreme sample and annual maxima as a sensitivity branch.
 
 Source: [Tarasova et al. (2023), Communications Earth & Environment](https://doi.org/10.1038/s43247-023-00714-8).
 
-## Broader evidence
+### Snow and rainfall mechanisms should not be mixed
 
-Zhang et al. (2022) showed that mixing rainfall- and snow-related mechanisms can
-mask the response of global floods to increasing extreme precipitation. The
-present analysis avoids that confounding by restricting its primary population
-to catchments with long-term snow fraction below 0.10.
+Zhang et al. (2022) showed that combining rainfall- and snow-related mechanisms can mask flood responses. The primary population is restricted to catchments with long-term snow fraction below 0.10.
 
 Source: [Zhang et al. (2022), Nature Climate Change](https://doi.org/10.1038/s41558-022-01539-7).
 
-Tramblay et al. (2025) analyzed more than ten million projected annual maximum
-floods in France and used catchment-specific process classification. Their
-short-rain definition used a stricter `Pmax/Pvolume > 0.75` threshold and their
-results again showed spatially heterogeneous changes among soil-saturation,
-rainfall, and snow processes. This supports the present 0.75 sensitivity rule
-and cautions against a single global direction.
+### Process changes are spatially heterogeneous
+
+Tramblay et al. (2025) found heterogeneous projected changes among rainfall, soil-saturation, and snow-related flood processes in France. This supports resolving local hydrological regions instead of requiring one global direction.
 
 Source: [Tramblay et al. (2025), Hydrology and Earth System Sciences](https://doi.org/10.5194/hess-29-7023-2025).
 
-## Data-method foundations
+## Data foundations
 
-The parent event catalogue was generated with a Detrended Moving-Average
-Cross-correlation event-identification method. Giani et al. (2022) developed
-this approach to identify rainfall–runoff events jointly from input and output
-time series without an a priori baseflow separation.
+The source catalogue identifies rainfall–runoff events with the Detrended Moving-Average Cross-correlation method of Giani et al. (2022), which jointly considers input and output series without requiring an a priori baseflow separation.
 
 Source: [Giani et al. (2022), Water Resources Research](https://doi.org/10.1029/2021WR031283).
 
-Antecedent wetness comes from the GLASS-AVHRR daily 5 km soil-moisture product,
-which spans 1982–2021. The study period is therefore fixed to the verified
-1982–2019 overlap rather than extrapolated to the meeting target of 1970–2020.
+Antecedent wetness comes from the daily GLASS-AVHRR soil-moisture product. The verified overlap among the reused flood-event, daily precipitation/streamflow, and soil-moisture records is 1982–2019.
 
 Source: [Zhang et al. (2025), Earth System Science Data](https://doi.org/10.5194/essd-17-5181-2025).
 
 ## Position of this study
 
-The study is an observational, event-based global extension of the European
-process-change literature. Its novelty is the joint analysis of rainfall
-temporal concentration and multiple antecedent-wetness windows across a large
-global catchment sample, with explicit event-sample, classification-threshold,
-multiple-testing, and regional-coverage diagnostics.
+The study is an observational, event-based extension of process-change research to a global long-record gauge sample. It contributes a joint continuous analysis of rainfall organization and multiple antecedent-wetness windows, explicit POT threshold and declustering sensitivity, multi-catchment hydrological-region inference, complete-family multiple-testing control, and an interactive catchment layer.
 
-The analysis supports claims about **temporal association and composition
-change in the available gauge sample**. It does not, by itself, attribute those
-changes to anthropogenic climate forcing or establish physical causality.
-
+The results support statements about temporal association and changing composition of generating conditions in the available gauge sample. They do not establish attribution to anthropogenic forcing or represent an area-weighted global land trend.

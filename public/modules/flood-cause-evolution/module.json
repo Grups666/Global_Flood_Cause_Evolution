@@ -1,7 +1,7 @@
 {
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
-  "version": "1.7.0",
+  "version": "2.0.0",
   "entry": "./index.js",
   "className": "FloodCauseEvolutionModule",
   "dataFile": "./data/flood-cause-explorer.json"

@@ -132,13 +132,22 @@ def fit_continuous_trends(sample: pd.DataFrame, variables: list[str], alpha: flo
             subset = frame[["peak_year", variable]].dropna().sort_values("peak_year")
             if len(subset) < 10:
                 continue
+            year_span = int(subset["peak_year"].max() - subset["peak_year"].min() + 1)
+            if year_span < 20:
+                continue
+            estimate = theil_sen_per_decade(
+                subset["peak_year"].to_numpy(float), subset[variable].to_numpy(float)
+            )
             rows.append({
                 "GCIN": int(gcin),
                 "variable": variable,
-                "n_years": len(subset),
-                **theil_sen_per_decade(
-                    subset["peak_year"].to_numpy(float), subset[variable].to_numpy(float)
-                ),
+                "n_observations": len(subset),
+                "n_years": int(subset["peak_year"].nunique()),
+                "first_year": int(subset["peak_year"].min()),
+                "last_year": int(subset["peak_year"].max()),
+                "year_span": year_span,
+                "mean_level": float(subset[variable].mean()),
+                **estimate,
             })
     result = pd.DataFrame(rows)
     if result.empty:
@@ -150,5 +159,26 @@ def fit_continuous_trends(sample: pd.DataFrame, variables: list[str], alpha: flo
         default="stable",
     )
     result["fdr_significant"] = result["mk_q"] < alpha
+    result["display_slope_per_decade"] = result["sen_slope_per_decade"]
+    result["display_ci_low_per_decade"] = result["sen_ci_low_per_decade"]
+    result["display_ci_high_per_decade"] = result["sen_ci_high_per_decade"]
+    result["display_unit"] = "units per decade"
+    percentage_points = result["variable"].isin(
+        ["intensity_fraction", "intensity_050", "intensity_075"]
+    )
+    result.loc[percentage_points, "display_slope_per_decade"] *= 100.0
+    result.loc[percentage_points, "display_ci_low_per_decade"] *= 100.0
+    result.loc[percentage_points, "display_ci_high_per_decade"] *= 100.0
+    result.loc[percentage_points, "display_unit"] = "percentage points per decade"
+    log_metrics = result["variable"].str.startswith("log_")
+    result.loc[log_metrics, "display_slope_per_decade"] = (
+        100.0 * np.expm1(result.loc[log_metrics, "sen_slope_per_decade"])
+    )
+    result.loc[log_metrics, "display_ci_low_per_decade"] = (
+        100.0 * np.expm1(result.loc[log_metrics, "sen_ci_low_per_decade"])
+    )
+    result.loc[log_metrics, "display_ci_high_per_decade"] = (
+        100.0 * np.expm1(result.loc[log_metrics, "sen_ci_high_per_decade"])
+    )
+    result.loc[log_metrics, "display_unit"] = "approximate percent per decade"
     return result
-
