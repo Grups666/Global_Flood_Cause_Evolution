@@ -107,6 +107,9 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       for (const shift of shifts) {
         ctx.save();
         this.traceGeometry(ctx, basin.geometry, viewport, shift);
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.miterLimit = 2;
         ctx.fillStyle = this.colorFor(metric.slope, 7);
         ctx.globalAlpha = metric.highConfidence ? 0.82 : metric.largerSample ? 0.56 : 0.40;
         ctx.fill("evenodd");
@@ -119,9 +122,15 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
           ctx.strokeStyle = "rgba(103,232,249,.92)";
           ctx.lineWidth = 1.1;
           ctx.stroke();
+        } else if (active) {
+          ctx.shadowColor = "rgba(34,211,238,.52)";
+          ctx.shadowBlur = 7;
+          ctx.strokeStyle = "rgba(14,116,144,.94)";
+          ctx.lineWidth = 1.25;
+          ctx.stroke();
         } else {
-          ctx.strokeStyle = active ? "#101827" : metric.highConfidence ? "#172235" : "rgba(15,23,42,.62)";
-          ctx.lineWidth = active ? 2.8 : metric.highConfidence ? 1.7 : 0.75;
+          ctx.strokeStyle = metric.highConfidence ? "rgba(15,23,42,.82)" : "rgba(15,23,42,.58)";
+          ctx.lineWidth = metric.highConfidence ? 1.2 : 0.7;
           ctx.stroke();
         }
         ctx.restore();
