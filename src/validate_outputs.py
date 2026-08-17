@@ -396,6 +396,12 @@ def main() -> None:
             "ctx.shadowBlur = 14",
             "ctx.lineWidth = 1.1",
             "ctx.arc(x, y, radius + 2.6",
+            'ctx.lineJoin = "round"',
+            'ctx.lineCap = "round"',
+            "ctx.miterLimit = 2",
+            'ctx.strokeStyle = "rgba(14,116,144,.94)"',
+            "ctx.lineWidth = 1.25",
+            "metric.highConfidence ? 1.2 : 0.7",
             'ctx.font = "600 12px Inter, system-ui, sans-serif"',
             ".legend-card{font-size:12px",
             ".fce-fact span{font-size:11px",
@@ -413,6 +419,8 @@ def main() -> None:
             "217,70,239",
             "Hover highlight",
             'ctx.strokeStyle = "rgba(15,23,42,.88)"',
+            "active ? 2.8",
+            "metric.highConfidence ? 1.7",
         ]:
             if forbidden in web_module:
                 web_failures.append(f"obsolete boundary/highlight style present: {forbidden}")
