@@ -393,10 +393,20 @@ def main() -> None:
             "ctx.setLineDash([])",
             "#D946EF",
             "ctx.shadowBlur = 12",
+            'ctx.font = "600 12px Inter, system-ui, sans-serif"',
+            ".legend-card{font-size:12px",
+            ".fce-fact span{font-size:11px",
         ]:
             if marker not in web_module:
                 web_failures.append(f"module marker missing: {marker}")
-        for forbidden in ['hovered ? "#ffffff"', "fine-dot", "border:1px dashed"]:
+        for forbidden in [
+            'hovered ? "#ffffff"',
+            "fine-dot",
+            "border:1px dashed",
+            "font-size:9px",
+            "font-size:10px",
+            "font:600 9px",
+        ]:
             if forbidden in web_module:
                 web_failures.append(f"obsolete boundary/highlight style present: {forbidden}")
     except (OSError, ValueError, TypeError) as error:
