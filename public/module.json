@@ -2,17 +2,17 @@
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
   "description": "Local HydroBASINS and catchment-scale changes in rainfall-driven flood-generating conditions, 1982–2019.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js",
+  "entry": "./modules/flood-cause-evolution/index.js?release=catchment-logistic-hover",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-logistic-hover",
   "datasets": [
     {
       "id": "flood-cause-explorer",
       "name": "HydroBASINS and catchment trend explorer",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-logistic-hover",
       "format": "json"
     }
   ],
