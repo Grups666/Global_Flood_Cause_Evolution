@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db
+
+# Local agent/runtime instructions contain host-specific connection details
+AGENTS.md
+
+# Generated analysis artifacts
+data/derived/
+outputs/tables/
+outputs/figures/
+outputs/logs/
+
+# Reproducible but externally sourced archives (see data/reference READMEs and checksums)
+data/reference/**/*.zip
+
+# Local configuration overrides
+config/paths.local.yaml

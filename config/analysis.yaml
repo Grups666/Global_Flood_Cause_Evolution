@@ -1,0 +1,74 @@
+paths:
+  source_global_data: "D:/MyPaper/papers/Event_Typology/submission/data/Global Data"
+  derived_data: "data/derived"
+  tables: "outputs/tables"
+  figures: "outputs/figures"
+  report_assets: "reports/assets"
+  logs: "outputs/logs"
+  report: "reports/global_flood_cause_evolution.md"
+  html_report: "reports/global_flood_cause_evolution.html"
+  world_boundaries: "data/reference/ne_110m_admin_0_countries.zip"
+  hydrobasins: "data/reference/hydrobasins"
+
+study:
+  start_year: 1982
+  end_year: 2019
+  snow_fraction_max_exclusive: 0.10
+  require_both_season_catalogues: true
+  minimum_annual_observations: 30
+  minimum_record_span_years: 30
+  minimum_record_coverage: 0.80
+
+event_samples:
+  primary: "annual_maximum"
+  pot_quantile: 0.95
+  minimum_pot_events: 10
+
+classification:
+  intensity_fraction_threshold: 0.50
+  intensity_fraction_sensitivity_threshold: 0.75
+  intensity_cv_threshold: 1.00
+  ssi_thresholds: [0.39, 0.56]
+  ssi_windows_days: [1, 3, 7, 30]
+  primary_ssi_window_days: 1
+
+trends:
+  minimum_occurrences: 5
+  minimum_nonoccurrences: 5
+  alpha: 0.05
+  fdr_method: "benjamini_hochberg"
+  early_period: [1982, 2000]
+  late_period: [2001, 2019]
+
+local_analysis:
+  hydrobasins_levels: [3, 4, 5]
+  primary_level: 5
+  minimum_catchments: 20
+  minimum_observations: 300
+  primary_outcomes: [intensity_050, wet_1d]
+  outcomes:
+    - intensity_050
+    - intensity_joint_050_cv1
+    - intensity_075
+    - wet_1d
+    - wet_3d
+    - wet_7d
+    - wet_30d
+    - cause_intensity_dry
+    - cause_intensity_moderate
+    - cause_intensity_wet
+    - cause_volume_dry
+    - cause_volume_moderate
+    - cause_volume_wet
+
+plotting:
+  dpi: 300
+  palette:
+    ink: "#243142"
+    blue: "#33658A"
+    gold: "#D7A928"
+    orange: "#D97745"
+    olive: "#6B7D3E"
+    pink: "#B56576"
+    pale: "#E8EDF2"
+    grid: "#D8DEE6"
