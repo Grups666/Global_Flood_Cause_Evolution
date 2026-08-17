@@ -14,8 +14,6 @@ from floodcause.config import ensure_output_directories, load_config
 from floodcause.features import build_event_features
 from floodcause.local_analysis import run_local_analysis
 from floodcause.plots import build_all_figures
-from build_html_report import build_html_report
-from build_web_data import build_web_data
 
 
 def main() -> None:
@@ -44,10 +42,14 @@ def main() -> None:
         build_all_figures(config)
         receipt["figures"] = {"status": "complete", "directory": str(config["paths"]["figures"])}
     if args.stage in {"html", "all"}:
+        from build_html_report import build_html_report
+
         receipt["html"] = build_html_report(
             config["paths"]["report"], config["paths"]["html_report"]
         )
     if args.stage in {"web", "all"}:
+        from build_web_data import build_web_data
+
         receipt["web"] = build_web_data()
     print(json.dumps(receipt, indent=2, ensure_ascii=False, default=str))
 

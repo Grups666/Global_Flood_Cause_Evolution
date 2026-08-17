@@ -1,29 +1,19 @@
-# Source Code
+# Source code
 
-## Entry point
-
-`run_pipeline.py` provides five explicit stages: `audit`, `features`, `analysis`,
-`figures`, and `html`.
+`run_pipeline.py` exposes the stages `audit`, `features`, `analysis`, `local`, `figures`, `html`, `web`, and `all`.
 
 ## Package modules
 
-- `config.py`: configuration loading and output paths.
-- `io.py`: canonical source loading, geography, and FDR utilities.
-- `audit.py`: source inventory, missingness, integrity, and identifier checks.
-- `features.py`: daily reconstruction of peak flow, rainfall organization, and antecedent SSI.
-- `statistics.py`: logistic trends, Sen slopes, tie-corrected Mann–Kendall, and FDR.
-- `analysis.py`: extreme-event samples, labels, panel trends, paired comparisons, and tables.
-- `plots.py`: publication-ready PNG/SVG figures.
-- `validate_outputs.py`: independent sample, trend, FDR, link, encoding, and
-  figure checks; writes `outputs/logs/validation.json`.
-- `build_html_report.py`: self-contained, responsive HTML report with all
-  figures embedded as data URIs.
+- `config.py` — configuration and output paths.
+- `io.py` — canonical source loading and geography helpers.
+- `audit.py` — source inventory, missingness, and integrity checks.
+- `features.py` — daily flood peak, rainfall organization, and antecedent SSI reconstruction.
+- `analysis.py` — record screening, POT and sensitivity samples, continuous trends, and trajectories.
+- `statistics.py` — Theil–Sen, tie-corrected Mann–Kendall, and FDR utilities.
+- `local_analysis.py` — HydroBASINS assignment, multi-catchment trends, evidence gates, and mechanism summaries.
+- `plots.py` — the six publication figures in PNG and SVG.
+- `build_html_report.py` — self-contained clickable HTML report.
+- `build_web_data.py` — compact interactive-map JSON.
+- `validate_outputs.py` — independent sample, FDR, evidence, figure, report, and web checks.
 
-The code is intentionally script- and table-oriented rather than notebook-only,
-so every manuscript number can be traced to a saved result table.
-
-Run the validation suite after the four pipeline stages:
-
-```powershell
-python src/validate_outputs.py
-```
+The workflow is script- and table-oriented so every reported number can be traced to a saved result table.

@@ -1,18 +1,13 @@
-# Data Dictionary
+# Data dictionary
 
 ## Source assets
 
-| Asset | Role | Important fields |
+| Asset | Role | Key fields |
 |---|---|---|
-| `events_dormant.csv`, `events_growing.csv` | Independent runoff-event windows and source descriptors | `GCIN`, precipitation/response dates, volumes, source SSI, snow contribution, event type |
+| `events_dormant.csv`, `events_growing.csv` | Reconstructed rainfall–runoff event windows | `GCIN`, precipitation and response dates, source volumes, snow contribution |
 | `daily_data/observations/*.csv` | Daily event reconstruction | `date`, `water_input_mm`, `streamflow_mm`, `soil_saturation_index` |
-| `metadata_dormant.csv`, `metadata_growing.csv` | Catchment screening and coordinates | `GCIN`, country, longitude, latitude, snow fraction |
-| `Gauged_Catchments_Boundaries.gpkg` | Mapping support | `GCIN`, geometry |
-| `data/reference/hydrobasins/hybas_*_lev{03,04,05}_v1c.zip` | Standard nested basin units | `HYBAS_ID`, `PFAF_ID`, sub-basin area, geometry |
-
-`streamflow_mm` in the event tables is the sum of daily streamflow over the
-response window, not the event peak. The pipeline reconstructs the peak from
-daily records.
+| seasonal metadata files | Catchment screen and coordinates | `GCIN`, country, longitude, latitude, snow fraction |
+| HydroBASINS level 3–5 archives | Nested hydrological regions | `HYBAS_ID`, area, polygon geometry |
 
 ## Derived event features
 
@@ -22,49 +17,40 @@ File: `data/derived/event_features.parquet`
 |---|---|
 | `event_key` | Season-prefixed source event identifier |
 | `GCIN` | Catchment identifier |
-| `season` | Dormant or growing catalogue |
-| `q_peak_date` | Date of maximum daily streamflow within the response window |
-| `peak_year` | Calendar year of `q_peak_date` |
+| `q_peak_date`, `peak_year` | Date and calendar year of maximum daily streamflow in the response window |
 | `q_peak_mm_day` | Maximum daily streamflow in the response window |
-| `q_event_total_mm` | Source event-table sum of daily streamflow |
-| `q_direct_volume_mm` | Source event direct stormflow volume |
-| `p_volume_table_mm` | Source event rainfall/water-input volume |
-| `p_volume_daily_mm` | Reconstructed sum of daily event water input |
+| `q_event_total_mm` | Sum of daily streamflow over the event response window |
+| `p_volume_daily_mm` | Sum of daily event water input |
 | `p_max_daily_mm` | Maximum daily event water input |
 | `intensity_fraction` | `p_max_daily_mm / p_volume_daily_mm` |
 | `precipitation_cv` | Population standard deviation divided by mean daily event rainfall |
 | `ssi_1d`, `ssi_3d`, `ssi_7d`, `ssi_30d` | Mean SSI over complete antecedent days |
-| `p_volume_absolute_error_mm` | Absolute difference between source and reconstructed event rainfall volume |
-| `precip_window_complete` | Exact date coverage and nonmissing precipitation for the event window |
-| `streamflow_window_complete` | Exact date coverage and nonmissing streamflow for the response window |
+| `precip_window_complete`, `streamflow_window_complete` | Exact date coverage and nonmissing values for event windows |
 
 ## Analysis samples
 
-- `data/derived/annual_maximum_events.parquet`: one reconstructed peak event per
-  eligible catchment-year after the record screen.
-- `data/derived/pot_q95_events.parquet`: events at or above each catchment's
-  full-record 95th peak-flow percentile.
+| File | Definition |
+|---|---|
+| `primary_extreme_events.parquet` | Catchment-specific POT/Q95 events after the long-record, event-count, and selected-span screens |
+| `sensitivity_annual_maximum_events.parquet` | One maximum reconstructed flood per eligible catchment-year |
+| `sensitivity_pot_q90_events.parquet` | Catchment-specific POT/Q90 events |
+| `sensitivity_pot_q95_gap10_events.parquet` | POT/Q95 after 10-day peak declustering |
+| `sensitivity_pot_q975_events.parquet` | Catchment-specific POT/Q97.5 events |
 
-Both files contain the categorical analysis variables added after continuous
-feature reconstruction.
-
-## Main result tables
+## Current result tables
 
 | Table | Grain | Purpose |
 |---|---|---|
-| `annual_sample_coverage.csv` | Catchment | Year count, span, coverage, and eligibility |
-| `sample_diagnostics.csv` | Analysis stage | Sample-size flow |
-| `daily_event_feature_audit.csv` | Catchment | Daily completeness and event-window reconstruction |
-| `source_quality_issues.csv` | Quality check | Source inconsistencies and analysis action |
-| `panel_fixed_effect_trends.csv` | Sample × region × outcome | Primary within-catchment global/regional slopes |
-| `period_comparison_paired.csv` | Sample × region × outcome | Catchment-paired early/late sensitivity |
-| `period_comparison_pooled.csv` | Sample × region × outcome | Descriptive event-weighted early/late comparison |
-| `catchment_binary_trends.csv` | Catchment × binary outcome | Logistic trends and FDR |
-| `catchment_continuous_trends.csv` | Catchment × continuous variable | Sen/Mann–Kendall trends and FDR |
-| `regional_annual_composition.csv` | Region × year × cause | Annual composition and five-year smoothing |
-| `cause_composition_by_region.csv` | Region × cause | Descriptive regional composition |
-| `hydrobasin_catchment_membership.csv` | Catchment | Level-3/4/5 HydroBASINS assignment and basin areas |
-| `hydrobasin_sample_summary.csv` | HydroBASINS unit | Sample counts, dominant countries, and median gauge coordinates |
-| `local_hydrobasin_trends.csv` | Sample × level × unit × outcome | Fixed-effect slopes, confidence intervals, and three FDR families |
-| `local_hydrobasin_period_comparison.csv` | Level-5 unit × outcome | Catchment-paired early/late changes and FDR |
-| `local_hydrobasin_robustness.csv` | Level-5 unit × outcome | Event-sample, scale, definition, paired-period, and jackknife diagnostics |
+| `record_eligibility.csv` | Catchment | Event-year count, span, coverage, and long-record eligibility |
+| `extreme_sample_diagnostics.csv` | Sample | Event and catchment counts plus independence diagnostics |
+| `global_regional_trends.csv` | Sample × region × metric | Continuous within-catchment slopes and confidence intervals |
+| `global_regional_trajectories.csv` | Region × metric × year | Adjusted annual means for the primary sample |
+| `catchment_mechanism_trends.csv` | Catchment × metric | Theil–Sen trends, Mann–Kendall tests, and FDR |
+| `hydrobasin_catchment_membership.csv` | Catchment | Level-3/4/5 HydroBASINS membership |
+| `hydrobasin_sample_summary.csv` | HydroBASINS unit | Assigned catchments, countries, and map centers |
+| `hydrobasin_mechanism_trends.csv` | Sample × level × basin × metric | Multi-catchment fixed-effect estimates |
+| `hydrobasin_evidence.csv` | Level-5 basin × metric | FDR, sample, window, scale, jackknife, and evidence grades |
+| `hydrobasin_trajectories.csv` | Basin × metric × year | Adjusted annual trajectory and fitted trend |
+| `hydrobasin_mechanism_summary.csv` | Level-5 basin | Plain-language rainfall and wetness directions |
+
+The complete variable definitions and evidence rules are specified in [`analysis_protocol.md`](analysis_protocol.md).

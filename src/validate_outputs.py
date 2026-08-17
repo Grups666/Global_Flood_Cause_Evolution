@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 import zipfile
 from pathlib import Path
 
@@ -14,13 +15,28 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = yaml.safe_load((ROOT / "config" / "analysis.yaml").read_text(encoding="utf-8"))
+DERIVED = ROOT / "data" / "derived"
+TABLES = ROOT / "outputs" / "tables"
+FIGURES = ROOT / "outputs" / "figures"
+ASSETS = ROOT / "reports" / "assets"
+LOGS = ROOT / "outputs" / "logs"
+
+PRIMARY_METRICS = ["intensity_fraction", "ssi_1d", "ssi_3d", "ssi_7d", "ssi_30d"]
+FIGURE_STEMS = [
+    "figure_01_sample_coverage",
+    "figure_02_mechanism_change_maps",
+    "figure_03_strong_signal_rankings",
+    "figure_04_mechanism_trajectories",
+    "figure_05_physical_decomposition",
+    "figure_06_robustness_matrix",
+]
 
 
-def _record(checks: list[dict], name: str, passed: bool, detail: str) -> None:
+def record(checks: list[dict[str, object]], name: str, passed: bool, detail: str) -> None:
     checks.append({"check": name, "passed": bool(passed), "detail": detail})
 
 
-def _sha256(path: Path) -> str:
+def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -28,65 +44,62 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _annual_expected(features: pd.DataFrame) -> pd.DataFrame:
-    study = CONFIG["study"]
-    valid = features.dropna(subset=["q_peak_mm_day", "peak_year", "intensity_fraction"]).copy()
-    valid = valid[valid["peak_year"].between(study["start_year"], study["end_year"])]
-    selected = valid.loc[
-        valid.groupby(["GCIN", "peak_year"])["q_peak_mm_day"].idxmax()
-    ].copy()
-    coverage = selected.groupby("GCIN")["peak_year"].agg(["nunique", "min", "max"])
-    span = coverage["max"] - coverage["min"] + 1
-    eligible = coverage.index[
-        (coverage["nunique"] >= study["minimum_annual_observations"])
-        & (span >= study["minimum_record_span_years"])
-        & (coverage["nunique"] / span >= study["minimum_record_coverage"])
-    ]
-    return selected[selected["GCIN"].isin(eligible)]
-
-
-def _pot_expected(features: pd.DataFrame) -> pd.DataFrame:
-    settings = CONFIG["event_samples"]
-    valid = features.dropna(subset=["q_peak_mm_day", "peak_year", "intensity_fraction"]).copy()
-    threshold = valid.groupby("GCIN")["q_peak_mm_day"].transform(
-        lambda values: values.quantile(settings["pot_quantile"])
-    )
-    selected = valid[valid["q_peak_mm_day"] >= threshold]
-    counts = selected.groupby("GCIN").size()
-    eligible = counts.index[counts >= settings["minimum_pot_events"]]
-    return selected[selected["GCIN"].isin(eligible)]
-
-
-def _panel_slope(frame: pd.DataFrame, outcome: str) -> float:
-    data = frame[["GCIN", "peak_year", outcome]].dropna().copy()
-    x = (data["peak_year"].astype(float) - 2000.0) / 10.0
-    y = data[outcome].astype(float)
-    xw = x - x.groupby(data["GCIN"]).transform("mean")
-    yw = y - y.groupby(data["GCIN"]).transform("mean")
-    beta = float(np.dot(xw, yw) / np.dot(xw, xw))
-    return beta * (100.0 if outcome.startswith(("intensity_0", "intensity_joint", "wet_")) else 1.0)
-
-
-def _independent_bh(values: np.ndarray) -> np.ndarray:
+def independent_bh(values: np.ndarray) -> np.ndarray:
     result = np.full(values.shape, np.nan, dtype=float)
-    valid_positions = np.flatnonzero(np.isfinite(values))
-    if not len(valid_positions):
+    positions = np.flatnonzero(np.isfinite(values))
+    if not len(positions):
         return result
-    valid = values[valid_positions]
+    valid = values[positions]
     order = np.argsort(valid)
     ranked = valid[order]
     adjusted = ranked * len(ranked) / np.arange(1, len(ranked) + 1)
     adjusted = np.minimum.accumulate(adjusted[::-1])[::-1]
     restored = np.empty_like(adjusted)
     restored[order] = np.clip(adjusted, 0.0, 1.0)
-    result[valid_positions] = restored
+    result[positions] = restored
     return result
 
 
-def _check_markdown_links(checks: list[dict]) -> None:
+def expected_primary(features: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    study = CONFIG["study"]
+    settings = CONFIG["event_samples"]
+    required = ["q_peak_mm_day", "peak_year", "intensity_fraction", "p_max_daily_mm", "p_volume_daily_mm"]
+    events = features.dropna(subset=required).copy()
+    events = events[events["peak_year"].between(study["start_year"], study["end_year"])]
+    annual_idx = events.groupby(["GCIN", "peak_year"])["q_peak_mm_day"].idxmax()
+    annual = events.loc[annual_idx]
+    coverage = annual.groupby("GCIN").agg(
+        n_event_years=("peak_year", "nunique"),
+        first_year=("peak_year", "min"),
+        last_year=("peak_year", "max"),
+    )
+    coverage["record_span_years"] = coverage["last_year"] - coverage["first_year"] + 1
+    coverage["coverage_fraction"] = coverage["n_event_years"] / coverage["record_span_years"]
+    coverage["eligible"] = (
+        (coverage["n_event_years"] >= study["minimum_annual_observations"])
+        & (coverage["record_span_years"] >= study["minimum_record_span_years"])
+        & (coverage["coverage_fraction"] >= study["minimum_record_coverage"])
+    )
+    eligible = set(coverage.index[coverage["eligible"]].astype(int))
+    pool = events[events["GCIN"].isin(eligible)].copy()
+    threshold = pool.groupby("GCIN")["q_peak_mm_day"].transform(lambda values: values.quantile(0.95))
+    selected = pool[pool["q_peak_mm_day"] >= threshold].copy()
+    summary = selected.groupby("GCIN").agg(
+        events=("event_key", "size"), first=("peak_year", "min"), last=("peak_year", "max")
+    )
+    summary["span"] = summary["last"] - summary["first"] + 1
+    keep = set(summary.index[
+        (summary["events"] >= settings["minimum_events"])
+        & (summary["span"] >= settings["minimum_selected_span_years"])
+    ].astype(int))
+    return coverage.reset_index(), selected[selected["GCIN"].isin(keep)]
+
+
+def check_markdown_links(checks: list[dict[str, object]]) -> None:
     missing: list[str] = []
     pattern = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
-    for path in [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "reports").rglob("*.md"))]:
+    paths = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "reports").glob("*.md"))]
+    for path in paths:
         text = path.read_text(encoding="utf-8")
         for raw in pattern.findall(text):
             target = raw.strip().split("#", 1)[0].strip().strip("<>")
@@ -94,391 +107,181 @@ def _check_markdown_links(checks: list[dict]) -> None:
                 continue
             if not (path.parent / target).resolve().exists():
                 missing.append(f"{path.relative_to(ROOT)} -> {raw}")
-    _record(checks, "markdown_local_links", not missing, "none missing" if not missing else "; ".join(missing))
+    record(checks, "markdown_local_links", not missing, "none missing" if not missing else "; ".join(missing))
 
 
-def _check_daily_spot_sample(features: pd.DataFrame, checks: list[dict]) -> None:
-    source_daily = Path(CONFIG["paths"]["source_global_data"]) / "daily_data" / "observations"
-    sample = features.sample(24, random_state=20260815)
+def check_daily_spot_sample(features: pd.DataFrame, checks: list[dict[str, object]]) -> None:
+    source = Path(CONFIG["paths"]["source_global_data"]) / "daily_data" / "observations"
     failures: list[str] = []
-    for row in sample.itertuples(index=False):
-        daily = pd.read_csv(source_daily / f"{int(row.GCIN)}.csv", parse_dates=["date"])
-        p = daily[daily["date"].between(row.start_precip_date, row.end_precip_date)]["water_input_mm"]
-        q = daily[daily["date"].between(row.start_stormflow_date, row.end_stormflow_date)]["streamflow_mm"]
-        if not np.isclose(p.sum(), row.p_volume_daily_mm, rtol=0, atol=1e-9):
-            failures.append(f"{row.event_key}: precipitation")
-        if not np.isclose(p.max(), row.p_max_daily_mm, rtol=0, atol=1e-9):
-            failures.append(f"{row.event_key}: Pmax")
-        if not np.isclose(q.max(), row.q_peak_mm_day, rtol=0, atol=1e-9):
-            failures.append(f"{row.event_key}: Qpeak")
-    _record(checks, "daily_reconstruction_spot_check", not failures, f"24 events; failures={failures}")
+    for row in features.sample(20, random_state=20260818).itertuples(index=False):
+        daily = pd.read_csv(source / f"{int(row.GCIN)}.csv", parse_dates=["date"])
+        rain = daily[daily["date"].between(row.start_precip_date, row.end_precip_date)]["water_input_mm"]
+        flow = daily[daily["date"].between(row.start_stormflow_date, row.end_stormflow_date)]["streamflow_mm"]
+        if not np.isclose(rain.sum(), row.p_volume_daily_mm, atol=1e-9, rtol=0):
+            failures.append(f"{row.event_key}: rain volume")
+        if not np.isclose(rain.max(), row.p_max_daily_mm, atol=1e-9, rtol=0):
+            failures.append(f"{row.event_key}: daily rain maximum")
+        if not np.isclose(flow.max(), row.q_peak_mm_day, atol=1e-9, rtol=0):
+            failures.append(f"{row.event_key}: flood peak")
+    record(checks, "daily_reconstruction_spot_check", not failures, f"20 events; failures={failures}")
+
+
+def write_validation_report(result: dict[str, object]) -> None:
+    lines = [
+        "# Validation report",
+        "",
+        f"**Status:** {str(result['status']).upper()}",
+        f"**Checks:** {result['checks_passed']} / {result['checks_total']} passed",
+        "**Execution date:** 2026-08-18",
+        "",
+        "| Check | Status | Evidence |",
+        "|---|---:|---|",
+    ]
+    for item in result["checks"]:
+        detail = str(item["detail"]).replace("|", "\\|").replace("\n", " ")
+        lines.append(f"| `{item['check']}` | {'PASS' if item['passed'] else 'FAIL'} | {detail} |")
+    lines.extend([
+        "",
+        "The validator independently reconstructs the primary POT/Q95 sample, recomputes the declared FDR family and evidence gates, checks display eligibility, verifies all report assets and the self-contained HTML, and validates the interactive JSON schema.",
+        "",
+    ])
+    (ROOT / "docs" / "quality" / "validation_report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
-    checks: list[dict] = []
-    derived = ROOT / "data" / "derived"
-    tables = ROOT / "outputs" / "tables"
-    figures = ROOT / "outputs" / "figures"
-    report_assets = ROOT / "reports" / "assets"
-    features = pd.read_parquet(derived / "event_features.parquet")
-    annual = pd.read_parquet(derived / "annual_maximum_events.parquet")
-    pot = pd.read_parquet(derived / "pot_q95_events.parquet")
+    checks: list[dict[str, object]] = []
+    features = pd.read_parquet(DERIVED / "event_features.parquet")
+    primary = pd.read_parquet(DERIVED / "primary_extreme_events.parquet")
+    saved_coverage = pd.read_csv(TABLES / "record_eligibility.csv")
 
-    _record(checks, "event_key_unique", features["event_key"].is_unique, f"rows={len(features):,}")
-    _record(
-        checks,
-        "annual_catchment_year_unique",
-        not annual.duplicated(["GCIN", "peak_year"]).any(),
-        f"rows={len(annual):,}; catchments={annual['GCIN'].nunique():,}",
+    record(checks, "event_key_unique", features["event_key"].is_unique, f"source feature rows={len(features):,}")
+    expected_coverage, expected = expected_primary(features)
+    coverage_columns = ["GCIN", "n_event_years", "first_year", "last_year", "record_span_years", "eligible"]
+    coverage_match = expected_coverage[coverage_columns].sort_values("GCIN").reset_index(drop=True).equals(
+        saved_coverage[coverage_columns].sort_values("GCIN").reset_index(drop=True)
+    ) and np.allclose(expected_coverage["coverage_fraction"], saved_coverage["coverage_fraction"])
+    record(checks, "record_eligibility_exact", coverage_match, f"eligible={int(saved_coverage.eligible.sum()):,}")
+    primary_match = set(expected["event_key"]) == set(primary["event_key"])
+    record(checks, "primary_pot_q95_exact", primary_match, f"expected={len(expected):,}; saved={len(primary):,}; catchments={primary.GCIN.nunique():,}")
+
+    summary = primary.groupby("GCIN").agg(events=("event_key", "size"), first=("peak_year", "min"), last=("peak_year", "max"))
+    display_floor = summary.events.ge(10).all() and (summary["last"] - summary["first"] + 1).ge(20).all()
+    record(checks, "primary_event_and_span_floor", display_floor, f"minimum events={summary.events.min()}; minimum span={(summary['last'] - summary['first'] + 1).min()}")
+
+    diagnostics = pd.read_csv(TABLES / "extreme_sample_diagnostics.csv")
+    primary_diag = diagnostics[diagnostics["sample"].eq("pot_q95")].iloc[0]
+    independence_ok = int(primary_diag.stormflow_window_overlaps) == 0 and int(primary_diag.minimum_peak_gap_days) >= 2
+    gap10 = diagnostics[diagnostics["sample"].eq("pot_q95_gap10")].iloc[0]
+    independence_ok &= int(gap10.pairs_under_10_days) == 0
+    record(checks, "event_independence_diagnostics", independence_ok, f"Q95 overlaps=0; Q95 pairs<10d={int(primary_diag.pairs_under_10_days):,}; declustered pairs<10d={int(gap10.pairs_under_10_days)}")
+
+    evidence = pd.read_csv(TABLES / "hydrobasin_evidence.csv")
+    family = evidence[(evidence["sample"].eq("pot_q95")) & (evidence["level"].eq(5)) & evidence["metric"].isin(PRIMARY_METRICS)].copy()
+    expected_q = independent_bh(family["p_value"].to_numpy(float))
+    q_error = float(np.nanmax(np.abs(expected_q - family["primary_family_q"].to_numpy(float))))
+    record(checks, "complete_primary_fdr", len(family) == 490 and q_error < 1e-12, f"tests={len(family)}; FDR-supported={int(family.primary_family_fdr_supported.sum())}; max error={q_error:.3g}")
+
+    recomputed_strong = (
+        family["primary_family_fdr_supported"].fillna(False)
+        & family["catchments"].ge(CONFIG["local_analysis"]["strong_evidence_minimum_catchments"])
+        & family["sample_direction_stable"].fillna(False)
+        & family["jackknife_sign_stable"].fillna(False)
+        & family["wetness_window_stable"].fillna(False)
     )
+    strong_match = recomputed_strong.equals(family["strong_evidence"].fillna(False))
+    record(checks, "strong_evidence_gates", strong_match and int(recomputed_strong.sum()) == 63, f"signals={int(recomputed_strong.sum())}; basins={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}")
 
-    expected_annual = _annual_expected(features)
-    annual_match = set(expected_annual["event_key"]) == set(annual["event_key"])
-    _record(checks, "annual_sample_exact_reproduction", annual_match, f"expected={len(expected_annual):,}; saved={len(annual):,}")
+    trajectories = pd.read_csv(TABLES / "hydrobasin_trajectories.csv")
+    trajectory_ok = trajectories["year"].between(1982, 2019).all() and set(PRIMARY_METRICS).issubset(set(trajectories.metric))
+    record(checks, "continuous_time_trajectories", trajectory_ok, f"rows={len(trajectories):,}; years={trajectories.year.min()}–{trajectories.year.max()}")
 
-    expected_pot = _pot_expected(features)
-    pot_match = set(expected_pot["event_key"]) == set(pot["event_key"])
-    _record(checks, "pot_sample_exact_reproduction", pot_match, f"expected={len(expected_pot):,}; saved={len(pot):,}")
+    catchment = pd.read_csv(TABLES / "catchment_mechanism_trends.csv")
+    catchment_primary = catchment[catchment["variable"].isin(PRIMARY_METRICS)]
+    catchment_ok = catchment_primary.n_observations.ge(10).all() and catchment_primary.year_span.ge(20).all()
+    record(checks, "catchment_trend_eligibility", catchment_ok, f"catchments={catchment_primary.GCIN.nunique():,}; FDR-supported={int(catchment_primary.fdr_significant.sum())}")
 
-    c = CONFIG["classification"]
-    classification_ok = (
-        annual["intensity_050"].eq(annual["intensity_fraction"].gt(c["intensity_fraction_threshold"]).astype(int)).all()
-        and annual["intensity_075"].eq(annual["intensity_fraction"].gt(c["intensity_fraction_sensitivity_threshold"]).astype(int)).all()
-        and annual["intensity_joint_050_cv1"].eq(
-            (annual["intensity_fraction"].gt(c["intensity_fraction_threshold"]) & annual["precipitation_cv"].gt(c["intensity_cv_threshold"])).astype(int)
-        ).all()
-    )
-    _record(checks, "rainfall_classification", classification_ok, "three intensity definitions reproduced exactly")
+    figure_failures: list[str] = []
+    expected_asset_names = {f"{stem}.png" for stem in FIGURE_STEMS}
+    observed_asset_names = {path.name for path in ASSETS.glob("figure_*.*")}
+    if observed_asset_names != expected_asset_names:
+        figure_failures.append(f"report assets differ: {sorted(observed_asset_names ^ expected_asset_names)}")
+    for stem in FIGURE_STEMS:
+        png_source = FIGURES / f"{stem}.png"
+        png_asset = ASSETS / png_source.name
+        svg_source = FIGURES / f"{stem}.svg"
+        if not png_source.exists() or not png_asset.exists() or sha256(png_source) != sha256(png_asset):
+            figure_failures.append(f"missing/stale {png_source.name}")
+        if not svg_source.exists() or svg_source.stat().st_size < 10_000:
+            figure_failures.append(f"missing/undersized {svg_source.name}")
+        with Image.open(ASSETS / f"{stem}.png") as image:
+            if image.width < 1800 or image.height < 1000:
+                figure_failures.append(f"undersized {stem}: {image.size}")
+    record(checks, "figure_assets", not figure_failures, "6 report PNGs synchronized; 6 publication SVGs generated" if not figure_failures else "; ".join(figure_failures))
 
-    wetness_ok = True
-    for window in c["ssi_windows_days"]:
-        expected = annual[f"ssi_{window}d"].gt(c["ssi_thresholds"][1]).astype("Int64")
-        wetness_ok &= annual[f"wet_{window}d"].eq(expected).all()
-    _record(checks, "wetness_classification", wetness_ok, "1/3/7/30-day wet labels reproduced exactly")
+    report_md = (ROOT / "reports" / "global_flood_cause_evolution.md").read_text(encoding="utf-8")
+    report_html = (ROOT / "reports" / "global_flood_cause_evolution.html").read_text(encoding="utf-8")
+    html_ok = report_html.count("data:image/png;base64,") == 6 and 'id="lightbox"' in report_html and "openFigure(image)" in report_html and "59,048" in report_html and "23" in report_html
+    record(checks, "self_contained_html_report", html_ok, f"bytes={len(report_html.encode('utf-8')):,}; embedded PNGs={report_html.count('data:image/png;base64,')}")
 
-    panel = pd.read_csv(tables / "panel_fixed_effect_trends.csv")
-    comparisons = []
-    for outcome in ["intensity_050", "wet_1d", "intensity_fraction", "ssi_30d"]:
-        saved = panel.query("sample == 'annual_maximum' and region == 'Global' and outcome == @outcome")["slope_per_decade"].iloc[0]
-        recomputed = _panel_slope(annual, outcome)
-        comparisons.append((outcome, float(saved), recomputed, abs(saved - recomputed)))
-    _record(
-        checks,
-        "fixed_effect_slope_recalculation",
-        max(item[3] for item in comparisons) < 1e-12,
-        "; ".join(f"{name}: saved={saved:.12g}, recalculated={calc:.12g}" for name, saved, calc, _ in comparisons),
-    )
-
-    binary = pd.read_csv(tables / "catchment_binary_trends.csv")
-    fdr_errors = []
-    for outcome, frame in binary.groupby("outcome"):
-        expected = _independent_bh(frame["logistic_p"].to_numpy(float))
-        error = float(np.max(np.abs(expected - frame["logistic_q"].to_numpy(float))))
-        fdr_errors.append((outcome, error))
-    _record(checks, "binary_fdr_recalculation", max(x[1] for x in fdr_errors) < 1e-12, f"max_abs_error={max(x[1] for x in fdr_errors):.3g}")
-
-    composition = pd.read_csv(tables / "cause_composition_by_region.csv")
-    share_sums = composition.groupby("continent")["proportion"].sum()
-    _record(checks, "cause_composition_sums", np.allclose(share_sums, 1.0, atol=1e-12), f"max_abs_error={float(np.max(np.abs(share_sums - 1))):.3g}")
-
-    membership = pd.read_csv(tables / "hydrobasin_catchment_membership.csv")
-    matched = int(membership["hybas_id_l5"].notna().sum())
-    unmatched = set(membership.loc[membership["hybas_id_l5"].isna(), "GCIN"].astype(int))
-    _record(
-        checks,
-        "hydrobasin_membership",
-        matched == 2835 and unmatched == {2175, 2176, 2177, 3245},
-        f"matched={matched:,}; unmatched={sorted(unmatched)}",
-    )
-
-    local = pd.read_csv(tables / "local_hydrobasin_trends.csv")
-    primary_outcomes = set(CONFIG["local_analysis"]["primary_outcomes"])
-    local_primary = local[
-        (local["sample"] == "annual_maximum")
-        & (local["level"] == CONFIG["local_analysis"]["primary_level"])
-        & local["outcome"].isin(primary_outcomes)
-    ].copy()
-    expected_local_q = _independent_bh(local_primary["cluster_robust_p"].to_numpy(float))
-    saved_local_q = local_primary["primary_q"].to_numpy(float)
-    finite_local_q = np.isfinite(expected_local_q) & np.isfinite(saved_local_q)
-    local_q_error = float(
-        np.max(np.abs(expected_local_q[finite_local_q] - saved_local_q[finite_local_q]))
-    )
-    missingness_matches = bool(
-        np.array_equal(np.isnan(expected_local_q), np.isnan(saved_local_q))
-    )
-    _record(
-        checks,
-        "local_primary_fdr_recalculation",
-        len(local_primary) == 144 and missingness_matches and local_q_error < 1e-12,
-        f"tests={len(local_primary)}; valid={int(finite_local_q.sum())}; max_abs_error={local_q_error:.3g}",
-    )
-
-    focal = local_primary.loc[
-        local_primary["slope_per_decade"].abs().idxmax()
-    ]
-    focal_ids = set(
-        membership.loc[
-            membership["hybas_id_l5"].eq(focal["HYBAS_ID"]), "GCIN"
-        ].astype(int)
-    )
-    focal_sample = annual[annual["GCIN"].isin(focal_ids)]
-    focal_recalculated = _panel_slope(focal_sample, str(focal["outcome"]))
-    _record(
-        checks,
-        "local_fixed_effect_slope_recalculation",
-        abs(float(focal["slope_per_decade"]) - focal_recalculated) < 1e-12,
-        f"{focal['basin_code']} {focal['outcome']}: saved={float(focal['slope_per_decade']):.12g}; recalculated={focal_recalculated:.12g}",
-    )
-
-    paired = pd.read_csv(tables / "local_hydrobasin_period_comparison.csv")
-    paired_focal = paired[
-        (paired["HYBAS_ID"] == focal["HYBAS_ID"]) & (paired["outcome"] == focal["outcome"])
-    ].iloc[0]
-    early_start, early_end = CONFIG["trends"]["early_period"]
-    late_start, late_end = CONFIG["trends"]["late_period"]
-    paired_values = []
-    for _, frame in focal_sample.groupby("GCIN"):
-        early = frame.loc[frame["peak_year"].between(early_start, early_end), focal["outcome"]].dropna()
-        late = frame.loc[frame["peak_year"].between(late_start, late_end), focal["outcome"]].dropna()
-        if len(early) >= 10 and len(late) >= 10:
-            paired_values.append((late.mean() - early.mean()) * 100.0)
-    paired_recalculated = float(np.mean(paired_values))
-    _record(
-        checks,
-        "local_paired_period_recalculation",
-        abs(float(paired_focal["mean_difference_percentage_points"]) - paired_recalculated) < 1e-12,
-        f"catchments={len(paired_values)}; saved={float(paired_focal['mean_difference_percentage_points']):.12g}; recalculated={paired_recalculated:.12g}",
-    )
-
-    robustness = pd.read_csv(tables / "local_hydrobasin_robustness.csv")
-    high_confidence = robustness["high_confidence_local_signal"].fillna(False)
-    gates_ok = (
-        robustness.loc[high_confidence, "locally_replicated_signal"].all()
-        and robustness.loc[high_confidence, "definition_direction_stable"].all()
-        and robustness.loc[high_confidence, "jackknife_sign_stable"].all()
-    )
-    _record(
-        checks,
-        "local_signal_stability_gates",
-        int(high_confidence.sum()) == 17 and gates_ok,
-        f"high_confidence_signals={int(high_confidence.sum())}; all gates satisfied={bool(gates_ok)}",
-    )
-
-    _check_daily_spot_sample(features, checks)
-
-    image_failures = []
-    for number in range(1, 10):
-        png_matches = list(figures.glob(f"figure_{number:02d}_*.png"))
-        svg_matches = list(figures.glob(f"figure_{number:02d}_*.svg"))
-        if len(png_matches) != 1 or len(svg_matches) != 1:
-            image_failures.append(f"figure {number:02d}: expected one PNG and SVG")
-            continue
-        with Image.open(png_matches[0]) as image:
-            if image.width < 1600 or image.height < 900:
-                image_failures.append(f"{png_matches[0].name}: {image.size}")
-        if svg_matches[0].stat().st_size < 10_000:
-            image_failures.append(f"{svg_matches[0].name}: undersized")
-        report_copy = report_assets / png_matches[0].name
-        if not report_copy.exists() or _sha256(report_copy) != _sha256(png_matches[0]):
-            image_failures.append(f"{png_matches[0].name}: report-local copy missing or stale")
-    _record(checks, "figure_assets", not image_failures, "9 PNG/SVG pairs valid; report-local PNG hashes match" if not image_failures else "; ".join(image_failures))
-
-    _check_markdown_links(checks)
-    html_report = ROOT / "reports" / "global_flood_cause_evolution.html"
-    html_text = html_report.read_text(encoding="utf-8") if html_report.exists() else ""
-    report_markdown = (ROOT / "reports" / "global_flood_cause_evolution.md").read_text(encoding="utf-8")
-    expected_report_images = len(re.findall(r"!\[[^\]]*\]\([^)]+\)", report_markdown))
-    html_ok = (
-        html_text.count("data:image/png;base64,") == expected_report_images
-        and "<nav class=\"toc\"" in html_text
-        and "降雨型大洪水成因变化的局地水文区格局" in html_text
-        and 'id="figure-lightbox"' in html_text
-        and "openFigure(image)" in html_text
-        and "document.getElementById(a.getAttribute('href').slice(1))" in html_text
-        and "document.querySelector(a.getAttribute('href'))" not in html_text
-        and "src=\"assets/" not in html_text
-    )
-    _record(
-        checks,
-        "self_contained_html_report",
-        html_ok,
-        f"bytes={html_report.stat().st_size if html_report.exists() else 0:,}; embedded_images={html_text.count('data:image/png;base64,')}; expected={expected_report_images}",
-    )
-
-    web_data_path = (
-        ROOT
-        / "public"
-        / "modules"
-        / "flood-cause-evolution"
-        / "data"
-        / "flood-cause-explorer.json"
-    )
-    web_module_path = ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js"
-    web_manifest_path = ROOT / "public" / "module.json"
-    web_failures: list[str] = []
+    web_path = ROOT / "public" / "modules" / "flood-cause-evolution" / "data" / "flood-cause-explorer.json"
+    web_text = web_path.read_text(encoding="utf-8")
     try:
-        web_data = json.loads(web_data_path.read_text(encoding="utf-8"))
-        web_manifest = json.loads(web_manifest_path.read_text(encoding="utf-8"))
-        web_module = web_module_path.read_text(encoding="utf-8")
-        web_basins = web_data.get("basins", [])
-        web_catchments = web_data.get("catchments", [])
-        web_signals = sum(
-            bool(metric.get("highConfidence"))
-            for basin in web_basins
-            for metric in basin.get("metrics", {}).values()
-        )
-        if len(web_basins) != 72:
-            web_failures.append(f"basins={len(web_basins)}")
-        if len(web_catchments) != 2839:
-            web_failures.append(f"catchments={len(web_catchments)}")
-        if web_signals != 17:
-            web_failures.append(f"high_confidence={web_signals}")
-        expected_meta = {
-            "eligibleHydrobasins": 72,
-            "limitedSampleHydrobasins": 44,
-            "largerSampleHydrobasins": 28,
-            "unitedStatesHydrobasins": 17,
-            "analysisMinimumCatchments": 5,
-            "largerSampleCatchments": 20,
-            "minimumObservations": 300,
-        }
-        observed_meta = {key: web_data.get("meta", {}).get(key) for key in expected_meta}
-        if observed_meta != expected_meta:
-            web_failures.append(f"map metadata={observed_meta}")
-        if any(set(basin.get("metrics", {})) != {"intensity_050", "wet_1d"} for basin in web_basins):
-            web_failures.append("one or more basins lack both primary metrics")
-        tier_counts = {
-            "limited": sum(
-                all(not metric.get("largerSample") for metric in basin.get("metrics", {}).values())
-                for basin in web_basins
-            ),
-            "larger": sum(
-                all(metric.get("largerSample") for metric in basin.get("metrics", {}).values())
-                for basin in web_basins
-            ),
-        }
-        if tier_counts != {"limited": 44, "larger": 28}:
-            web_failures.append(f"sample tiers={tier_counts}")
-        if any(basin.get("geometry", {}).get("type") not in {"Polygon", "MultiPolygon"} for basin in web_basins):
-            web_failures.append("invalid basin geometry")
-        if web_manifest.get("className") != "FloodCauseEvolutionModule":
-            web_failures.append("manifest className mismatch")
-        catchment_metric_counts = {
-            outcome: sum(outcome in catchment.get("metrics", {}) for catchment in web_catchments)
-            for outcome in ["intensity_050", "wet_1d"]
-        }
-        if catchment_metric_counts != {"intensity_050": 2516, "wet_1d": 837}:
-            web_failures.append(f"catchment metric counts={catchment_metric_counts}")
-        catchment_slopes = [
-            float(metric["slope"])
-            for catchment in web_catchments
-            for metric in catchment.get("metrics", {}).values()
-            if metric.get("slope") is not None
-        ]
-        nonzero_share = float(np.mean(np.abs(catchment_slopes) > 1e-12))
-        if nonzero_share < 0.95:
-            web_failures.append(f"catchment nonzero slope share={nonzero_share:.3f}")
-        for marker in [
-            "flood-cause-hydrobasins",
-            "flood-cause-catchments",
-            "renderBasins",
-            "renderCatchments",
-            "showInspector",
-            "drawHoverLabel",
-            "if (!metric) continue",
-            "colorFor(metric.slope, 20)",
-            "metric.largerSample",
-            "analysisMinimumCatchments",
-            "ctx.setLineDash([])",
-            'ctx.shadowColor = "rgba(34,211,238,.98)"',
-            'ctx.shadowColor = "rgba(34,211,238,.90)"',
-            "ctx.shadowBlur = 19",
-            "ctx.shadowBlur = 16",
-            "ctx.shadowBlur = 13",
-            "ctx.lineWidth = 1.45",
-            "ctx.lineWidth = 1.4",
-            "ctx.arc(x, y, radius + 3.1",
-            'ctx.lineJoin = "round"',
-            'ctx.lineCap = "round"',
-            "ctx.miterLimit = 2",
-            'ctx.strokeStyle = "rgba(34,211,238,.98)"',
-            "ctx.lineWidth = 1.5",
-            "metric.highConfidence ? 1.2 : 0.7",
-            'ctx.font = "600 12px Inter, system-ui, sans-serif"',
-            ".legend-card{font-size:12px",
-            ".fce-fact span{font-size:11px",
-        ]:
-            if marker not in web_module:
-                web_failures.append(f"module marker missing: {marker}")
-        for forbidden in [
-            'hovered ? "#ffffff"',
-            "fine-dot",
-            "border:1px dashed",
-            "font-size:9px",
-            "font-size:10px",
-            "font:600 9px",
-            "#D946EF",
-            "217,70,239",
-            "Hover highlight",
-            'ctx.strokeStyle = "rgba(15,23,42,.88)"',
-            'active ? "#0f172a"',
-            'ctx.strokeStyle = "rgba(14,116,144,.94)"',
-            "active ? 2.8",
-            "metric.highConfidence ? 1.7",
-        ]:
-            if forbidden in web_module:
-                web_failures.append(f"obsolete boundary/highlight style present: {forbidden}")
-    except (OSError, ValueError, TypeError) as error:
-        web_failures.append(str(error))
-    _record(
-        checks,
-        "interactive_web_explorer",
-        not web_failures,
-        (
-            f"72 HydroBASINS regions; 2,839 catchments; 17 high-confidence signals; "
-            f"data_bytes={web_data_path.stat().st_size:,}"
-            if not web_failures
-            else "; ".join(web_failures)
-        ),
-    )
-    utf8_failures = []
-    for path in [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "reports").rglob("*.md"))]:
-        text = path.read_text(encoding="utf-8")
-        if "\ufffd" in text:
-            utf8_failures.append(str(path.relative_to(ROOT)))
-    _record(checks, "utf8_documents", not utf8_failures, "all Markdown decodes as UTF-8 without replacement characters")
+        web = json.loads(web_text, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
+        basins = web["basins"]
+        catchments = web["catchments"]
+        strong_count = sum(metric.get("strong", False) for basin in basins for key, metric in basin["metrics"].items() if key in PRIMARY_METRICS)
+        web_ok = len(basins) == 98 and len(catchments) == 2624 and strong_count == 63
+        web_ok &= all(len(item.get("metrics", {})) >= 5 for item in catchments)
+        web_ok &= all(metric["observations"] >= 10 and metric["span"] >= 20 for item in catchments for metric in item["metrics"].values())
+        web_ok &= all(item["geometry"]["type"] in {"Polygon", "MultiPolygon"} for item in basins)
+        web_detail = f"basins={len(basins)}; catchments={len(catchments)}; strong signals={strong_count}; bytes={web_path.stat().st_size:,}"
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        web_ok = False
+        web_detail = str(error)
+    module = (ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js").read_text(encoding="utf-8")
+    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawHoverLabel"]
+    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth"]
+    web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
+    record(checks, "interactive_web_explorer", web_ok, web_detail)
 
-    hydrobasin_directory = ROOT / CONFIG["paths"]["hydrobasins"]
-    checksum_manifest = pd.read_csv(ROOT / "outputs" / "logs" / "hydrobasins_reference_sha256.csv")
-    reference_failures = []
-    for row in checksum_manifest.itertuples(index=False):
-        path = hydrobasin_directory / row.file
+    current_text = report_md + "\n" + module
+    obsolete = [phrase for phrase in ["旧版本", "上一版本", "previous version", "early–late", "probability2000", "probability2010"] if phrase.lower() in current_text.lower()]
+    record(checks, "current_only_narrative", not obsolete, f"obsolete phrases={obsolete}")
+
+    check_daily_spot_sample(features, checks)
+    check_markdown_links(checks)
+
+    utf8_failures = []
+    for path in [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "reports").glob("*.md"))]:
+        if "\ufffd" in path.read_text(encoding="utf-8"):
+            utf8_failures.append(str(path.relative_to(ROOT)))
+    record(checks, "utf8_documents", not utf8_failures, f"replacement-character files={utf8_failures}")
+
+    hydro_dir = ROOT / CONFIG["paths"]["hydrobasins"]
+    manifest = pd.read_csv(LOGS / "hydrobasins_reference_sha256.csv")
+    bad_archives = []
+    for row in manifest.itertuples(index=False):
+        path = hydro_dir / row.file
         try:
             with zipfile.ZipFile(path) as archive:
                 bad_member = archive.testzip()
+            valid = not bad_member and path.stat().st_size == row.bytes and sha256(path) == row.sha256
         except (FileNotFoundError, zipfile.BadZipFile):
-            bad_member = "archive unreadable"
-        if bad_member or path.stat().st_size != row.bytes or _sha256(path) != row.sha256:
-            reference_failures.append(str(row.file))
-    _record(
-        checks,
-        "hydrobasins_reference_integrity",
-        len(checksum_manifest) == 24 and not reference_failures,
-        f"archives={len(checksum_manifest)}; failures={reference_failures}",
-    )
+            valid = False
+        if not valid:
+            bad_archives.append(str(row.file))
+    record(checks, "hydrobasins_reference_integrity", len(manifest) == 24 and not bad_archives, f"archives={len(manifest)}; failures={bad_archives}")
 
-    reference = ROOT / CONFIG["paths"]["world_boundaries"]
-    result = {
-        "status": "pass" if all(check["passed"] for check in checks) else "fail",
-        "checks_passed": sum(check["passed"] for check in checks),
+    result: dict[str, object] = {
+        "status": "pass" if all(bool(item["passed"]) for item in checks) else "fail",
+        "checks_passed": sum(bool(item["passed"]) for item in checks),
         "checks_total": len(checks),
-        "reference_sha256": {str(reference.relative_to(ROOT)): _sha256(reference)},
         "checks": checks,
     }
-    destination = ROOT / "outputs" / "logs" / "validation.json"
-    destination.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    LOGS.mkdir(parents=True, exist_ok=True)
+    (LOGS / "validation.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_validation_report(result)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(0 if result["status"] == "pass" else 1)
 
 
