@@ -19,6 +19,7 @@ DERIVED = ROOT / "data" / "derived"
 TABLES = ROOT / "outputs" / "tables"
 FIGURES = ROOT / "outputs" / "figures"
 ASSETS = ROOT / "reports" / "assets"
+PUBLIC_REPORTS = ROOT / "public" / "reports"
 LOGS = ROOT / "outputs" / "logs"
 
 PRIMARY_METRICS = ["intensity_fraction", "ssi_1d", "ssi_3d", "ssi_7d", "ssi_30d"]
@@ -223,6 +224,16 @@ def main() -> None:
     html_ok = report_html.count("data:image/png;base64,") == 6 and 'id="lightbox"' in report_html and "openFigure(image)" in report_html and "59,048" in report_html and "23" in report_html
     record(checks, "self_contained_html_report", html_ok, f"bytes={len(report_html.encode('utf-8')):,}; embedded PNGs={report_html.count('data:image/png;base64,')}")
 
+    public_report = PUBLIC_REPORTS / "global_flood_cause_evolution.html"
+    public_assets = PUBLIC_REPORTS / "assets"
+    public_report_ok = public_report.exists() and sha256(public_report) == sha256(ROOT / "reports" / "global_flood_cause_evolution.html")
+    public_report_ok &= all(
+        (public_assets / f"{stem}.png").exists()
+        and sha256(public_assets / f"{stem}.png") == sha256(ASSETS / f"{stem}.png")
+        for stem in FIGURE_STEMS
+    )
+    record(checks, "published_research_materials", public_report_ok, "self-contained report and 6 overview figures synchronized to public/")
+
     web_path = ROOT / "public" / "modules" / "flood-cause-evolution" / "data" / "flood-cause-explorer.json"
     web_text = web_path.read_text(encoding="utf-8")
     try:
@@ -239,9 +250,10 @@ def main() -> None:
         web_ok = False
         web_detail = str(error)
     module = (ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js").read_text(encoding="utf-8")
-    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawHoverLabel"]
-    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth"]
+    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawHoverLabel", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
+    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "overviewLayerId", 'name: "Research overview"']
     web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
+    web_ok &= module.count("reports/assets/figure_") == 6
     record(checks, "interactive_web_explorer", web_ok, web_detail)
 
     current_text = report_md + "\n" + module

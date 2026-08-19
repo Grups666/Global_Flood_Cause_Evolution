@@ -17,6 +17,8 @@ The evidence is local and directionally opposed, not one spatially uniform globa
 - [Analysis protocol](docs/methods/analysis_protocol.md)
 - [Validation report](docs/quality/validation_report.md)
 
+The explorer's top-bar **Research overview** is the unified reading entry point: a left-hand navigation connects the research question, all six analytical figures and their interpretation, methods, inference limits, and reproducibility materials. Only the HydroBASINS and eligible-catchment datasets appear in the map's Layers panel.
+
 ## Repository structure
 
 - `config/analysis.yaml` — declared analysis parameters and project paths.

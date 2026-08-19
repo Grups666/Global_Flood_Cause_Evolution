@@ -4,6 +4,7 @@ import argparse
 import base64
 import html
 import re
+import shutil
 from pathlib import Path
 
 import markdown
@@ -12,6 +13,8 @@ import markdown
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "reports" / "global_flood_cause_evolution.md"
 DESTINATION = ROOT / "reports" / "global_flood_cause_evolution.html"
+PUBLIC_REPORT = ROOT / "public" / "reports" / "global_flood_cause_evolution.html"
+PUBLIC_ASSETS = ROOT / "public" / "reports" / "assets"
 
 
 def _embed_images(source: str, source_dir: Path) -> str:
@@ -109,12 +112,19 @@ def build_html_report(
 </html>"""
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(document, encoding="utf-8")
+    if source == SOURCE and destination == DESTINATION:
+        PUBLIC_REPORT.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(destination, PUBLIC_REPORT)
+        PUBLIC_ASSETS.mkdir(parents=True, exist_ok=True)
+        for figure in sorted((ROOT / "reports" / "assets").glob("figure_*.png")):
+            shutil.copy2(figure, PUBLIC_ASSETS / figure.name)
     return {
         "status": "complete",
         "source": str(source),
         "destination": str(destination),
         "embedded_figures": expected_images,
         "bytes": destination.stat().st_size,
+        "public_report": str(PUBLIC_REPORT) if source == SOURCE and destination == DESTINATION else None,
     }
 
 
