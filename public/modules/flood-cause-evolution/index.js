@@ -97,8 +97,6 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     for (const basin of this.basins) {
       const metric = basin.metrics?.[this.metric];
       if (!metric) continue;
-      const hovered = this.app.hoveredLayer?.id === this.basinLayerId && this.app.hoveredFeatureId === basin.id;
-      const active = this.selected?._kind === "basin" && this.selected.id === basin.id;
       for (const shift of shifts) {
         ctx.save();
         this.traceGeometry(ctx, basin.geometry, viewport, shift);
@@ -110,25 +108,44 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ctx.fill("evenodd");
         ctx.globalAlpha = 1;
         ctx.setLineDash([]);
-
-        if (hovered || active) {
-          ctx.save();
-          ctx.shadowColor = hovered ? "rgba(34, 211, 238, .98)" : "rgba(6, 182, 212, .94)";
-          ctx.shadowBlur = hovered ? 28 : 22;
-          ctx.strokeStyle = hovered ? "rgba(103, 232, 249, .98)" : "rgba(34, 211, 238, .98)";
-          ctx.lineWidth = hovered ? 1.2 : 1.15;
-          ctx.stroke();
-          ctx.restore();
-        } else {
-          ctx.strokeStyle = "rgba(15, 23, 42, .72)";
-          ctx.lineWidth = 0.72;
-          ctx.stroke();
-        }
+        ctx.strokeStyle = "rgba(15, 23, 42, .72)";
+        ctx.lineWidth = 0.72;
+        ctx.stroke();
         ctx.restore();
-
       }
     }
+
+    const activeBasin = this.selected?._kind === "basin"
+      ? this.basins.find((basin) => basin.id === this.selected.id)
+      : null;
+    const hoveredBasin = this.app.hoveredLayer?.id === this.basinLayerId
+      ? this.basins.find((basin) => basin.id === this.app.hoveredFeatureId)
+      : null;
+    if (activeBasin && activeBasin.id !== hoveredBasin?.id) {
+      this.drawBasinHighlight(ctx, activeBasin, viewport, false);
+    }
+    if (hoveredBasin) {
+      this.drawBasinHighlight(ctx, hoveredBasin, viewport, true);
+    }
     this.updateHoverTooltip(ctx, viewport);
+  }
+
+  drawBasinHighlight(ctx, basin, viewport, hovered) {
+    if (!basin?.metrics?.[this.metric]) return;
+    for (const shift of this.worldShifts(viewport)) {
+      ctx.save();
+      this.traceGeometry(ctx, basin.geometry, viewport, shift);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.miterLimit = 1.4;
+      ctx.setLineDash([]);
+      ctx.shadowColor = hovered ? "rgba(34, 211, 238, .98)" : "rgba(6, 182, 212, .94)";
+      ctx.shadowBlur = hovered ? 28 : 22;
+      ctx.strokeStyle = hovered ? "rgba(103, 232, 249, .98)" : "rgba(34, 211, 238, .98)";
+      ctx.lineWidth = hovered ? 1.2 : 1.15;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   renderCatchments(ctx, viewport) {
@@ -394,7 +411,6 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-status ${statusClass}">${status}</div>
         <div class="fce-plain-result">${this.escape(interpretation)}</div>
         ${this.signal(metric, "Change per decade")}
-        ${this.physicalMeaning(metric.slope)}
         <div class="fce-grid">
           ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
           ${this.fact("Complete-family q", this.prob(metric.q))}
@@ -417,7 +433,6 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       <p class="fce-inspector-lead">Eligible single-catchment Theil–Sen trend · ${this.escape(outcome.label)}</p>
       <div class="fce-plain-result">${this.escape(this.interpretation(metric.slope, true))}</div>
       ${this.signal(metric, "Catchment change per decade")}
-      ${this.physicalMeaning(metric.slope)}
       <div class="fce-grid">
         ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
         ${this.fact("Catchment-family q", this.prob(metric.q))}
@@ -440,7 +455,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   signal(metric, label) {
     const outcome = this.outcome();
-    return `<div class="fce-signal"><span>${label}</span><strong style="color:${this.colorFor(metric?.slope, outcome.limit)}">${this.signed(metric?.slope, outcome.digits)}</strong><small>${this.escape(outcome.unit)}</small></div>`;
+    return `<div class="fce-signal"><span>${label}</span><strong style="color:${this.colorFor(metric?.slope, outcome.limit)}">${this.signed(metric?.slope, outcome.digits)}</strong><small>${this.escape(outcome.unit)}</small><p>${this.metricMeaning(metric?.slope)}</p></div>`;
   }
 
   trajectory(metric, outcome) {
@@ -628,18 +643,16 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     }));
   }
 
-  physicalMeaning(slope) {
+  metricMeaning(slope) {
     const value = Math.abs(Number(slope));
     const direction = Number(slope) >= 0 ? "increases" : "decreases";
     if (this.metric === "intensity_fraction") {
-      const from = 40;
-      const to = from + Number(slope);
-      return `<div class="fce-metric-meaning"><b>Physical meaning</b><span>The wettest day's share of total event rainfall ${direction} by <strong>${value.toFixed(2)} percentage points over 10 years</strong>. For illustration, a 40.00% share would move to about ${to.toFixed(2)}% under this fitted trend. This is not a ${value.toFixed(2)}% change in rainfall amount, flood peak, or flood frequency.</span></div>`;
+      return `Wettest-day share of event rainfall ${direction} by <b>${value.toFixed(2)} percentage points over 10 years</b>.`;
     }
     if (this.metric === "intensity_050") {
-      return `<div class="fce-metric-meaning"><b>Physical meaning</b><span>The share of selected large-flood events in which the wettest day supplied more than half of event rainfall ${direction} by <strong>${value.toFixed(2)} percentage points over 10 years</strong>. It is a change in event composition, not flood frequency.</span></div>`;
+      return `Share of selected events with over half of the rain on the wettest day ${direction} by <b>${value.toFixed(2)} percentage points over 10 years</b>.`;
     }
-    return `<div class="fce-metric-meaning"><b>Physical meaning</b><span>Mean pre-event soil saturation ${direction} by <strong>${value.toFixed(3)} SSI units over 10 years</strong> for the selected antecedent window. SSI is a dimensionless wetness index; this is not rainfall depth or streamflow.</span></div>`;
+    return `Mean pre-event soil wetness ${direction} by <b>${value.toFixed(3)} SSI units over 10 years</b>.`;
   }
 
   ensureModal() {
@@ -802,7 +815,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       .fce-hover-tooltip{position:fixed;z-index:1095;display:none;min-width:245px;max-width:min(390px,calc(100vw - 20px));padding:11px 13px;border:1px solid #334155;border-radius:11px;background:#172235;color:#f8fafc;box-shadow:0 13px 34px rgba(15,23,42,.32);opacity:1;pointer-events:none;font:13px/1.35 Inter,system-ui,sans-serif}.fce-hover-tooltip.visible{display:block}.fce-hover-tooltip strong,.fce-hover-tooltip span,.fce-hover-tooltip b{display:block}.fce-hover-tooltip strong{font-size:13px;color:#fff}.fce-hover-tooltip span{margin-top:3px;color:#d7e1e8;font-size:12px}.fce-hover-tooltip b{margin-top:6px;color:#67e8f9;font-size:14px}.fce-hover-tooltip small{color:#d7e1e8;font-size:11px;font-weight:600}
       .fce-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:850;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:9px 10px 9px 14px;border:1px solid rgba(148,163,184,.35);border-radius:14px;background:rgba(255,255,255,.95);box-shadow:0 10px 30px rgba(15,23,42,.12);backdrop-filter:blur(16px);font:13px/1.25 Inter,system-ui,sans-serif;color:#334155}.fce-toolbar-label{font-weight:750;white-space:nowrap}.fce-segmented{display:flex;padding:3px;border-radius:10px;background:#edf1f4}.fce-segmented button,.fce-overview-button{border:0;border-radius:8px;padding:8px 10px;background:transparent;color:#526171;font:650 12px Inter,system-ui;white-space:nowrap;cursor:pointer}.fce-segmented button.active{background:#fff;color:#173d55;box-shadow:0 2px 8px rgba(15,23,42,.1)}.fce-overview-button{background:#173d55;color:#fff}
       .fce-legend-scale-title{margin:6px 0 5px;font-size:12px;font-weight:750;color:#475569}.fce-legend-bar{height:11px;border-radius:99px;background:linear-gradient(90deg,#2b6487,#ebe8de 50%,#cf673f)}.fce-legend-axis{display:flex;justify-content:space-between;margin-top:4px;font:12px/1.25 ui-monospace,monospace;color:#64748b}.fce-legend-directions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:12px;line-height:1.35;color:#526171}.fce-legend-directions span:last-child{text-align:right}.fce-legend-unit,.fce-legend-note{margin:9px 0;font-size:12px;line-height:1.5;color:#64748b}.fce-legend-key{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;line-height:1.35;color:#475569}.fce-legend-key i{display:inline-block;flex:0 0 auto;width:19px;height:10px}.fce-legend-key .boundary{border:1px solid #172235;background:#d8d3c7}.fce-legend-key .limited{border:1px solid #172235;background:#d8d3c7;opacity:.48}.fce-legend-key .glow{height:5px;border:1px solid #67e8f9;box-shadow:0 0 8px 4px rgba(34,211,238,.7)}.fce-legend-key .dot{width:9px;height:9px;border-radius:50%;background:#527b95;border:1px solid #334155}
-      .fce-inspector-lead,.fce-note{font-size:12px;line-height:1.65;color:#64748b}.fce-plain-result{margin:12px 0 0;padding:11px 12px;border-left:3px solid #22d3ee;border-radius:0 9px 9px 0;background:#eefbfc;font-size:13px;font-weight:650;line-height:1.5;color:#214558}.fce-signal{margin:12px 0;padding:15px;border-radius:12px;background:#f3f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:12px}.fce-signal strong{display:block;margin:5px 0 3px;font-size:30px;letter-spacing:-.04em}.fce-metric-meaning{margin:-3px 0 13px;padding:12px 13px;border:1px solid #d9e7ec;border-radius:10px;background:#f7fbfc}.fce-metric-meaning b,.fce-metric-meaning span{display:block}.fce-metric-meaning b{color:#245267;font-size:12px}.fce-metric-meaning span{margin-top:4px;color:#607585;font-size:12px;line-height:1.6}.fce-metric-meaning strong{color:#24465a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fce-fact{padding:11px;border:1px solid #dfe6eb;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.025em;color:#6f7f8e}.fce-fact strong{margin-top:5px;font-size:13px;color:#263646}.fce-status{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-status.pass{background:#e3efe7;color:#315e45}.fce-status.neutral{background:#eef1f3;color:#667482}.fce-status.limited{background:#f4ede0;color:#80612e}
+      .fce-inspector-lead,.fce-note{font-size:12px;line-height:1.65;color:#64748b}.fce-plain-result{margin:12px 0 0;padding:11px 12px;border-left:3px solid #22d3ee;border-radius:0 9px 9px 0;background:#eefbfc;font-size:13px;font-weight:650;line-height:1.5;color:#214558}.fce-signal{margin:12px 0;padding:15px;border-radius:12px;background:#f3f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:12px}.fce-signal strong{display:block;margin:5px 0 3px;font-size:30px;letter-spacing:-.04em}.fce-signal p{margin:10px 0 0;padding-top:9px;border-top:1px solid #dce5e9;color:#526b7b;font-size:12px;line-height:1.5}.fce-signal p b{color:#24465a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fce-fact{padding:11px;border:1px solid #dfe6eb;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.025em;color:#6f7f8e}.fce-fact strong{margin-top:5px;font-size:13px;color:#263646}.fce-status{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-status.pass{background:#e3efe7;color:#315e45}.fce-status.neutral{background:#eef1f3;color:#667482}.fce-status.limited{background:#f4ede0;color:#80612e}
       .fce-block,.fce-chart{margin-top:15px;padding-top:13px;border-top:1px solid #e2e8ec}.fce-subhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:9px}.fce-subhead b{font-size:13px;color:#314455}.fce-subhead span{font-size:12px;color:#7a8793}.fce-chart svg{display:block;width:100%;height:auto;overflow:visible}.fce-chart svg text{font:11px Inter,system-ui;fill:#758290}.fce-chart .grid{stroke:#dce4e8;stroke-width:1}.fce-chart .observed circle{fill:#7698aa;opacity:.68}.fce-chart .fit{fill:none;stroke:#173d55;stroke-width:2.2;stroke-linecap:round}.fce-sensitivity{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-sensitivity div{padding:9px;border-radius:9px;background:#f1f4f5;border-left:3px solid #aab4bc}.fce-sensitivity div.same{border-left-color:#5c9270}.fce-sensitivity div.different{border-left-color:#d27a55}.fce-sensitivity span,.fce-sensitivity strong{display:block;font-size:12px}.fce-sensitivity span{color:#687784}.fce-sensitivity strong{margin-top:3px;color:#263646}.fce-drivers{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.fce-drivers div{padding:10px;border-radius:9px;background:#f1f4f5}.fce-drivers span,.fce-drivers strong,.fce-drivers small{display:block}.fce-drivers span,.fce-drivers small{font-size:11px;line-height:1.4;color:#687784}.fce-drivers strong{margin:4px 0;font-size:16px;color:#263646}.fce-gates{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}.fce-gates span{padding:6px 9px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-gates .pass{background:#e4eee7;color:#315e45}.fce-gates .fail{background:#eef1f3;color:#788592}
       .fce-modal{position:fixed;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(15,23,42,.48);backdrop-filter:blur(9px)}.fce-modal.visible{display:flex}.fce-modal-card{position:relative;display:grid;grid-template-columns:228px minmax(0,1fr);width:min(1260px,96vw);height:min(920px,92vh);overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:22px;background:#f8fafb;box-shadow:0 32px 90px rgba(15,23,42,.28);color:#223143;font:14px/1.65 Inter,system-ui,sans-serif}.fce-overview-nav{display:flex;flex-direction:column;min-width:0;padding:25px 17px 18px;border-right:1px solid #dce3e8;background:#f1f5f7}.fce-nav-brand{padding:0 8px 18px;margin-bottom:11px;border-bottom:1px solid #d9e1e6}.fce-nav-brand strong,.fce-nav-brand span{display:block}.fce-nav-brand strong{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#173d55}.fce-nav-brand span{margin-top:4px;font-size:12px;line-height:1.4;color:#778795}.fce-overview-nav nav{display:flex;flex-direction:column;gap:2px;overflow:auto}.fce-overview-nav nav button{display:grid;grid-template-columns:25px minmax(0,1fr);gap:7px;align-items:center;width:100%;padding:7px 8px;border:0;border-radius:8px;background:transparent;color:#647487;text-align:left;font:600 12px/1.3 Inter,system-ui;cursor:pointer}.fce-overview-nav nav button i{font:10px/1.2 ui-monospace,monospace;color:#9aa7b2}.fce-overview-nav nav button:hover{background:#e6edf1;color:#2c4d61}.fce-overview-nav nav button.active{background:#dcecef;color:#126276}.fce-overview-nav nav button.active i{color:#13a9c0}.fce-nav-foot{margin-top:auto;padding:16px 8px 0;border-top:1px solid #d9e1e6;font-size:11px;color:#8996a1}.fce-modal-scroll{position:relative;min-width:0;overflow:auto;scroll-behavior:smooth}.fce-close{position:sticky;float:right;top:16px;margin:16px 16px -54px 0;z-index:5;width:40px;height:40px;border:0;border-radius:50%;background:#e7ecef;color:#415161;font-size:23px;cursor:pointer}.fce-close:hover{background:#dce5e9;color:#173d55}.fce-modal-body{max-width:1000px;margin:0 auto;padding:46px 52px 76px}.fce-overview-section{scroll-margin-top:25px}.fce-hero{padding:4px 58px 28px 0;border-bottom:1px solid #dce3e8}.fce-kicker,.fce-section-index{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9b6a26}.fce-hero h2{max-width:760px;margin:9px 0 12px;font-size:39px;line-height:1.08;letter-spacing:-.04em;color:#172638}.fce-hero p{max-width:800px;margin:0;color:#5f6f7e;font-size:15px;line-height:1.75}.fce-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 48px}.fce-kpis div{padding:16px;border:1px solid #dce3e8;border-radius:13px;background:#fff}.fce-kpis strong,.fce-kpis span{display:block}.fce-kpis strong{font-size:24px;color:#173d55}.fce-kpis span{margin-top:4px;font-size:12px;color:#73818f}.fce-modal section{margin-top:54px;padding-top:5px}.fce-modal section h3{max-width:760px;margin:8px 0 12px;font-size:24px;line-height:1.3;letter-spacing:-.02em;color:#243648}.fce-section-lead{max-width:820px;margin:0 0 18px;color:#5f6f7e;font-size:14px;line-height:1.75}.fce-reading{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fce-reading div{padding:16px;border-radius:13px;background:#edf2f4}.fce-reading b,.fce-reading span{display:block}.fce-reading b{color:#243648}.fce-reading span{margin-top:5px;font-size:12px;color:#667684}.fce-section-note{margin-top:-4px;color:#788795;font-size:12px}.fce-ranking{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-ranking button{position:relative;overflow:hidden;display:flex;justify-content:space-between;gap:10px;padding:12px 13px;border:1px solid #dce3e8;border-radius:10px;background:#fff;color:#3e4e5d;text-align:left;cursor:pointer}.fce-ranking button span,.fce-ranking button strong{position:relative;z-index:1;font-size:12px}.fce-ranking button i{position:absolute;bottom:0;left:0;height:3px}.fce-ranking button:hover{border-color:#8fa7b5;transform:translateY(-1px)}
       .fce-evidence-section{padding-top:30px;border-top:1px solid #dce3e8}.fce-report-figure{position:relative;display:block;width:100%;margin-top:21px;padding:0;overflow:hidden;border:1px solid #dce3e8;border-radius:15px;background:#fff;box-shadow:0 13px 34px rgba(36,49,66,.08);cursor:zoom-in}.fce-report-figure img{display:block;width:100%;height:auto}.fce-report-figure>span{position:absolute;right:12px;bottom:12px;padding:7px 10px;border-radius:99px;background:rgba(23,61,85,.88);color:#fff;font:650 11px/1.2 Inter,system-ui;opacity:0;transform:translateY(3px);transition:.18s}.fce-report-figure:hover{border-color:#86a7b5;box-shadow:0 18px 42px rgba(36,49,66,.13)}.fce-report-figure:hover>span,.fce-report-figure:focus-visible>span{opacity:1;transform:none}.fce-report-figure:focus-visible{outline:3px solid rgba(34,211,238,.45);outline-offset:3px}.fce-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fce-method-grid div{padding:16px;border:1px solid #dce3e8;border-radius:12px;background:#fff}.fce-method-grid b,.fce-method-grid span{display:block}.fce-method-grid b{color:#274254}.fce-method-grid span{margin-top:6px;font-size:12px;line-height:1.6;color:#677785}.fce-claims{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fce-claims>div{padding:18px;border-radius:13px}.fce-claims .can{background:#eaf3ee}.fce-claims .cannot{background:#f3efea}.fce-claims b{color:#29485a}.fce-claims ul{margin:8px 0 0;padding-left:18px}.fce-claims li{margin:7px 0;color:#586b78;font-size:12px;line-height:1.55}.fce-resource-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fce-resource-grid a{position:relative;min-height:130px;padding:17px 18px 35px;border:1px solid #dce3e8;border-radius:12px;background:#fff;color:#334b5c;text-decoration:none}.fce-resource-grid a:hover{border-color:#83a5b4;transform:translateY(-1px)}.fce-resource-grid b,.fce-resource-grid span{display:block}.fce-resource-grid span{margin-top:6px;font-size:12px;line-height:1.55;color:#6a7a87}.fce-resource-grid i{position:absolute;left:18px;bottom:13px;font:650 11px/1.2 Inter,system-ui;color:#1689a0}.fce-figure-viewer{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(12,21,31,.92);backdrop-filter:blur(9px)}.fce-figure-viewer.open{display:flex}.fce-figure-viewer figure{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:97vw;max-height:95vh;margin:0}.fce-figure-viewer img{max-width:97vw;max-height:calc(95vh - 45px);object-fit:contain;border-radius:10px;background:#fff;box-shadow:0 26px 80px rgba(0,0,0,.42)}.fce-figure-viewer figcaption{color:#e9f1f5;font-size:12px}.fce-figure-close{position:fixed;top:18px;right:20px;width:43px;height:43px;border:1px solid rgba(255,255,255,.34);border-radius:50%;background:rgba(16,28,40,.75);color:#fff;font-size:25px;cursor:pointer}
