@@ -250,8 +250,8 @@ def main() -> None:
         web_ok = False
         web_detail = str(error)
     module = (ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js").read_text(encoding="utf-8")
-    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawHoverLabel", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
-    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "overviewLayerId", 'name: "Research overview"']
+    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "fce-hover-tooltip", "Physical meaning", "background:#172235", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
+    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "drawHoverLabel", "overviewLayerId", 'name: "Research overview"']
     web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
     web_ok &= module.count("reports/assets/figure_") == 6
     record(checks, "interactive_web_explorer", web_ok, web_detail)
