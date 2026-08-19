@@ -1,7 +1,7 @@
 # Validation report
 
 **Status:** PASS
-**Checks:** 17 / 17 passed
+**Checks:** 18 / 18 passed
 **Execution date:** 2026-08-18
 
 | Check | Status | Evidence |
@@ -17,6 +17,7 @@
 | `catchment_trend_eligibility` | PASS | catchments=2,624; FDR-supported=1 |
 | `figure_assets` | PASS | 6 report PNGs synchronized; 6 publication SVGs generated |
 | `self_contained_html_report` | PASS | bytes=3,993,379; embedded PNGs=6 |
+| `published_research_materials` | PASS | self-contained report and 6 overview figures synchronized to public/ |
 | `interactive_web_explorer` | PASS | basins=98; catchments=2624; strong signals=63; bytes=5,184,149 |
 | `current_only_narrative` | PASS | obsolete phrases=[] |
 | `daily_reconstruction_spot_check` | PASS | 20 events; failures=[] |
