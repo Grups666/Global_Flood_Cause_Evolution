@@ -195,6 +195,8 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
         "p": _native(row.mk_p, 6),
         "tau": _native(row.mk_tau, 4),
         "mean": _native(row.mean_level * mean_scale, digits + 1),
+        "fittedFirst": _native(row.fitted_first_level * mean_scale, digits + 1),
+        "fittedLast": _native(row.fitted_last_level * mean_scale, digits + 1),
         "relativeSlope": _native(row.relative_slope_percent_per_decade, 2),
         "unit": str(row.display_unit),
         "observations": int(row.n_observations),

@@ -6,7 +6,7 @@
 
 - Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
 - The primary sample contains **59,048 POT/Q95 floods in 2,624 long-record low-snow catchments**. At least one primary direct trend is estimable in **2,435 catchments**.
-- The five continuous outcomes produce **12,163 catchment–metric tests**. There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
+- The five continuous outcomes produce **12,163 catchment–metric tests** (the complete grid is 2,435 × 5 = 12,175; the 7-day and 30-day SSI outcomes lack 2 and 10 combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
 - Among 1,475 L5–metric tests, **106 pass complete-family FDR and 94 pass the full statistical robustness screen**. With the default **≥10% area support**, **84 strong regional signals remain in 36 L5 units**.
 - Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
 
@@ -50,6 +50,8 @@ $$
 
 Each catchment requires at least 10 selected events spanning at least 20 years. The final primary sample contains **59,048 events in 2,624 catchments**.
 
+**Example.** If a catchment has 100 reconstructed floods and its 95th-percentile peak is 120 mm/day, only upper-tail events at or above 120 mm/day are retained—typically about five. POT may retain more than one genuinely extreme event in a year; Section 12 then averages events within that year so it does not receive extra trend weight.
+
 ## 7. Why annual maxima are a sensitivity population
 
 Annual maxima force one event into every year, even when that event is not particularly extreme relative to the catchment record. POT/Q95 directly targets the catchment upper tail, while annual maxima remain an important alternative definition.
@@ -66,6 +68,8 @@ $$
 
 An increase means a larger share of event rainfall fell in the wettest day; a decrease means movement toward longer, volume-dominated rainfall. The continuous ratio is the inferential outcome; no binary intensity-dominated label is used.
 
+**Example.** If total event rainfall is 80 mm and 48 mm falls on the rainiest day, then $C=48/80=0.60$: 60% of the event rainfall fell in one day. A trend of +8.83 percentage points per decade could move a fitted concentration level from 38.00% to 46.83% over ten years. It is not an 8.83% increase in flood count and not an 8.83 mm increase in daily rainfall.
+
 ## 10. Antecedent wetness
 
 $$
@@ -74,6 +78,8 @@ SSI_{ie}^{(w)}=\frac1w\sum_{k=1}^w SSI_{i,t_{0,ie}-k},
 $$
 
 Positive slopes mean large floods occurred after increasingly wet antecedent states; negative slopes mean increasingly dry states. SSI units are normalized index units, not millimetres or flood percentages.
+
+**Example.** If SSI on the three complete days before rainfall onset is 0.32, 0.46, and 0.52, then $SSI^{(3)}=(0.32+0.46+0.52)/3=0.433$. A 3-day SSI trend of $-0.010$ per decade means the mean antecedent state before selected large floods declined by 0.010 index units every ten years.
 
 ## 11. Physical rainfall components
 
@@ -85,6 +91,8 @@ $$
 
 No logarithmic trend model is used. These components aid interpretation of the concentration ratio without claiming causal attribution.
 
+**Example.** If mean total event rainfall is 100 mm and its linear trend is +8 mm per decade, then the relative trend is $100\times8/100=8\%$ per decade. The physical result remains +8 mm per decade; 8% is only a secondary scale for comparing variables or regions with different means.
+
 ## 12. Catchment-year annualization
 
 Multiple POT events in one catchment-year are averaged:
@@ -94,6 +102,8 @@ $$
 $$
 
 This prevents a year with several reconstructed events from receiving extra trend weight solely because of event count.
+
+**Example.** If one catchment has three selected floods in 2005 with concentrations of 40%, 55%, and 65%, the 2005 value used in the trend is $(40+55+65)/3=53.3\%$. The year is not entered three times. If 2006 has one event, 2005 and 2006 each contribute one annual value.
 
 ## 13. Direct catchment trend
 
@@ -106,6 +116,8 @@ $$
 
 with a tie-corrected Mann–Kendall test. At least 10 event years spanning at least 20 years are required.
 
+**Example.** If one pair of annual values rises from 0.40 in 1990 to 0.52 in 2010, that pair gives $(0.52-0.40)/(2010-1990)\times10=0.06$ per decade, or +6 concentration percentage points per decade. Theil–Sen calculates this slope for every year-pair and takes the median, so one unusual year has limited leverage.
+
 ## 14. Catchment multiple testing
 
 Each physical metric forms one Benjamini–Hochberg family across catchments. Ordering $m$ p-values, the procedure finds the largest $k$ satisfying:
@@ -114,6 +126,8 @@ $$
 p_{(k)}\le\frac{k}{m}\alpha,
 \qquad \alpha=0.05.
 $$
+
+**Example.** With 1,000 catchments for one metric, the fifth ordered p value is compared with $(5/1000)\times0.05=0.00025$. A result is labelled FDR-supported only if the ordered p values are sufficiently small. This network-wide correction does not change any catchment slope; it limits chance discoveries created by thousands of simultaneous tests.
 
 ## 15. Stable local candidate
 
@@ -160,6 +174,8 @@ $$
 
 Areas use equal-area EPSG:6933. Invalid polygons are repaired, and overlapping catchments are counted once through a geometric union.
 
+**Example.** If an L5 polygon covers 10,000 km² and the non-overlapping union of eligible catchment polygons inside it covers 2,400 km², its area support is 24%. It passes the 10% and 20% settings but not 30%, 40%, or 50%.
+
 ## 21. Dynamic threshold sensitivity
 
 | L5 area threshold | Spatially supported L5 | L5 with trend estimates | Catchments inside passing L5 | Global catchment share | US catchment share | Strong regional signals | L5 with strong signals |
@@ -187,6 +203,8 @@ $$
 
 $\alpha_i$ controls stable catchment differences and $\beta_j$ is the shared per-decade change. Standard errors are clustered by catchment with a $t(G-1)$ reference.
 
+**Example.** Suppose two catchments in one L5 have long-term mean concentrations of 35% and 55%, but both rise by about 2 percentage points per decade. Fixed effects retain the 35% versus 55% baseline difference and estimate the shared $\beta_j\approx+2$ percentage points per decade; the higher baseline is not mistaken for temporal change.
+
 ## 23. One-catchment representation
 
 If one catchment alone supports an L5 polygon at the selected threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly labelled as a single-catchment representation. High area support does not create multi-catchment corroboration.
@@ -194,6 +212,8 @@ If one catchment alone supports an L5 polygon at the selected threshold, the L5 
 ## 24. Why 2000 appears
 
 The year 2000 is only a numerical centering constant. Replacing it with 1990 or 2010 leaves the slope unchanged; no pre/post-2000 contrast or breakpoint is fitted.
+
+**Example.** Under 2000 centering, 1990 has $x=-1$ and 2010 has $x=+1$, a two-decade separation. Under 1990 centering they become 0 and 2, still separated by two decades. The slope is unchanged; only the intercept is written differently.
 
 ## 25. Complete regional family
 

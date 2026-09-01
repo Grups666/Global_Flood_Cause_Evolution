@@ -37,6 +37,7 @@ def theil_sen_per_decade(year: np.ndarray, values: np.ndarray) -> dict[str, floa
     mk = mann_kendall_tie_corrected(values)
     return {
         "sen_slope_per_decade": float(slope * 10.0),
+        "sen_intercept": float(intercept),
         "sen_ci_low_per_decade": float(low * 10.0),
         "sen_ci_high_per_decade": float(high * 10.0),
         **mk,
@@ -106,6 +107,14 @@ def fit_continuous_trends(
     result["display_ci_low_per_decade"] = result["sen_ci_low_per_decade"]
     result["display_ci_high_per_decade"] = result["sen_ci_high_per_decade"]
     result["display_unit"] = "units per decade"
+    result["fitted_first_level"] = (
+        result["sen_intercept"]
+        + result["sen_slope_per_decade"] * result["first_year"] / 10.0
+    )
+    result["fitted_last_level"] = (
+        result["sen_intercept"]
+        + result["sen_slope_per_decade"] * result["last_year"] / 10.0
+    )
     percentage_points = result["variable"].eq("intensity_fraction")
     result.loc[percentage_points, "display_slope_per_decade"] *= 100.0
     result.loc[percentage_points, "display_ci_low_per_decade"] *= 100.0

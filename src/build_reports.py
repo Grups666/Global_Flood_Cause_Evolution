@@ -185,7 +185,7 @@ def build_chinese(s: dict[str, Any]) -> str:
 
 - 研究首先在单个流域内判断大洪水生成条件是否发生持续变化，再检验这些局地信号是否在 HydroBASINS L5 内形成更大尺度的一致模式。
 - 主样本包含 **{a['sample_counts']['pot_q95']['events']:,} 场** POT/Q95 大洪水和 **{a['sample_counts']['pot_q95']['catchments']:,} 个**长记录低雪流域；其中 **{c['GCIN'].nunique():,} 个流域**具有足够的所选事件年份，可估计至少一个主指标的单流域趋势。
-- 五个连续主指标形成 **{len(c):,} 个流域—指标检验**。共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，但 **没有单流域信号通过变量内5% FDR**。因此目前的严格结论是：多数流域没有可由该观测网络稳定确认的长期生成条件变化；候选位置用于后续复核，而不是确证清单。
+- 五个连续主指标形成 **{len(c):,} 个流域—指标检验**（完整组合为 {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}；SSI 7日和30日因有效事件年份或时间跨度不足分别缺少 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} 项和 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} 项，缺失项不记为零）。共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，但 **没有单流域信号通过变量内5% FDR**。因此目前的严格结论是：多数流域没有可由该观测网络稳定确认的长期生成条件变化；候选位置用于后续复核，而不是确证清单。
 - 区域层在全部 {l['primary_family_tests']:,} 个 L5—指标检验中有 **{l['primary_family_fdr_signals']} 个**通过完整区域族 FDR，**{l['strong_evidence_signals']} 个**同时通过事件样本、SSI时间窗和留一检验。默认 **≥{threshold}%** 面积支持后，保留 **{default['strong_signals']} 个强区域信号，分布于 {default['strong_regions']} 个 L5**。
 - 面积阈值只限制区域解释，不删除单流域结果。网页允许在 10%、20%、30%、40% 和 50% 之间动态切换。
 
@@ -229,6 +229,8 @@ $$
 
 每个流域至少需要10场所选事件，且最早和最晚所选事件相距至少20年。主样本最终为 **{a['sample_counts']['pot_q95']['events']:,} 场、{a['sample_counts']['pot_q95']['catchments']:,} 个流域**。
 
+**例子。** 若某流域共有100场重建洪水，其洪峰95%分位数为120 mm/day，那么只保留洪峰不小于120 mm/day的上尾事件，通常约5场。POT允许同一年出现多场真正的上尾事件；随后第12节会把同一年的多场事件先取平均，避免该年获得额外趋势权重。
+
 ## 7. 为什么不只使用年最大洪水
 
 年最大值强制每年贡献一场事件，可能把相对普通年份的最大洪水与真正极端洪水放在同一总体。POT/Q95更直接地对应每个流域的上尾事件；年最大样本仍作为敏感性分支。
@@ -247,6 +249,8 @@ $$
 
 $P_{{\max}}$ 是事件降雨窗口内最大日降雨，$P_{{\mathrm{{volume}}}}$ 是整个事件降雨总量。$C$ 增加表示更多事件降雨集中在最湿一天；$C$ 减少表示事件降雨更持久、总量相对更重要。主推断始终使用连续 $C$，不使用二元“强度主导型”标签。
 
+**例子。** 一场洪水事件累计降雨80 mm，其中降雨最多的一天为48 mm，则 $C=48/80=0.60$，即整场降雨的60%落在一天内。若趋势为每十年增加8.83个百分点，表示拟合的集中度例如可由38.00%变为46.83%；这是比例增加8.83个百分点，不是洪水次数增加8.83%，也不是日雨量增加8.83 mm。
+
 ## 10. 前期湿润度 SSI
 
 设 $SSI_{{i,t-k}}$ 为降雨开始前第 $k$ 个完整日的土壤饱和指数，则窗口 $w$ 的指标为：
@@ -258,6 +262,8 @@ $$
 
 正趋势表示大洪水发生前的流域状态长期变湿，负趋势表示长期变干。它不是降雨量、洪峰或体积含水率百分比。
 
+**例子。** 若降雨开始前3个完整日的 SSI 分别为0.32、0.46和0.52，则 $SSI^{{(3)}}=(0.32+0.46+0.52)/3=0.433$。若3日 SSI 趋势为 $-0.010$/十年，含义是入选大洪水发生前3天的平均前期湿润状态每十年降低0.010个指数单位。
+
 ## 11. 降雨物理分量
 
 最大日降雨、事件总降雨和降雨持续时间直接以毫米或日为单位拟合。其相对变化仅由原始线性斜率除以相应长期均值获得：
@@ -268,6 +274,8 @@ $$
 
 这里不使用对数模型。分量用于解释降雨集中度为何变化，不单独承担“洪水原因”的因果归因。
 
+**例子。** 若某区域事件总降雨的长期均值为100 mm，线性斜率为每十年增加8 mm，则相对变化为 $100\times8/100=8\%$/十年。这里仍然先报告“+8 mm/十年”这个物理量；8%只是便于比较不同量纲或不同平均水平的辅助表达。
+
 ## 12. 为什么先按流域—年份汇总
 
 同一流域一年可能出现多场 POT 事件。首先计算：
@@ -277,6 +285,8 @@ $$
 $$
 
 这样每个有观测的事件年获得相同时间权重，避免某一年因为事件较多而主导趋势。
+
+**例子。** 某流域在2005年有3场入选洪水，其集中度为40%、55%和65%，则2005年的趋势输入为 $(40+55+65)/3=53.3\%$，而不是把2005年当成3个独立年份。若2006年只有1场事件，2005和2006在时间趋势中各贡献一个年度值。
 
 ## 13. 单流域趋势
 
@@ -289,6 +299,8 @@ $$
 
 并使用含并列值修正的 Mann–Kendall 检验判断是否存在单调趋势。至少需要10个有事件的年份，且这些年份跨度至少20年。
 
+**例子。** 若某一对年度值从1990年的0.40升至2010年的0.52，这一对年份给出的斜率为 $(0.52-0.40)/(2010-1990)\times10=0.06$/十年，即集中度每十年增加6个百分点。Theil–Sen 不只用首末两点，而是计算所有年份对的斜率并取中位数，因此不容易被某一个异常年份牵动。
+
 ## 14. 单流域多重检验
 
 每个物理指标分别形成一个跨流域的 Benjamini–Hochberg 检验族。将 $m$ 个 p 值排序为 $p_{{(1)}}\le\cdots\le p_{{(m)}}$，寻找最大的 $k$ 满足：
@@ -299,6 +311,8 @@ p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
 $$
 
 该步骤控制同一指标地图中被拒绝原假设集合的预期错误发现比例。
+
+**例子。** 若同一指标检验1,000个流域，第5小的 p 值对应阈值 $(5/1000)\times0.05=0.00025$。只有当排序后的 p 值足够小，才会被标为通过跨流域 FDR。它不改变任何单流域斜率，只避免在上千次同时检验中把随机小 p 值误当成可靠发现。
 
 ## 15. 单流域稳定候选
 
@@ -339,6 +353,8 @@ $$
 
 计算使用 EPSG:6933 等面积投影，并先修复无效 polygon。重叠流域通过几何并集只计一次。
 
+**例子。** 若一个 L5 面积为10,000 km²，落入其中的合格流域多边形在该 L5 内的去重并集面积为2,400 km²，则面积支持率为24%。它通过10%和20%门槛，但不通过30%、40%或50%门槛。
+
 ## 21. 动态面积阈值
 
 {_threshold_table(s, 'zh')}
@@ -360,6 +376,8 @@ $$
 
 $\alpha_i$ 控制不同流域长期水平差异，$\beta_j$ 表示该 L5 内共同的每十年变化。标准误按流域聚类并使用 $t(G-1)$ 参考。
 
+**例子。** 同一 L5 内两个流域的长期平均集中度分别为35%和55%，但两者都大致每十年增加2个百分点。固定效应先保留35%与55%的基线差异，再估计共同的 $\beta_j\approx+2$ 个百分点/十年；不会因为第二个流域本来更高就把它误判成时间变化。
+
 ## 23. 单流域占据一个 L5 的情况
 
 若一个 L5 只有一个贡献流域但面积支持率达到所选阈值，则区域面板直接继承该流域的 Theil–Sen 结果，并标记为“单流域代表”。它说明该流域覆盖该 L5 的空间比例足够高，但不构成多个流域相互验证。
@@ -367,6 +385,8 @@ $\alpha_i$ 控制不同流域长期水平差异，$\beta_j$ 表示该 L5 内共�
 ## 24. 年份中心化中的2000
 
 2000只用于将时间变量中心化。替换为1990或2010不会改变斜率；模型没有把2000年视为突变点，也没有进行2000年前后分段比较。
+
+**例子。** 1990年对应 $x=-1$，2010年对应 $x=+1$，二者相差2个“十年”。若改以1990年为中心，它们会变成0和2，差仍为2，因此斜率不变；只有截距的写法改变。
 
 ## 25. 完整区域检验族
 
@@ -446,7 +466,7 @@ def build_english(s: dict[str, Any]) -> str:
 
 - Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
 - The primary sample contains **{a['sample_counts']['pot_q95']['events']:,} POT/Q95 floods in {a['sample_counts']['pot_q95']['catchments']:,} long-record low-snow catchments**. At least one primary direct trend is estimable in **{c['GCIN'].nunique():,} catchments**.
-- The five continuous outcomes produce **{len(c):,} catchment–metric tests**. There are **{int(c['potential_local_shift'].sum()):,} directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
+- The five continuous outcomes produce **{len(c):,} catchment–metric tests** (the complete grid is {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}; the 7-day and 30-day SSI outcomes lack {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} and {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **{int(c['potential_local_shift'].sum()):,} directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
 - Among {l['primary_family_tests']:,} L5–metric tests, **{l['primary_family_fdr_signals']} pass complete-family FDR and {l['strong_evidence_signals']} pass the full statistical robustness screen**. With the default **≥{threshold}% area support**, **{default['strong_signals']} strong regional signals remain in {default['strong_regions']} L5 units**.
 - Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
 
@@ -490,6 +510,8 @@ $$
 
 Each catchment requires at least 10 selected events spanning at least 20 years. The final primary sample contains **{a['sample_counts']['pot_q95']['events']:,} events in {a['sample_counts']['pot_q95']['catchments']:,} catchments**.
 
+**Example.** If a catchment has 100 reconstructed floods and its 95th-percentile peak is 120 mm/day, only upper-tail events at or above 120 mm/day are retained—typically about five. POT may retain more than one genuinely extreme event in a year; Section 12 then averages events within that year so it does not receive extra trend weight.
+
 ## 7. Why annual maxima are a sensitivity population
 
 Annual maxima force one event into every year, even when that event is not particularly extreme relative to the catchment record. POT/Q95 directly targets the catchment upper tail, while annual maxima remain an important alternative definition.
@@ -506,6 +528,8 @@ $$
 
 An increase means a larger share of event rainfall fell in the wettest day; a decrease means movement toward longer, volume-dominated rainfall. The continuous ratio is the inferential outcome; no binary intensity-dominated label is used.
 
+**Example.** If total event rainfall is 80 mm and 48 mm falls on the rainiest day, then $C=48/80=0.60$: 60% of the event rainfall fell in one day. A trend of +8.83 percentage points per decade could move a fitted concentration level from 38.00% to 46.83% over ten years. It is not an 8.83% increase in flood count and not an 8.83 mm increase in daily rainfall.
+
 ## 10. Antecedent wetness
 
 $$
@@ -514,6 +538,8 @@ SSI_{{ie}}^{{(w)}}=\frac1w\sum_{{k=1}}^w SSI_{{i,t_{{0,ie}}-k}},
 $$
 
 Positive slopes mean large floods occurred after increasingly wet antecedent states; negative slopes mean increasingly dry states. SSI units are normalized index units, not millimetres or flood percentages.
+
+**Example.** If SSI on the three complete days before rainfall onset is 0.32, 0.46, and 0.52, then $SSI^{{(3)}}=(0.32+0.46+0.52)/3=0.433$. A 3-day SSI trend of $-0.010$ per decade means the mean antecedent state before selected large floods declined by 0.010 index units every ten years.
 
 ## 11. Physical rainfall components
 
@@ -525,6 +551,8 @@ $$
 
 No logarithmic trend model is used. These components aid interpretation of the concentration ratio without claiming causal attribution.
 
+**Example.** If mean total event rainfall is 100 mm and its linear trend is +8 mm per decade, then the relative trend is $100\times8/100=8\%$ per decade. The physical result remains +8 mm per decade; 8% is only a secondary scale for comparing variables or regions with different means.
+
 ## 12. Catchment-year annualization
 
 Multiple POT events in one catchment-year are averaged:
@@ -534,6 +562,8 @@ $$
 $$
 
 This prevents a year with several reconstructed events from receiving extra trend weight solely because of event count.
+
+**Example.** If one catchment has three selected floods in 2005 with concentrations of 40%, 55%, and 65%, the 2005 value used in the trend is $(40+55+65)/3=53.3\%$. The year is not entered three times. If 2006 has one event, 2005 and 2006 each contribute one annual value.
 
 ## 13. Direct catchment trend
 
@@ -546,6 +576,8 @@ $$
 
 with a tie-corrected Mann–Kendall test. At least 10 event years spanning at least 20 years are required.
 
+**Example.** If one pair of annual values rises from 0.40 in 1990 to 0.52 in 2010, that pair gives $(0.52-0.40)/(2010-1990)\times10=0.06$ per decade, or +6 concentration percentage points per decade. Theil–Sen calculates this slope for every year-pair and takes the median, so one unusual year has limited leverage.
+
 ## 14. Catchment multiple testing
 
 Each physical metric forms one Benjamini–Hochberg family across catchments. Ordering $m$ p-values, the procedure finds the largest $k$ satisfying:
@@ -554,6 +586,8 @@ $$
 p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
 \qquad \alpha=0.05.
 $$
+
+**Example.** With 1,000 catchments for one metric, the fifth ordered p value is compared with $(5/1000)\times0.05=0.00025$. A result is labelled FDR-supported only if the ordered p values are sufficiently small. This network-wide correction does not change any catchment slope; it limits chance discoveries created by thousands of simultaneous tests.
 
 ## 15. Stable local candidate
 
@@ -594,6 +628,8 @@ $$
 
 Areas use equal-area EPSG:6933. Invalid polygons are repaired, and overlapping catchments are counted once through a geometric union.
 
+**Example.** If an L5 polygon covers 10,000 km² and the non-overlapping union of eligible catchment polygons inside it covers 2,400 km², its area support is 24%. It passes the 10% and 20% settings but not 30%, 40%, or 50%.
+
 ## 21. Dynamic threshold sensitivity
 
 {_threshold_table(s, 'en')}
@@ -615,6 +651,8 @@ $$
 
 $\alpha_i$ controls stable catchment differences and $\beta_j$ is the shared per-decade change. Standard errors are clustered by catchment with a $t(G-1)$ reference.
 
+**Example.** Suppose two catchments in one L5 have long-term mean concentrations of 35% and 55%, but both rise by about 2 percentage points per decade. Fixed effects retain the 35% versus 55% baseline difference and estimate the shared $\beta_j\approx+2$ percentage points per decade; the higher baseline is not mistaken for temporal change.
+
 ## 23. One-catchment representation
 
 If one catchment alone supports an L5 polygon at the selected threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly labelled as a single-catchment representation. High area support does not create multi-catchment corroboration.
@@ -622,6 +660,8 @@ If one catchment alone supports an L5 polygon at the selected threshold, the L5 
 ## 24. Why 2000 appears
 
 The year 2000 is only a numerical centering constant. Replacing it with 1990 or 2010 leaves the slope unchanged; no pre/post-2000 contrast or breakpoint is fitted.
+
+**Example.** Under 2000 centering, 1990 has $x=-1$ and 2010 has $x=+1$, a two-decade separation. Under 1990 centering they become 0 and 2, still separated by two decades. The slope is unchanged; only the intercept is written differently.
 
 ## 25. Complete regional family
 

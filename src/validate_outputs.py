@@ -400,6 +400,8 @@ def main() -> None:
         )
         web_ok &= all(
             metric["years"] >= 10 and metric["span"] >= 20
+            and np.isfinite(metric.get("fittedFirst", np.nan))
+            and np.isfinite(metric.get("fittedLast", np.nan))
             for item in catchments
             for metric in item["metrics"].values()
         )
@@ -427,6 +429,9 @@ def main() -> None:
         "Individual catchment trends",
         "Area-supported HydroBASINS L5 patterns",
         "drawCatchmentHighlight",
+        "metricEndpoints",
+        "Across-catchment FDR",
+        "equal-size point; color shows trend",
         "drawBasinHighlight",
         "rgba(34, 211, 238",
         "ctx.shadowBlur",
