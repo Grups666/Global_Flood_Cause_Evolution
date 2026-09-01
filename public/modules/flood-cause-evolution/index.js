@@ -579,7 +579,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-status ${statusClass}">${status}</div>
         ${this.gates(metric, feature)}
         <div class="fce-plain-result">${this.escape(interpretation)}</div>
-        ${this.signal(metric, "Change per decade")}
+        ${this.signal(metric, `${this.metric === "intensity_fraction" ? "Rainfall concentration" : "Antecedent wetness"} change per decade`)}
         <div class="fce-grid">
           ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
           ${this.fact("Complete-family q", this.prob(metric.q))}
@@ -602,7 +602,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.app.showInspector?.(`GCIN ${feature.id} · ${feature.country}`, `
       <p class="fce-inspector-lead">Primary single-catchment Theil–Sen trend · ${this.escape(outcome.label)}</p>
       <div class="fce-plain-result">${this.escape(this.interpretation(metric.slope, true))}</div>
-      ${this.signal(metric, "Catchment change per decade")}
+      ${this.signal(metric, `${this.metric === "intensity_fraction" ? "Rainfall concentration" : "Antecedent wetness"} change per decade`)}
       <div class="fce-grid">
         ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
         ${this.fact("Catchment-family q", this.prob(metric.q))}
@@ -786,7 +786,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       <section class="fce-overview-section" id="research-question"><span class="fce-section-index">Research question</span><h3>Most catchments do not show strict long-term evidence; a smaller set forms testable local and regional patterns</h3>
         <p class="fce-section-lead"><b>Main answer.</b> None of the ${meta.catchmentPrimaryTests.toLocaleString()} direct catchment–metric tests passes metric-wide 5% FDR after annualizing selected events. ${meta.catchmentPotentialSignals.toLocaleString()} trends nevertheless retain their direction across the declared sensitivity checks and remain visible as candidates. Regional pooling identifies stronger L5 patterns where nearby catchments move coherently.</p>
         <div class="fce-reading">
-        <div><b>Rainfall organization</b><span>Pmax/Pvolume measures how much of an event's rain fell in its wettest day. Positive change means more concentrated rainfall; negative change means more prolonged, volume-dominated rainfall.</span></div>
+        <div><b>Rainfall concentration</b><span>Pmax/Pvolume is the fraction of total event rainfall that fell on the rainiest single day. Positive change means a larger one-day share; negative change means a smaller one-day share.</span></div>
         <div><b>Antecedent wetness</b><span>SSI summarizes soil wetness before rainfall starts. The 1-, 3-, 7- and 30-day windows show whether a result depends on the chosen memory window.</span></div>
         <div><b>Two evidence scales</b><span>Catchment polygons are the primary observations. L5 polygons summarize a possible larger-scale pattern only when the selected area-support threshold is met.</span></div>
       </div></section>
@@ -854,14 +854,18 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   metricMeaning(metric) {
-    const value = Math.abs(Number(metric?.slope));
-    const direction = Number(metric?.slope) >= 0 ? "increases" : "decreases";
+    const slope = Number(metric?.slope);
+    const value = Math.abs(slope);
+    const roseOrFell = slope >= 0 ? "rose" : "fell";
     if (this.metric === "intensity_fraction") {
-      return `Wettest-day share of event rainfall ${direction} by <b>${value.toFixed(2)} percentage points over 10 years</b>.`;
+      const exampleStart = slope >= 0 ? 30 : 40;
+      const exampleEnd = exampleStart + slope;
+      return `Rainfall concentration ${slope >= 0 ? "increased" : "decreased"}: the rainiest single day's share of total event rainfall ${roseOrFell} by <b>${value.toFixed(2)} percentage points per decade</b> (for example, ${exampleStart.toFixed(2)}% → ${exampleEnd.toFixed(2)}%).`;
     }
+    const days = this.metric.match(/^ssi_(\d+)d$/)?.[1] || "selected";
     const relative = Math.abs(Number(metric?.relativeSlope));
     const relativeText = Number.isFinite(relative) ? `, equal to <b>${relative.toFixed(2)}% of the relevant long-term mean</b>` : "";
-    return `Mean pre-event soil wetness ${direction} by <b>${value.toFixed(3)} SSI units over 10 years</b>${relativeText}.`;
+    return `Antecedent wetness ${slope >= 0 ? "increased" : "decreased"}: mean SSI during the ${days} complete day${days === "1" ? "" : "s"} before rainfall onset ${roseOrFell} by <b>${value.toFixed(3)} SSI units per decade</b>${relativeText}.`;
   }
 
   ensureModal() {

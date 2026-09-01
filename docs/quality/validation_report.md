@@ -20,7 +20,7 @@
 | `figure_assets` | PASS | 6 report PNGs synchronized; 6 publication SVGs generated |
 | `self_contained_html_report` | PASS | bytes=5,219,309; embedded PNGs=6 |
 | `published_research_materials` | PASS | self-contained report and 6 overview figures synchronized to public/ |
-| `interactive_web_explorer` | PASS | basins=295; catchments=2435; strong signals=94; bytes=11,900,345 |
+| `interactive_web_explorer` | PASS | basins=295; catchments=2435; strong signals=94; bytes=11,900,481 |
 | `current_only_narrative` | PASS | obsolete phrases=[] |
 | `daily_reconstruction_spot_check` | PASS | 20 events; failures=[] |
 | `markdown_local_links` | PASS | none missing |
