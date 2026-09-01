@@ -4,7 +4,7 @@
   "description": "Catchment-first evidence for long-term changes in rainfall organization and antecedent wetness, with area-supported HydroBASINS L5 patterns.",
   "version": "4.1.0",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js?release=9129c99",
+  "entry": "./modules/flood-cause-evolution/index.js?release=ac37931",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
   "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=9129c99",

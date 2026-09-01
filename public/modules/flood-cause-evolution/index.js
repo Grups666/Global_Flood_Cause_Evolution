@@ -186,21 +186,26 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   renderCatchments(ctx, viewport) {
     const shifts = this.worldShifts(viewport);
     const limit = this.catchmentLimit();
-    for (const catchment of this.catchments) {
-      const metric = catchment.metrics?.[this.metric];
-      if (!metric) continue;
-      const focal = !!metric.potential || !!metric.strong;
-      const contextual = this.evidenceView === "supported" && !focal;
-      const radius = this.catchmentPointRadius(viewport, focal);
-      for (const shift of shifts) {
-        ctx.save();
-        const point = this.project(catchment.lon + shift, catchment.lat, viewport);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = focal ? this.candidateColorFor(metric.slope, limit) : "#9aa6ae";
-        ctx.globalAlpha = focal ? 0.98 : (contextual ? 0.30 : 0.48);
-        ctx.fill();
-        ctx.restore();
+    // Paint contextual estimates first and screened local candidates second so
+    // the evidence hierarchy is preserved even where catchment points overlap.
+    for (const focalPass of [false, true]) {
+      for (const catchment of this.catchments) {
+        const metric = catchment.metrics?.[this.metric];
+        if (!metric) continue;
+        const focal = !!metric.potential || !!metric.strong;
+        if (focal !== focalPass) continue;
+        const contextual = this.evidenceView === "supported" && !focal;
+        const radius = this.catchmentPointRadius(viewport, focal);
+        for (const shift of shifts) {
+          ctx.save();
+          const point = this.project(catchment.lon + shift, catchment.lat, viewport);
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = focal ? this.candidateColorFor(metric.slope, limit) : "#9aa6ae";
+          ctx.globalAlpha = focal ? 0.98 : (contextual ? 0.30 : 0.48);
+          ctx.fill();
+          ctx.restore();
+        }
       }
     }
 
