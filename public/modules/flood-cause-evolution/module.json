@@ -2,7 +2,7 @@
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
   "version": "4.1.0",
-  "entry": "./index.js?release=9129c99",
+  "entry": "./index.js?release=ac37931",
   "className": "FloodCauseEvolutionModule",
-  "dataFile": "./data/flood-cause-explorer.json?release=9129c99"
+  "dataFile": "./data/flood-cause-explorer.json?release=ac37931"
 }

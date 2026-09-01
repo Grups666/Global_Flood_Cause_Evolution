@@ -7,12 +7,12 @@
   "entry": "./modules/flood-cause-evolution/index.js?release=ac37931",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=9129c99",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=ac37931",
   "datasets": [
     {
       "id": "flood-cause-explorer",
       "name": "Catchment trends and area-supported L5 patterns",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=9129c99",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=ac37931",
       "format": "json"
     }
   ],
