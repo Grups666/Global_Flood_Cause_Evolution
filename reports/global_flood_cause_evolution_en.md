@@ -4,7 +4,7 @@
 
 ## Technical summary
 
-- Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
+- Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and **HydroBASINS level 5** (hereafter **L5**) is then used to test whether nearby catchments form a larger coherent pattern. HydroBASINS is a globally consistent, hierarchically nested set of sub-basin boundaries organized by drainage-network topology; L5 denotes its fifth spatial level, not an administrative region or an individual gauge catchment.
 - The primary sample contains **59,048 POT/Q95 floods in 2,624 long-record low-snow catchments**. At least one primary direct trend is estimable in **2,435 catchments**.
 - The five continuous outcomes produce **12,163 catchment–metric tests** (the complete grid is 2,435 × 5 = 12,175; the 7-day and 30-day SSI outcomes lack 2 and 10 combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
 - Among 1,475 L5–metric tests, **106 pass complete-family BH-FDR and 94 pass the full statistical robustness screen**. With the default **≥10% area support**, **84 strong regional signals remain in 36 L5 units**.
@@ -163,9 +163,13 @@ There are **378 stable candidates in opposing directions and zero across-catchme
 
 The evidence funnel keeps unadjusted significance, sensitivity stability, and multiplicity control distinct.
 
-## 18. L5 is a second-stage spatial question
+## 18. HydroBASINS level 5 (L5) is a second-stage spatial question
 
-L5 asks whether direct catchment changes may represent a larger hydrological pattern. It does not determine whether a catchment estimate is worth retaining and never removes the primary catchment layer.
+[HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) is a global polygon dataset of sub-basin boundaries derived from HydroSHEDS. River-network topology and Pfafstetter codes organize the polygons into **12 hierarchically nested levels**; higher levels generally provide finer subdivisions. This study uses level 5 from the standard HydroBASINS v1.c product and refers to each level-5 polygon as an **L5 hydrological region**. These are drainage-based units, not national or subnational administrative boundaries.
+
+The first-stage analytical unit remains the **individual observed catchment**: trends in rainfall concentration and antecedent wetness are estimated separately for each catchment. L5 enters only as a common regional container in the second stage. Catchments are assigned by outlet location, after which the analysis asks whether their local changes have enough polygon-area support and a sufficiently coherent direction to represent a broader hydrological pattern.
+
+**Example.** A 700 km² observed catchment may occupy only part of a larger L5 region. Its direct trend answers, “Did this catchment change?” The pooled result from observed catchments in the same L5 answers, “May this change extend across a larger connected hydrological region?” The L5 result therefore neither replaces the direct catchment result nor determines whether that result is retained.
 
 ## 19. Catchment-to-L5 membership
 
