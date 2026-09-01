@@ -2,17 +2,17 @@
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
   "description": "Catchment-first evidence for long-term changes in rainfall organization and antecedent wetness, with area-supported HydroBASINS L5 patterns.",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js?release=catchment-first-area-support-20260901-r2",
+  "entry": "./modules/flood-cause-evolution/index.js?release=9129c99",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-first-area-support-20260901-r2",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=9129c99",
   "datasets": [
     {
       "id": "flood-cause-explorer",
       "name": "Catchment trends and area-supported L5 patterns",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-first-area-support-20260901-r2",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=9129c99",
       "format": "json"
     }
   ],
