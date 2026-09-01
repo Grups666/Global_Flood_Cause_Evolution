@@ -743,13 +743,13 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         number: "03",
         title: "Strict local evidence is sparse",
         image: "reports/assets/figure_03_strong_signal_rankings.png",
-        alt: "Evidence funnel and magnitude distribution for catchment-level trend candidates",
+        alt: "Evidence funnel and opposing directions among catchment-level trend candidates",
         text: `Across ${meta.catchmentPrimaryTests.toLocaleString()} catchment–metric tests, ${meta.catchmentFdrSignals} pass metric-wide 5% FDR. Stable unadjusted candidates are retained as hypotheses, not promoted to confirmed local changes.`
       },
       {
         id: "trajectories",
         number: "04",
-        title: "Some local candidates align into larger L5 patterns",
+        title: "Some catchment-level changes align into larger L5 patterns",
         image: "reports/assets/figure_04_mechanism_trajectories.png",
         alt: "Area-supported HydroBASINS L5 regional trend maps",
         text: `At the current ≥${this.coverageThreshold}% area-support setting, ${mapSummary.totalBasins} L5 regions are shown and ${mapSummary.strongBasins} satisfy the complete statistical evidence screen.`
@@ -790,7 +790,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div><b>Antecedent wetness</b><span>SSI summarizes soil wetness before rainfall starts. The 1-, 3-, 7- and 30-day windows show whether a result depends on the chosen memory window.</span></div>
         <div><b>Two evidence scales</b><span>Catchment polygons are the primary observations. L5 polygons summarize a possible larger-scale pattern only when the selected area-support threshold is met.</span></div>
       </div></section>
-      <section class="fce-overview-section" id="key-findings"><span class="fce-section-index">Evidence at a glance</span><h3>Strongest reproducible local signals</h3><p class="fce-section-note">Select a row to switch the mapped metric and open that HydroBASINS unit.</p>
+      <section class="fce-overview-section" id="key-findings"><span class="fce-section-index">Evidence at a glance</span><h3>Strongest reproducible regional signals</h3><p class="fce-section-note">Select a row to switch the mapped metric and open that HydroBASINS unit.</p>
         <div class="fce-ranking">${rankings.map((item) => {
           const definition = meta.outcomes[item.metric];
           return `<button data-basin="${item.basinId}" data-outcome="${item.metric}"><span>${this.escape(item.code)} · ${this.escape(definition.short)}</span><strong>${this.signed(item.slope, definition.digits)}</strong><i style="width:${Math.min(100, item.score * 100)}%;background:${this.colorFor(item.slope, definition.limit)}"></i></button>`;
@@ -874,13 +874,13 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <nav aria-label="Research overview sections">
           <button data-scroll="overview-summary" class="active"><i>01</i><span>Summary</span></button>
           <button data-scroll="research-question"><i>02</i><span>Research question</span></button>
-          <button data-scroll="key-findings"><i>03</i><span>Key signals</span></button>
+          <button data-scroll="key-findings"><i>03</i><span>Regional signals</span></button>
           <button data-scroll="coverage"><i>04</i><span>Sample coverage</span></button>
-          <button data-scroll="spatial-change"><i>05</i><span>Spatial changes</span></button>
-          <button data-scroll="magnitude"><i>06</i><span>Local magnitude</span></button>
-          <button data-scroll="trajectories"><i>07</i><span>Trajectories</span></button>
-          <button data-scroll="decomposition"><i>08</i><span>Physical reading</span></button>
-          <button data-scroll="robustness"><i>09</i><span>Robustness</span></button>
+          <button data-scroll="spatial-change"><i>05</i><span>Catchment trends</span></button>
+          <button data-scroll="magnitude"><i>06</i><span>Evidence funnel</span></button>
+          <button data-scroll="trajectories"><i>07</i><span>Regional patterns</span></button>
+          <button data-scroll="decomposition"><i>08</i><span>Area sensitivity</span></button>
+          <button data-scroll="robustness"><i>09</i><span>Regional traceability</span></button>
           <button data-scroll="methods"><i>10</i><span>Methods</span></button>
           <button data-scroll="statistics"><i>11</i><span>Statistical meaning</span></button>
           <button data-scroll="interpretation"><i>12</i><span>Inference boundary</span></button>
