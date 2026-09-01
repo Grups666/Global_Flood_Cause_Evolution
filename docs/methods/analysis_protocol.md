@@ -11,7 +11,7 @@ The meeting establishes this scientific question and the two process dimensions.
 - Catchments have long-term snow fraction below 0.10, both seasonal event catalogues, a matching daily record, at least 30 observed event years, at least a 30-year first-to-last span, and at least 80% annual coverage.
 - The primary sample is the catchment-specific upper 5% of reconstructed event flood peaks (POT/Q95).
 - A catchment enters the primary event sample with at least 10 selected events spanning at least 20 years.
-- Sensitivity samples are POT/Q90, POT/Q97.5, 10-day-declustered POT/Q95, and annual maxima.
+- Sensitivity samples are POT/Q90, POT/Q97.5, and annual maxima.
 
 Flood peak determines sample membership. Rainfall organization and antecedent wetness are calculated after selection, so condition description does not determine which events are called extreme.
 
@@ -64,15 +64,7 @@ $$
 
 A tie-corrected Mann–Kendall test evaluates monotonic trend. At least 10 distinct event years spanning at least 20 years are required.
 
-The Benjamini–Hochberg false discovery rate procedure (BH-FDR) is applied separately across catchments for each physical metric. This is needed because the analysis searches the full catchment network for locations with a trend; it is not a correction of the five metrics within one prespecified catchment. If ordered p-values are $p_{(1)}\le\cdots\le p_{(m)}$, the largest $k$ satisfying
-
-$$
-p_{(k)}\le\frac{k}{m}\alpha,\qquad\alpha=0.05
-$$
-
-defines the rejected set.
-
-A stable local candidate requires unadjusted $p<0.05$, sign agreement under POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require the four wetness windows to agree. Candidate status is exploratory; it never substitutes for BH-FDR.
+A robust individual catchment trend requires $p<0.05$, sign agreement under POT/Q90, POT/Q97.5, and annual maxima, and leave-one-event-year-out sign stability. SSI additionally requires agreement across the four antecedent-wetness windows. Other estimable results remain available as individual trend estimates. The catchment layer is the primary set of direct local results rather than a screening stage for the L5 analysis.
 
 ## Second stage: area-supported L5 patterns
 
@@ -82,7 +74,7 @@ $$
 Coverage_j=\frac{Area\left(H_j\cap\bigcup_{i\in j}A_i\right)}{Area(H_j)}.
 $$
 
-Areas are calculated in equal-area EPSG:6933. Invalid polygons are repaired and overlap is counted once through a geometric union. The web explorer offers one regional-support rule with selectable values 10%, 20%, 30%, 40%, and 50%; 10% is the default. This threshold changes L5 interpretation only and never removes direct catchment results.
+Areas are calculated in equal-area EPSG:6933. Invalid polygons are repaired and overlap is counted once through a geometric union. The web explorer offers one regional-support rule with selectable values 10%, 20%, 30%, 40%, and 50%; 50% is the default. This threshold changes L5 interpretation only and never removes direct catchment results.
 
 For at least two contributing catchments, annualized values are fitted with a catchment fixed effect:
 
@@ -98,7 +90,7 @@ All estimable L5 × five-primary-metric tests form one complete Benjamini–Hoch
 
 1. the selected area-support threshold;
 2. complete regional-family 5% BH-FDR;
-3. sign agreement across the four alternative extreme-event samples;
+3. sign agreement under POT/Q90, POT/Q97.5, and annual maxima;
 4. sign agreement across SSI windows where applicable; and
 5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a single-catchment representation.
 

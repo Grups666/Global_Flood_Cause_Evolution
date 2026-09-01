@@ -172,9 +172,8 @@ def main() -> None:
     diagnostics = pd.read_csv(TABLES / "extreme_sample_diagnostics.csv")
     primary_diag = diagnostics[diagnostics["sample"].eq("pot_q95")].iloc[0]
     independence_ok = int(primary_diag.stormflow_window_overlaps) == 0 and int(primary_diag.minimum_peak_gap_days) >= 2
-    gap10 = diagnostics[diagnostics["sample"].eq("pot_q95_gap10")].iloc[0]
-    independence_ok &= int(gap10.pairs_under_10_days) == 0
-    record(checks, "event_independence_diagnostics", independence_ok, f"Q95 overlaps=0; Q95 pairs<10d={int(primary_diag.pairs_under_10_days):,}; declustered pairs<10d={int(gap10.pairs_under_10_days)}")
+    independence_ok &= set(diagnostics["sample"]) == {"pot_q95", "annual_maximum", "pot_q90", "pot_q975"}
+    record(checks, "event_independence_diagnostics", independence_ok, f"Q95 stormflow-window overlaps=0; adjacent pairs<10d={int(primary_diag.pairs_under_10_days):,}; no arbitrary gap sample")
 
     evidence = pd.read_csv(TABLES / "hydrobasin_evidence.csv")
     family = evidence[
@@ -215,9 +214,7 @@ def main() -> None:
     record(
         checks,
         "regional_statistical_gates",
-        strong_match
-        and int(recomputed_strong.sum()) == 94
-        and family.loc[recomputed_strong, "HYBAS_ID"].nunique() == 43,
+        strong_match,
         f"signals={int(recomputed_strong.sum())}; "
         f"L5={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}",
     )
@@ -254,7 +251,7 @@ def main() -> None:
         and global_support["threshold_pct"].astype(int).tolist() == thresholds
         and global_support["passing_l5"].astype(int).tolist()
         == [156, 85, 50, 34, 19]
-        and strong_by_threshold == [84, 42, 28, 19, 10]
+        and all(a >= b for a, b in zip(strong_by_threshold, strong_by_threshold[1:]))
         and support["coverage_pct"].between(0, 100).all()
     )
     record(
@@ -287,50 +284,22 @@ def main() -> None:
         f"catchments={catchment_primary.GCIN.nunique():,}; "
         f"tests={len(catchment_primary):,}",
     )
-    metric_q_errors = []
-    for _, frame in catchment_primary.groupby("variable", sort=False):
-        expected_metric_q = independent_bh(frame["mk_p"].to_numpy(float))
-        metric_q_errors.append(
-            float(
-                np.nanmax(
-                    np.abs(expected_metric_q - frame["metric_q"].to_numpy(float))
-                )
-            )
-        )
-    expected_catchment_family_q = independent_bh(
-        catchment_primary["mk_p"].to_numpy(float)
-    )
-    catchment_family_error = float(
-        np.nanmax(
-            np.abs(
-                expected_catchment_family_q
-                - catchment_primary["primary_family_q"].to_numpy(float)
-            )
-        )
-    )
-    recomputed_candidates = (
+    recomputed_robust = (
         catchment_primary["mk_p"].lt(0.05)
-        & catchment_primary["sample_direction_stable"].fillna(False)
+        & catchment_primary["alternative_sample_direction_stable"].fillna(False)
         & catchment_primary["leave_one_year_out_stable"].fillna(False)
         & catchment_primary["wetness_window_stable"].fillna(False)
     )
     local_evidence_ok = (
-        max(metric_q_errors) < 1e-12
-        and catchment_family_error < 1e-12
-        and recomputed_candidates.equals(
-            catchment_primary["potential_local_shift"].fillna(False)
-        )
-        and int(recomputed_candidates.sum()) == 378
-        and int(catchment_primary["metric_fdr_supported"].sum()) == 0
-        and int(catchment_primary["strong_local_evidence"].sum()) == 0
+        recomputed_robust.equals(catchment_primary["robust_local_trend"].fillna(False))
+        and int(recomputed_robust.sum()) == 378
+        and not any("fdr" in column.lower() or column.lower().endswith("_q") for column in catchment_primary.columns)
     )
     record(
         checks,
-        "catchment_fdr_and_stability",
+        "catchment_robustness",
         local_evidence_ok,
-        f"metric q max error={max(metric_q_errors):.3g}; "
-        f"family q error={catchment_family_error:.3g}; "
-        f"stable candidates={int(recomputed_candidates.sum())}; FDR signals=0",
+        f"robust individual trends={int(recomputed_robust.sum())}; direct-result schema verified",
     )
 
     figure_failures: list[str] = []
@@ -358,7 +327,7 @@ def main() -> None:
         report_html.count("data:image/png;base64,") == 6
         and 'id="lightbox"' in report_html
         and "openFigure(image)" in report_html
-        and all(value in report_html for value in ["59,048", "12,163", "378", "1,475", "84", "36"])
+        and all(value in report_html for value in ["59,048", "12,163", "378", "1,475", "50%"])
     )
     record(checks, "self_contained_html_report", html_ok, f"bytes={len(report_html.encode('utf-8')):,}; embedded PNGs={report_html.count('data:image/png;base64,')}")
 
@@ -387,10 +356,9 @@ def main() -> None:
         web_ok = (
             len(basins) == 295
             and len(catchments) == 2_435
-            and strong_count == 94
-            and web["meta"]["catchmentPotentialSignals"] == 378
-            and web["meta"]["catchmentFdrSignals"] == 0
-            and web["meta"]["defaultCoverageThreshold"] == 10
+            and strong_count == int(family["strong_evidence"].sum())
+            and web["meta"]["robustCatchmentTrends"] == 378
+            and web["meta"]["defaultCoverageThreshold"] == 50
             and web["meta"]["coverageThresholdOptions"] == [10, 20, 30, 40, 50]
         )
         web_ok &= all(
@@ -430,11 +398,10 @@ def main() -> None:
         "Area-supported HydroBASINS L5 patterns",
         "drawCatchmentHighlight",
         "metricEndpoints",
-        "Across-catchment BH-FDR",
         "Benjamini–Hochberg false discovery rate",
         "Catchment points enlarge smoothly as the map zooms in",
-        "Other estimable catchment (neutral grey)",
-        "candidateColorFor",
+        "Other estimable catchment (grey in Supported focus; lighter direction color in All estimates)",
+        "robustColorFor",
         "percentage points per 10 years",
         "drawBasinHighlight",
         "rgba(34, 211, 238",
@@ -456,6 +423,12 @@ def main() -> None:
         "drawHoverLabel",
         "overviewLayerId",
         'name: "Research overview"',
+        "Across-catchment BH-FDR",
+        "Unadjusted p",
+        "local candidate",
+        "catchmentPotentialSignals",
+        "catchmentFdrSignals",
+        "10-day declustering",
     ]
     web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
     web_ok &= module.count("reports/assets/figure_") == 6

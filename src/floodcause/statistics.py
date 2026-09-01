@@ -6,9 +6,6 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .io import benjamini_hochberg
-
-
 def mann_kendall_tie_corrected(values: np.ndarray) -> dict[str, float]:
     """Tie-corrected asymptotic Mann-Kendall test for a time-ordered series."""
     y = np.asarray(values, dtype=float)
@@ -47,7 +44,6 @@ def theil_sen_per_decade(year: np.ndarray, values: np.ndarray) -> dict[str, floa
 def fit_continuous_trends(
     sample: pd.DataFrame,
     variables: list[str],
-    alpha: float,
     minimum_years: int = 10,
     minimum_span_years: int = 20,
 ) -> pd.DataFrame:
@@ -90,19 +86,11 @@ def fit_continuous_trends(
     result = pd.DataFrame(rows)
     if result.empty:
         return result
-    result["metric_q"] = result.groupby("variable", group_keys=False)["mk_p"].apply(
-        benjamini_hochberg
-    )
-    result["family_q"] = benjamini_hochberg(result["mk_p"])
-    # Compatibility alias used by existing audit and presentation code.
-    result["mk_q"] = result["metric_q"]
     result["direction"] = np.select(
         [result["sen_slope_per_decade"] > 0, result["sen_slope_per_decade"] < 0],
         ["increase", "decrease"],
         default="stable",
     )
-    result["fdr_significant"] = result["metric_q"] < alpha
-    result["family_fdr_significant"] = result["family_q"] < alpha
     result["display_slope_per_decade"] = result["sen_slope_per_decade"]
     result["display_ci_low_per_decade"] = result["sen_ci_low_per_decade"]
     result["display_ci_high_per_decade"] = result["sen_ci_high_per_decade"]

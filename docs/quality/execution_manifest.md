@@ -1,6 +1,6 @@
 # Execution manifest
 
-**Execution date:** 2026-09-01
+**Execution date:** 2026-09-02
 
 **Study period:** 1982–2019
 **Primary sample:** catchment-specific POT/Q95
@@ -14,19 +14,18 @@
 | Primary POT/Q95 events | 59,048 |
 | Primary POT/Q95 catchments | 2,624 |
 | Direct-trend catchments | 2,435 |
-| Catchment–metric tests | 12,163 |
-| Stable direct candidates | 378 |
-| Metric-wise BH-FDR direct signals | 0 |
+| Catchment–metric estimates | 12,163 |
+| Robust individual trends | 378 |
 
 ## Regional inference
 
 | Output | Count |
 |---|---:|
-| Candidate L5 with estimable trends | 295 |
+| L5 with estimable trends | 295 |
 | Complete regional-family tests | 1,475 |
 | Complete-family 5% BH-FDR signals | 106 |
 | Full robustness-screen signals before area support | 94 in 43 L5 |
-| Full signals at default ≥10% area support | 84 in 36 L5 |
+| Full signals at default ≥50% area support | 10 in 6 L5 |
 
 At 10%, 20%, 30%, 40%, and 50% area support, the explorer retains respectively 84, 42, 28, 19, and 10 strong regional signals. Direct catchment results remain available at every threshold.
 

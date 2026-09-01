@@ -20,7 +20,7 @@
 - 59,048 POT/Q95 events in 2,624 catchments.
 - Minimum 10 selected events and minimum 20-year selected-event span.
 - No overlapping reconstructed stormflow windows in the primary sample.
-- 2,194 adjacent peak pairs are less than 10 days apart; a separately declustered sensitivity sample removes all such pairs.
+- 2,194 adjacent peak pairs are less than 10 days apart, but their reconstructed stormflow windows do not overlap. This interval is retained as an audit diagnostic rather than imposed as a second event-separation rule.
 
 ## Geography
 

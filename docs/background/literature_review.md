@@ -31,7 +31,7 @@ Source: [Stein et al. (2020), Hydrological Processes](https://doi.org/10.1002/hy
 
 ### Event selection and mechanism description are separate decisions
 
-Brunner et al. (2021) demonstrated that conclusions about precipitation–flood changes depend on the extremeness threshold and used a 10-day independence rule. Their design supports explicit separation of the ranked variable, percentile population, declustering rule, and flood-response pairing.
+Brunner et al. (2021) demonstrated that conclusions about precipitation–flood changes depend on the extremeness threshold and used a 10-day independence rule. Their design supports explicit separation of the ranked variable, percentile population, event-independence diagnosis, and flood-response pairing. The present event catalogue already separates hydrological events, so its non-overlapping stormflow windows are retained as the primary independence evidence.
 
 Source: [Brunner et al. (2021), Communications Earth & Environment](https://doi.org/10.1038/s43247-021-00248-x).
 
@@ -65,6 +65,6 @@ Source: [Zhang et al. (2025), Earth System Science Data](https://doi.org/10.5194
 
 ## Position of this study
 
-The study is an observational, event-based extension of process-change research to a global long-record gauge sample. It contributes catchment-first continuous trend estimates, joint rainfall-organization and antecedent-wetness analysis, explicit POT and declustering sensitivity, area-supported regional pooling, complete-family multiple-testing control, and interactive traceability from L5 patterns back to individual catchments.
+The study is an observational, event-based extension of process-change research to a global long-record gauge sample. It contributes catchment-first continuous trend estimates, joint rainfall-organization and antecedent-wetness analysis, explicit extreme-sample sensitivity, area-supported regional pooling, complete-family regional multiple-testing control, and interactive traceability from L5 patterns back to individual catchments.
 
 The results support statements about temporal association and changing composition of generating conditions in the available gauge sample. They do not establish attribution to anthropogenic forcing or represent an area-weighted global land trend.

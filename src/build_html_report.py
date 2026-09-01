@@ -118,7 +118,7 @@ def build_html_report(
   <div class="mobile-bar"><strong>Global Flood Cause Evolution</strong><button onclick="window.print()">打印 / PDF</button></div>
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图表大图" aria-hidden="true"><button class="lightbox-close" aria-label="关闭大图">×</button><figure><img alt=""><figcaption></figcaption></figure></div>
   <div class="shell">
-    <aside><div class="brand"><strong>Research report</strong><span>完整实验 · 2026-09-01</span></div><nav class="toc" aria-label="目录">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside>
+    <aside><div class="brand"><strong>Research report</strong><span>完整实验 · 2026-09-02</span></div><nav class="toc" aria-label="目录">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside>
     <article><div class="facts"><div class="fact"><b>{primary['events']:,}</b><span>POT/Q95 极端事件</span></div><div class="fact"><b>{primary['catchments']:,}</b><span>合格长期观测流域</span></div><div class="fact"><b>{default_strong['HYBAS_ID'].nunique()}</b><span>≥{threshold}%面积支持的强证据 L5</span></div><div class="fact"><b>{len(default_strong)}</b><span>强区域信号</span></div></div>{article}</article>
   </div>
   <script>

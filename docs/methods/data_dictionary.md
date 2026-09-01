@@ -34,7 +34,6 @@ File: `data/derived/event_features.parquet`
 | `primary_extreme_events.parquet` | Catchment-specific POT/Q95 after record, count, and span screens |
 | `sensitivity_annual_maximum_events.parquet` | One maximum reconstructed flood per catchment-year |
 | `sensitivity_pot_q90_events.parquet` | Catchment-specific POT/Q90 |
-| `sensitivity_pot_q95_gap10_events.parquet` | POT/Q95 after 10-day declustering |
 | `sensitivity_pot_q975_events.parquet` | Catchment-specific POT/Q97.5 |
 
 ## Result tables
@@ -43,7 +42,7 @@ File: `data/derived/event_features.parquet`
 |---|---|---|
 | `record_eligibility.csv` | catchment | record years, span, coverage, eligibility |
 | `extreme_sample_diagnostics.csv` | sample | events, catchments, independence diagnostics |
-| `catchment_mechanism_trends.csv` | catchment × metric | annualized Theil–Sen slope, Mann–Kendall p, metric/family q, stability checks, candidate grade |
+| `catchment_mechanism_trends.csv` | catchment × metric | annualized Theil–Sen slope, Mann–Kendall p value, fitted endpoints, alternative-sample/window/leave-one-year checks, robust individual-trend grade |
 | `catchment_sensitivity_trends.csv` | sample × catchment × metric | alternative-sample direct trends |
 | `hydrobasin_catchment_membership.csv` | catchment | L5 membership from outlet |
 | `hydrobasin_mechanism_trends.csv` | sample × L5 × metric | fixed-effect or single-catchment estimate and uncertainty |
@@ -52,6 +51,6 @@ File: `data/derived/event_features.parquet`
 | `spatial_support/l5_spatial_support_audit.csv` | L5 | polygon areas, observed union, coverage, largest contributing catchment |
 | `spatial_support/l5_spatial_support_threshold_sensitivity.csv` | scope × threshold | retained L5 and catchment counts at 10–50% support |
 
-Important catchment evidence fields are `potential_local_shift`, `strong_local_evidence`, `five_gate_count`, and the individual stability flags. Important regional fields are `estimator_type`, `primary_family_q`, `sample_direction_stable`, `wetness_window_stable`, `jackknife_sign_stable`, and `strong_evidence`.
+Important catchment evidence fields are `robust_local_trend`, `alternative_sample_direction_stable`, `wetness_window_stable`, `leave_one_year_out_stable`, `local_check_count`, and `local_check_total`. Important regional fields are `estimator_type`, `primary_family_q`, `sample_direction_stable`, `wetness_window_stable`, `jackknife_sign_stable`, and `strong_evidence`.
 
 The complete calculation and evidence rules are in [`analysis_protocol.md`](analysis_protocol.md).

@@ -24,11 +24,9 @@ event_samples:
   pot_quantiles: [0.90, 0.95, 0.975]
   minimum_events: 10
   minimum_selected_span_years: 20
-  declustering_gap_days: 10
   sensitivity_samples:
     - annual_maximum
     - pot_q90
-    - pot_q95_gap10
     - pot_q975
 
 classification:
@@ -52,7 +50,7 @@ trends:
 local_analysis:
   hydrobasins_levels: [5]
   primary_level: 5
-  default_area_coverage_threshold_percent: 10
+  default_area_coverage_threshold_percent: 50
   area_coverage_threshold_options_percent: [10, 20, 30, 40, 50]
   primary_metrics:
     - intensity_fraction

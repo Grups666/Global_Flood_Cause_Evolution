@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .io import assign_continent, benjamini_hochberg
+from .io import assign_continent
 from .statistics import fit_continuous_trends, theil_sen_per_decade
 
 
@@ -17,7 +17,6 @@ SAMPLE_FILES = {
     "pot_q95": "primary_extreme_events.parquet",
     "annual_maximum": "sensitivity_annual_maximum_events.parquet",
     "pot_q90": "sensitivity_pot_q90_events.parquet",
-    "pot_q95_gap10": "sensitivity_pot_q95_gap10_events.parquet",
     "pot_q975": "sensitivity_pot_q975_events.parquet",
 }
 
@@ -92,36 +91,17 @@ def _screen_selected_events(
     return selected[selected["GCIN"].isin(set(keep))].copy()
 
 
-def _decluster_peak_dates(frame: pd.DataFrame, gap_days: int) -> pd.DataFrame:
-    """Keep the largest peak from runs separated by less than ``gap_days``."""
-    rows: list[pd.DataFrame] = []
-    for _, catchment in frame.groupby("GCIN", sort=False):
-        ordered = catchment.sort_values("q_peak_date").copy()
-        gaps = ordered["q_peak_date"].diff().dt.days
-        ordered["cluster"] = gaps.ge(gap_days).fillna(True).cumsum()
-        chosen = ordered.loc[
-            ordered.groupby("cluster")["q_peak_mm_day"].idxmax()
-        ].drop(columns="cluster")
-        rows.append(chosen)
-    if not rows:
-        return frame.iloc[0:0].copy()
-    return pd.concat(rows, ignore_index=True)
-
-
 def _select_pot(
     events: pd.DataFrame,
     eligible_ids: set[int],
     quantile: float,
     config: dict[str, Any],
-    decluster_gap_days: int | None = None,
 ) -> pd.DataFrame:
     eligible = events[events["GCIN"].isin(eligible_ids)].copy()
     thresholds = eligible.groupby("GCIN")["q_peak_mm_day"].transform(
         lambda values: values.quantile(quantile)
     )
     selected = eligible[eligible["q_peak_mm_day"] >= thresholds].copy()
-    if decluster_gap_days is not None:
-        selected = _decluster_peak_dates(selected, decluster_gap_days)
     return _screen_selected_events(selected, config).sort_values(
         ["GCIN", "q_peak_date"]
     )
@@ -351,16 +331,6 @@ def _build_catchment_evidence(
         [frame.assign(sample=name) for name, frame in trend_tables.items()],
         ignore_index=True,
     )
-    all_trends["primary_family_q"] = np.nan
-    for sample_name in trend_tables:
-        mask = all_trends["sample"].eq(sample_name) & all_trends["variable"].isin(
-            primary_metrics
-        )
-        if mask.any():
-            all_trends.loc[mask, "primary_family_q"] = benjamini_hochberg(
-                all_trends.loc[mask, "mk_p"]
-            ).to_numpy()
-
     primary = all_trends[all_trends["sample"].eq(primary_sample)].copy()
     sensitivity_names = list(config["event_samples"]["sensitivity_samples"])
     for sample_name in sensitivity_names:
@@ -378,24 +348,14 @@ def _build_catchment_evidence(
     primary_sign = np.sign(primary["sen_slope_per_decade"])
     q90 = primary["pot_q90_raw_slope"]
     q975 = primary["pot_q975_raw_slope"]
-    declustered = primary["pot_q95_gap10_raw_slope"]
     annual_maximum = primary["annual_maximum_raw_slope"]
-    primary["threshold_direction_stable"] = (
+    primary["alternative_sample_direction_stable"] = (
         q90.notna()
         & q975.notna()
+        & annual_maximum.notna()
         & np.sign(q90).eq(primary_sign)
         & np.sign(q975).eq(primary_sign)
-    )
-    primary["decluster_direction_stable"] = declustered.notna() & np.sign(
-        declustered
-    ).eq(primary_sign)
-    primary["annual_max_direction_stable"] = annual_maximum.notna() & np.sign(
-        annual_maximum
-    ).eq(primary_sign)
-    primary["sample_direction_stable"] = (
-        primary["threshold_direction_stable"]
-        & primary["decluster_direction_stable"]
-        & primary["annual_max_direction_stable"]
+        & np.sign(annual_maximum).eq(primary_sign)
     )
 
     wet_metrics = [
@@ -421,44 +381,23 @@ def _build_catchment_evidence(
     primary["leave_one_year_out_stable"] = primary["leave_one_year_out_stable"].fillna(
         False
     )
-    primary["metric_fdr_supported"] = primary["metric_q"].lt(alpha)
-    primary["complete_family_fdr_supported"] = primary["primary_family_q"].lt(alpha)
-    primary["potential_local_shift"] = (
+    primary["robust_local_trend"] = (
         primary["variable"].isin(primary_metrics)
         & primary["mk_p"].lt(alpha)
-        & primary["sample_direction_stable"]
+        & primary["alternative_sample_direction_stable"]
         & primary["leave_one_year_out_stable"]
         & primary["wetness_window_stable"].fillna(False)
     )
-    primary["strong_local_evidence"] = (
-        primary["variable"].isin(primary_metrics)
-        & primary["metric_fdr_supported"]
-        & primary["sample_direction_stable"]
-        & primary["leave_one_year_out_stable"]
-        & primary["wetness_window_stable"].fillna(False)
+    is_wetness = primary["variable"].isin(wet_metrics)
+    primary["local_check_count"] = (
+        primary["mk_p"].lt(alpha).astype(int)
+        + primary["alternative_sample_direction_stable"].fillna(False).astype(int)
+        + primary["leave_one_year_out_stable"].fillna(False).astype(int)
+        + (is_wetness & primary["wetness_window_stable"].fillna(False)).astype(int)
     )
-    primary["five_gate_count"] = (
-        primary[
-            [
-                "metric_fdr_supported",
-                "threshold_direction_stable",
-                "decluster_direction_stable",
-                "annual_max_direction_stable",
-                "leave_one_year_out_stable",
-            ]
-        ]
-        .fillna(False)
-        .sum(axis=1)
-        .astype(int)
-    )
-    primary["evidence_grade"] = np.select(
-        [
-            primary["strong_local_evidence"],
-            primary["metric_fdr_supported"],
-            primary["potential_local_shift"],
-        ],
-        ["strong", "fdr-supported", "robust-candidate"],
-        default="estimate",
+    primary["local_check_total"] = np.where(is_wetness, 4, 3)
+    primary["evidence_grade"] = np.where(
+        primary["robust_local_trend"], "robust", "estimate"
     )
     return primary, all_trends
 
@@ -474,13 +413,10 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     events = add_mechanism_metrics(_study_events(features, config), config)
     coverage, eligible_ids = _record_eligibility(events, config)
     settings = config["event_samples"]
-    gap = int(settings["declustering_gap_days"])
-
     samples = {
         "pot_q95": _select_pot(events, eligible_ids, 0.95, config),
         "annual_maximum": _select_annual_maximum(events, eligible_ids),
         "pot_q90": _select_pot(events, eligible_ids, 0.90, config),
-        "pot_q95_gap10": _select_pot(events, eligible_ids, 0.95, config, gap),
         "pot_q975": _select_pot(events, eligible_ids, 0.975, config),
     }
     _write_samples(samples, config["paths"]["derived_data"])
@@ -516,7 +452,6 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
         trend_tables[sample_name] = fit_continuous_trends(
             sample,
             variables,
-            float(config["trends"]["alpha"]),
             minimum_years=int(config["event_samples"]["minimum_events"]),
             minimum_span_years=int(
                 config["event_samples"]["minimum_selected_span_years"]
@@ -571,17 +506,8 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
         "catchment_primary_tests": int(
             catchment_trends["variable"].isin(primary_metrics).sum()
         ),
-        "catchment_metric_fdr_signals": int(
-            catchment_trends.loc[
-                catchment_trends["variable"].isin(primary_metrics),
-                "metric_fdr_supported",
-            ].sum()
-        ),
-        "catchment_strong_signals": int(
-            catchment_trends["strong_local_evidence"].sum()
-        ),
-        "catchment_potential_signals": int(
-            catchment_trends["potential_local_shift"].sum()
+        "robust_catchment_trends": int(
+            catchment_trends["robust_local_trend"].sum()
         ),
         "elapsed_seconds": time.time() - started,
     }

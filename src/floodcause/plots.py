@@ -136,7 +136,7 @@ def figure_sample_coverage(config: dict[str, Any]) -> None:
     )
     _footer(
         fig,
-        f"Source network is not area-uniform. Primary event windows have {int(primary.stormflow_window_overlaps)} overlaps; peak-spacing sensitivity uses a separate 10-day-declustered sample.",
+        f"Source network is not area-uniform. The selected POT/Q95 events contain {int(primary.stormflow_window_overlaps)} overlapping stormflow windows.",
     )
     _save(fig, config["paths"]["figures"] / "figure_01_sample_coverage", int(config["plotting"]["dpi"]))
 
@@ -155,16 +155,16 @@ def _catchment_map_panel(
         data["longitude"], data["latitude"], c=data["display_slope_per_decade"],
         cmap=CMAP, norm=norm, s=6.5, alpha=0.46, linewidths=0, rasterized=True,
     )
-    candidates = data[data["potential_local_shift"]]
-    if not candidates.empty:
+    robust = data[data["robust_local_trend"]]
+    if not robust.empty:
         ax.scatter(
-            candidates["longitude"], candidates["latitude"],
-            c=candidates["display_slope_per_decade"], cmap=CMAP, norm=norm,
-            s=24, alpha=0.98, edgecolors="#17212B", linewidths=0.55,
+            robust["longitude"], robust["latitude"],
+            c=robust["display_slope_per_decade"], cmap=CMAP, norm=norm,
+            s=24, alpha=0.98, linewidths=0,
             rasterized=True,
         )
     ax.set_title(
-        f"{METRIC_LABELS[metric]} · {len(candidates)} stable candidates",
+        f"{METRIC_LABELS[metric]} · {len(robust)} robust individual trends",
         loc="left", pad=5,
     )
 
@@ -187,20 +187,20 @@ def figure_mechanism_change_maps(config: dict[str, Any]) -> None:
     inset.set_yticks([])
     for spine in inset.spines.values():
         spine.set_visible(False)
-    legend.scatter([0.07], [0.53], s=28, color=ORANGE, edgecolors="#17212B", linewidths=0.6, transform=legend.transAxes)
-    legend.text(0.13, 0.53, "Stable unadjusted candidate", va="center", fontsize=8.5, transform=legend.transAxes)
+    legend.scatter([0.07], [0.53], s=28, color=ORANGE, linewidths=0, transform=legend.transAxes)
+    legend.text(0.13, 0.53, "Robust individual trend", va="center", fontsize=8.5, transform=legend.transAxes)
     legend.scatter([0.07], [0.42], s=12, color=BLUE, alpha=0.45, linewidths=0, transform=legend.transAxes)
     legend.text(0.13, 0.42, "Other estimable catchment", va="center", fontsize=8.5, transform=legend.transAxes)
     legend.text(
         0.03, 0.20,
-        "Candidate means p < 0.05 plus agreement across\nevent-threshold, declustering, annual-maximum,\nleave-one-year-out, and SSI-window checks.\nIt is not a BH-FDR-confirmed signal.",
+        "A robust individual trend has p < 0.05, keeps its\ndirection under Q90, Q97.5 and annual-maximum\nevent samples, and passes leave-one-year-out.\nSSI trends also agree across all four windows.",
         fontsize=8, color=MUTED, linespacing=1.5, transform=legend.transAxes,
     )
 
     _header(
         fig,
         "Direct catchment trends in flood-generating conditions",
-        "Annualized Theil–Sen slopes; all estimable catchments remain visible and stable candidates are outlined",
+        "Annualized Theil–Sen slopes; all estimable catchments remain visible and robust individual trends are emphasized",
     )
     _footer(
         fig,
@@ -214,12 +214,11 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
     evidence = evidence[evidence["variable"].isin(PRIMARY_METRICS)].copy()
     summary = evidence.groupby("variable").agg(
         tests=("GCIN", "size"),
-        unadjusted=("mk_p", lambda values: int((values < 0.05).sum())),
-        stable=("potential_local_shift", "sum"),
-        fdr=("metric_fdr_supported", "sum"),
+        p_below_005=("mk_p", lambda values: int((values < 0.05).sum())),
+        robust=("robust_local_trend", "sum"),
     ).reindex(PRIMARY_METRICS)
-    candidates = evidence[evidence["potential_local_shift"]].copy()
-    directions = candidates.assign(direction=np.where(candidates["display_slope_per_decade"] >= 0, "positive", "negative")).pivot_table(
+    robust = evidence[evidence["robust_local_trend"]].copy()
+    directions = robust.assign(direction=np.where(robust["display_slope_per_decade"] >= 0, "positive", "negative")).pivot_table(
         index="variable", columns="direction", values="GCIN", aggfunc="size", fill_value=0
     ).reindex(PRIMARY_METRICS).fillna(0)
 
@@ -227,25 +226,19 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
     fig.subplots_adjust(left=0.13, right=0.95, bottom=0.20, top=0.80, wspace=0.34)
     labels = [METRIC_LABELS[metric] for metric in PRIMARY_METRICS]
     y = np.arange(len(labels))
-    axes[0].barh(y + 0.18, summary["unadjusted"], height=0.32, color="#AAB8C2", label="Unadjusted p < 0.05")
-    axes[0].barh(y - 0.18, summary["stable"], height=0.32, color=GOLD, label="Stable candidate")
+    axes[0].barh(y + 0.18, summary["p_below_005"], height=0.32, color="#AAB8C2", label="p < 0.05")
+    axes[0].barh(y - 0.18, summary["robust"], height=0.32, color=GOLD, label="Robust individual trend")
     for index, row in enumerate(summary.itertuples()):
-        axes[0].text(row.unadjusted + 5, index + 0.18, f"{int(row.unadjusted)}", va="center", fontsize=8)
-        axes[0].text(row.stable + 5, index - 0.18, f"{int(row.stable)}", va="center", fontsize=8, weight="bold")
+        axes[0].text(row.p_below_005 + 5, index + 0.18, f"{int(row.p_below_005)}", va="center", fontsize=8)
+        axes[0].text(row.robust + 5, index - 0.18, f"{int(row.robust)}", va="center", fontsize=8, weight="bold")
     axes[0].set_yticks(y, labels)
     axes[0].invert_yaxis()
     axes[0].set_xlabel("Catchment–metric estimates")
-    axes[0].set_title("Candidate evidence funnel", loc="left")
+    axes[0].set_title("Individual-trend evidence screen", loc="left")
     axes[0].grid(axis="x", color=GRID, linewidth=0.6)
     axes[0].spines[["top", "right", "left"]].set_visible(False)
     axes[0].tick_params(axis="y", length=0)
     axes[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.11), ncol=2)
-    axes[0].text(
-        0.98, 0.97,
-        f"BH-FDR supported: {int(summary['fdr'].sum())}",
-        transform=axes[0].transAxes, ha="right", va="top", fontsize=9, weight="bold", color=BLUE,
-    )
-
     negative = directions.get("negative", pd.Series(0, index=PRIMARY_METRICS)).to_numpy(float)
     positive = directions.get("positive", pd.Series(0, index=PRIMARY_METRICS)).to_numpy(float)
     axes[1].barh(y, -negative, color=BLUE, height=0.56, label="Negative direction")
@@ -257,7 +250,7 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
         axes[1].text(value + 2, index, f"{int(value)}", ha="left", va="center", fontsize=8, color=INK)
     axes[1].set_yticks(y, labels)
     axes[1].invert_yaxis()
-    axes[1].set_xlabel("Stable candidates by direction")
+    axes[1].set_xlabel("Robust individual trends by direction")
     axes[1].set_title("Opposing local directions are retained", loc="left")
     axes[1].grid(axis="x", color=GRID, linewidth=0.6)
     axes[1].spines[["top", "right", "left"]].set_visible(False)
@@ -266,12 +259,12 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
 
     _header(
         fig,
-        "Most catchments do not show strict network-wide trend evidence",
-        "Stable candidates are useful locations for follow-up, but none passes metric-wise 5% BH-FDR",
+        "Robust individual trends are sparse and directionally mixed",
+        "Each catchment is assessed directly; p < 0.05 trends are retained when their directions survive the declared robustness checks",
     )
     _footer(
         fig,
-        f"Primary family contains {len(evidence):,} estimable catchment–metric trends. BH-FDR = Benjamini–Hochberg false discovery rate. Stability and multiplicity control are reported separately.",
+        f"The analysis contains {len(evidence):,} estimable catchment–metric trends. Counts describe individual catchments and are not an area-weighted global trend.",
     )
     _save(fig, config["paths"]["figures"] / "figure_03_strong_signal_rankings", int(config["plotting"]["dpi"]))
 

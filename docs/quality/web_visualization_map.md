@@ -8,7 +8,7 @@ The GitHub Pages site loads a custom Tereon module with two independent analytic
 ## Visual hierarchy
 
 - The catchment layer uses zoom-responsive equal-location points rather than polygon area as a size encoding. Points enlarge smoothly with map zoom within fixed minimum and maximum radii.
-- Stable local candidates are the only catchments encoded with the signed blue–orange trend palette. Other estimable catchments use one neutral grey so unconfirmed slopes do not compete with the evidence-bearing candidates.
+- In **Supported focus**, robust individual trends use the signed blue–orange palette and other estimable catchments form a neutral grey context. In **All estimates**, every estimable catchment shows its direction; non-robust estimates use a lighter color and robust trends remain on top.
 - L5 fill shows the selected metric's shared regional slope. Cyan outlines identify signals passing complete regional-family Benjamini–Hochberg false discovery rate (BH-FDR), alternative-event, SSI-window, and leave-one-out checks.
 - Normal boundaries are thin dark lines. Hover/selection uses a wider cyan glow with transparent interior and is repainted above every neighboring boundary.
 - Opaque hover cards are placed above canvas layers and report identifier, physical direction, slope, unit, support, and evidence state.
@@ -21,12 +21,12 @@ The toolbar offers 10%, 20%, 30%, 40%, and 50% observed polygon-area thresholds.
 area(L5 intersect union of assigned eligible catchment polygons) / area(L5)
 ```
 
-and only controls whether an L5 interpretation is shown. Individual catchment estimates never disappear when the regional threshold changes. The default is 10% to preserve broad exploration; higher choices provide a direct spatial-support sensitivity analysis.
+and only controls whether an L5 interpretation is shown. Individual catchment estimates never disappear when the regional threshold changes. The default is 50%; lower choices provide a direct spatial-support sensitivity analysis.
 
 ## Inspectors
 
-- A catchment inspector reports Theil–Sen slope, 95% CI, Mann–Kendall p, metric-wide q, selected event years, polygon area, L5 membership, five stability checks, and alternative-sample slopes.
-- An L5 inspector reports observed area coverage, observed area, contributing catchments, event and catchment-year counts, estimator type, pooled slope and CI, complete-family q, and all five regional evidence gates.
+- A catchment inspector reports Theil–Sen slope, 95% CI, Mann–Kendall p value, fitted start and end levels, selected event years, polygon area, L5 membership, metric-specific stability checks, and alternative-sample slopes.
+- An L5 inspector reports observed area coverage, observed area, contributing catchments, event and catchment-year counts, estimator type, pooled slope and CI, complete-family q, and the metric-specific regional evidence checks.
 - One-catchment L5 representations are explicitly labelled; their area support does not imply multi-catchment corroboration.
 - Rainfall concentration is explained as percentage-point change in the wettest-day share of event rainfall. SSI is explained in normalized index units. Neither is described as flood frequency, peak, or volume.
 

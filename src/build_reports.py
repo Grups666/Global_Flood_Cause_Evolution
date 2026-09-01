@@ -36,9 +36,9 @@ def _stats() -> dict[str, Any]:
     catchments = catchments[catchments["variable"].isin(PRIMARY_METRICS)].copy()
     regions = pd.read_csv(TABLES / "hydrobasin_evidence.csv")
     regions = regions[regions["metric"].isin(PRIMARY_METRICS)].copy()
-    support = pd.read_csv(
-        TABLES / "spatial_support" / "l5_spatial_support_audit.csv"
-    ).rename(columns={"hybas_id_l5": "HYBAS_ID"})
+    support = pd.read_csv(TABLES / "spatial_support" / "l5_spatial_support_audit.csv").rename(
+        columns={"hybas_id_l5": "HYBAS_ID"}
+    )
     regions = regions.merge(
         support[["HYBAS_ID", "coverage_pct", "observed_union_inside_km2"]],
         on="HYBAS_ID",
@@ -48,29 +48,23 @@ def _stats() -> dict[str, Any]:
         TABLES / "spatial_support" / "l5_spatial_support_threshold_sensitivity.csv"
     )
     thresholds = list(local["area_coverage_threshold_options_percent"])
-    threshold_rows = []
+    threshold_rows: list[dict[str, Any]] = []
     global_area = sensitivity[
-        sensitivity["scope"].eq("Global")
-        & sensitivity["metric"].eq("coverage_fraction")
+        sensitivity["scope"].eq("Global") & sensitivity["metric"].eq("coverage_fraction")
     ].set_index("threshold_pct")
     us_area = sensitivity[
-        sensitivity["scope"].eq("United States")
-        & sensitivity["metric"].eq("coverage_fraction")
+        sensitivity["scope"].eq("United States") & sensitivity["metric"].eq("coverage_fraction")
     ].set_index("threshold_pct")
     for threshold in thresholds:
         available = regions[regions["coverage_pct"].ge(threshold)]
         threshold_rows.append(
             {
-                "threshold": threshold,
+                "threshold": int(threshold),
                 "audit_l5": int(global_area.loc[threshold, "passing_l5"]),
                 "mappable_l5": int(available["HYBAS_ID"].nunique()),
                 "catchments": int(global_area.loc[threshold, "passing_catchments"]),
-                "catchment_share": float(
-                    global_area.loc[threshold, "passing_catchment_share_pct"]
-                ),
-                "us_catchment_share": float(
-                    us_area.loc[threshold, "passing_catchment_share_pct"]
-                ),
+                "catchment_share": float(global_area.loc[threshold, "passing_catchment_share_pct"]),
+                "us_catchment_share": float(us_area.loc[threshold, "passing_catchment_share_pct"]),
                 "strong_signals": int(available["strong_evidence"].sum()),
                 "strong_regions": int(
                     available.loc[available["strong_evidence"], "HYBAS_ID"].nunique()
@@ -78,7 +72,6 @@ def _stats() -> dict[str, Any]:
             }
         )
     default_threshold = int(local["default_area_coverage_threshold_percent"])
-    default_regions = regions[regions["coverage_pct"].ge(default_threshold)]
     return {
         "analysis": analysis,
         "local": local,
@@ -88,54 +81,93 @@ def _stats() -> dict[str, Any]:
         "support": support,
         "threshold_rows": threshold_rows,
         "default_threshold": default_threshold,
-        "default_regions": default_regions,
+        "default_regions": regions[regions["coverage_pct"].ge(default_threshold)].copy(),
     }
-
-
-def _threshold_table(s: dict[str, Any], language: str) -> str:
-    if language == "zh":
-        header = "| L5面积覆盖阈值 | 有空间支持的L5 | 有趋势结果的L5 | 位于这些L5的流域 | 全球流域占比 | 美国流域占比 | 强区域信号 | 涉及L5 |\n|---:|---:|---:|---:|---:|---:|---:|---:|"
-    else:
-        header = "| L5 area threshold | Spatially supported L5 | L5 with trend estimates | Catchments inside passing L5 | Global catchment share | US catchment share | Strong regional signals | L5 with strong signals |\n|---:|---:|---:|---:|---:|---:|---:|---:|"
-    rows = [header]
-    for row in s["threshold_rows"]:
-        rows.append(
-            f"| {row['threshold']}% | {row['audit_l5']} | {row['mappable_l5']} | "
-            f"{row['catchments']:,} | {row['catchment_share']:.1f}% | "
-            f"{row['us_catchment_share']:.1f}% | {row['strong_signals']} | "
-            f"{row['strong_regions']} |"
-        )
-    return "\n".join(rows)
 
 
 def _local_table(s: dict[str, Any], language: str) -> str:
     labels = LABELS_ZH if language == "zh" else LABELS_EN
-    frame = s["catchments"]
     if language == "zh":
-        rows = ["| 指标 | 可估计流域 | 未校正 p<0.05 | 稳定候选 | 跨流域BH-FDR | 候选负向 | 候选正向 |\n|---|---:|---:|---:|---:|---:|---:|"]
+        rows = ["| 指标 | 可估计流域 | p < 0.05 | 稳健单流域趋势 | 负向 | 正向 |\n|---|---:|---:|---:|---:|---:|"]
     else:
-        rows = ["| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Across-catchment BH-FDR | Negative candidates | Positive candidates |\n|---|---:|---:|---:|---:|---:|---:|"]
+        rows = ["| Metric | Estimable catchments | p < 0.05 | Robust individual trends | Negative | Positive |\n|---|---:|---:|---:|---:|---:|"]
     for metric in PRIMARY_METRICS:
-        part = frame[frame["variable"].eq(metric)]
-        candidate = part[part["potential_local_shift"]]
+        part = s["catchments"][s["catchments"]["variable"].eq(metric)]
+        robust = part[part["robust_local_trend"]]
         rows.append(
-            f"| {labels[metric]} | {len(part):,} | {int(part['mk_p'].lt(0.05).sum())} | "
-            f"{int(candidate.shape[0])} | {int(part['metric_fdr_supported'].sum())} | "
-            f"{int(candidate['display_slope_per_decade'].lt(0).sum())} | "
-            f"{int(candidate['display_slope_per_decade'].gt(0).sum())} |"
+            f"| {labels[metric]} | {len(part):,} | {int(part['mk_p'].lt(0.05).sum()):,} | "
+            f"{len(robust):,} | {int(robust['display_slope_per_decade'].lt(0).sum()):,} | "
+            f"{int(robust['display_slope_per_decade'].gt(0).sum()):,} |"
+        )
+    return "\n".join(rows)
+
+
+def _top_individual(s: dict[str, Any], language: str) -> str:
+    labels = LABELS_ZH if language == "zh" else LABELS_EN
+    frame = s["catchments"][s["catchments"]["robust_local_trend"]].copy()
+    scale = frame["variable"].map(
+        {"intensity_fraction": 8.0, "ssi_1d": 0.04, "ssi_3d": 0.04, "ssi_7d": 0.04, "ssi_30d": 0.04}
+    )
+    frame["score"] = frame["display_slope_per_decade"].abs() / scale
+    frame = frame.sort_values("score", ascending=False).head(12)
+    if language == "zh":
+        rows = ["| GCIN | 国家 | 指标 | 每10年变化 | 拟合起点 → 终点 | p value |\n|---:|---|---|---:|---:|---:|"]
+    else:
+        rows = ["| GCIN | Country | Metric | Change per 10 years | Fitted start → end | p value |\n|---:|---|---|---:|---:|---:|"]
+    for row in frame.itertuples(index=False):
+        rain = row.variable == "intensity_fraction"
+        digits = 2 if rain else 3
+        factor = 100 if rain else 1
+        rows.append(
+            f"| {int(row.GCIN)} | {row.country} | {labels[row.variable]} | "
+            f"{row.display_slope_per_decade:+.{digits}f}{' pp' if rain else ' SSI'} | "
+            f"{row.fitted_first_level * factor:.{digits}f} → {row.fitted_last_level * factor:.{digits}f} | "
+            f"{row.mk_p:.4f} |"
+        )
+    return "\n".join(rows)
+
+
+def _country_table(s: dict[str, Any], language: str) -> str:
+    frame = s["catchments"][s["catchments"]["robust_local_trend"]].copy()
+    frame["direction"] = frame["display_slope_per_decade"].gt(0).map({True: "positive", False: "negative"})
+    grouped = (
+        frame.groupby(["country", "variable", "direction"]).size().rename("n").reset_index()
+        .sort_values("n", ascending=False).head(15)
+    )
+    labels = LABELS_ZH if language == "zh" else LABELS_EN
+    if language == "zh":
+        rows = ["| 国家 | 指标 | 方向 | 稳健单流域数 |\n|---|---|---|---:|"]
+        direction = {"positive": "增加", "negative": "减少"}
+    else:
+        rows = ["| Country | Metric | Direction | Robust catchments |\n|---|---|---|---:|"]
+        direction = {"positive": "increase", "negative": "decrease"}
+    for row in grouped.itertuples(index=False):
+        rows.append(f"| {row.country} | {labels[row.variable]} | {direction[row.direction]} | {row.n} |")
+    return "\n".join(rows)
+
+
+def _threshold_table(s: dict[str, Any], language: str) -> str:
+    if language == "zh":
+        rows = ["| 面积支持阈值 | 有趋势结果的L5 | 被这些L5覆盖的流域 | 全球流域占比 | 美国流域占比 | 强区域信号 | 涉及L5 |\n|---:|---:|---:|---:|---:|---:|---:|"]
+    else:
+        rows = ["| Area-support threshold | L5 with estimates | Catchments represented | Global catchment share | US catchment share | Strong regional signals | L5 involved |\n|---:|---:|---:|---:|---:|---:|---:|"]
+    for row in s["threshold_rows"]:
+        rows.append(
+            f"| {row['threshold']}% | {row['mappable_l5']} | {row['catchments']:,} | "
+            f"{row['catchment_share']:.1f}% | {row['us_catchment_share']:.1f}% | "
+            f"{row['strong_signals']} | {row['strong_regions']} |"
         )
     return "\n".join(rows)
 
 
 def _regional_table(s: dict[str, Any], language: str) -> str:
     labels = LABELS_ZH if language == "zh" else LABELS_EN
-    frame = s["default_regions"]
     if language == "zh":
         rows = ["| 指标 | L5检验 | 完整区域族BH-FDR | 强区域信号 | 负向 | 正向 |\n|---|---:|---:|---:|---:|---:|"]
     else:
         rows = ["| Metric | L5 tests | Complete-family BH-FDR | Strong regional signals | Negative | Positive |\n|---|---:|---:|---:|---:|---:|"]
     for metric in PRIMARY_METRICS:
-        part = frame[frame["metric"].eq(metric)]
+        part = s["default_regions"][s["default_regions"]["metric"].eq(metric)]
         strong = part[part["strong_evidence"]]
         rows.append(
             f"| {labels[metric]} | {len(part)} | {int(part['primary_family_fdr_supported'].sum())} | "
@@ -147,597 +179,431 @@ def _regional_table(s: dict[str, Any], language: str) -> str:
 
 def _top_regions(s: dict[str, Any], language: str) -> str:
     labels = LABELS_ZH if language == "zh" else LABELS_EN
-    frame = s["default_regions"]
-    frame = frame[frame["strong_evidence"]].copy()
+    frame = s["default_regions"][s["default_regions"]["strong_evidence"]].copy()
     scale = frame["metric"].map(
         {"intensity_fraction": 3.0, "ssi_1d": 0.015, "ssi_3d": 0.015, "ssi_7d": 0.015, "ssi_30d": 0.015}
     )
     frame["score"] = frame["slope_per_decade"].abs() / scale
-    frame = frame.sort_values("score", ascending=False).head(12)
+    frame = frame.sort_values("score", ascending=False).head(15)
     if language == "zh":
-        rows = ["| L5 | 指标 | 方向 | 每十年变化 | 95% CI | 面积支持 | 流域数 |\n|---|---|---|---:|---:|---:|---:|"]
-        direction = lambda value: "增加" if value > 0 else "减少"
+        rows = ["| L5 | 主要国家 | 中心经纬度 | 指标 | 每10年变化 | 面积支持 | 流域数 |\n|---|---|---:|---|---:|---:|---:|"]
     else:
-        rows = ["| L5 | Metric | Direction | Change per decade | 95% CI | Area support | Catchments |\n|---|---|---|---:|---:|---:|---:|"]
-        direction = lambda value: "increase" if value > 0 else "decrease"
+        rows = ["| L5 | Dominant country | Centroid | Metric | Change per 10 years | Area support | Catchments |\n|---|---|---:|---|---:|---:|---:|"]
     for row in frame.itertuples(index=False):
         digits = 2 if row.metric == "intensity_fraction" else 3
         rows.append(
-            f"| {row.basin_code} | {labels[row.metric]} | {direction(row.slope_per_decade)} | "
-            f"{row.slope_per_decade:+.{digits}f} | {row.ci_low:+.{digits}f} to {row.ci_high:+.{digits}f} | "
-            f"{row.coverage_pct:.1f}% | {int(row.catchments)} |"
+            f"| {row.basin_code} | {row.dominant_countries} | {row.centroid_latitude:.1f}°, {row.centroid_longitude:.1f}° | "
+            f"{labels[row.metric]} | {row.slope_per_decade:+.{digits}f} | {row.coverage_pct:.1f}% | {int(row.catchments)} |"
         )
     return "\n".join(rows)
 
 
 def build_chinese(s: dict[str, Any]) -> str:
     a = s["analysis"]
-    l = s["local"]
-    d = s["diagnostics"]
     c = s["catchments"]
+    r = s["regions"]
+    d = s["diagnostics"]
     threshold = s["default_threshold"]
     default = next(row for row in s["threshold_rows"] if row["threshold"] == threshold)
-    return (fr"""# 全球降雨型大洪水生成条件的长期变化（1982–2019）
+    events = int(a["sample_counts"]["pot_q95"]["events"])
+    primary_catchments = int(a["sample_counts"]["pot_q95"]["catchments"])
+    robust = int(c["robust_local_trend"].sum())
+    missing = c["GCIN"].nunique() * len(PRIMARY_METRICS) - len(c)
+    return rf"""# 全球降雨型大洪水生成条件的长期变化（1982–2019）
 
-**技术报告 · 生成日期：2026-09-01**
+**完整技术报告 · 生成日期：2026-09-02**
+
+> **核心结果：** 单个流域是第一层研究对象。{len(c):,} 个可估计的“流域—指标”趋势中，{robust:,} 个同时满足 p value、替代极端样本方向和留一年检验；SSI 还要求四个前期时间窗方向一致。HydroBASINS 5级分区（L5）只作为扩展的区域尺度分析；在默认 ≥{threshold}% 面积支持下，得到 {default['strong_signals']} 个强区域信号，分布于 {default['strong_regions']} 个 L5。结果呈现局地增加与减少并存，而不是一个空间一致的全球方向。
 
 ## 技术摘要
 
-- 研究首先在单个流域内判断大洪水生成条件是否发生持续变化，再检验这些局地信号是否在 HydroBASINS L5 内形成更大尺度的一致模式。
-- 主样本包含 **{a['sample_counts']['pot_q95']['events']:,} 场** POT/Q95 大洪水和 **{a['sample_counts']['pot_q95']['catchments']:,} 个**长记录低雪流域；其中 **{c['GCIN'].nunique():,} 个流域**具有足够的所选事件年份，可估计至少一个主指标的单流域趋势。
-- 五个连续主指标形成 **{len(c):,} 个流域—指标检验**（完整组合为 {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}；SSI 7日和30日因有效事件年份或时间跨度不足分别缺少 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} 项和 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} 项，缺失项不记为零）。共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，但 **没有单流域信号通过5% Benjamini–Hochberg 假发现率控制（Benjamini–Hochberg false discovery rate，BH-FDR）**。因此目前的严格结论是：多数流域没有可由该观测网络稳定确认的长期生成条件变化；候选位置用于后续复核，而不是确证清单。
-- 区域层在全部 {l['primary_family_tests']:,} 个 L5—指标检验中有 **{l['primary_family_fdr_signals']} 个**通过完整区域族 BH-FDR，**{l['strong_evidence_signals']} 个**同时通过事件样本、SSI时间窗和留一检验。默认 **≥{threshold}%** 面积支持后，保留 **{default['strong_signals']} 个强区域信号，分布于 {default['strong_regions']} 个 L5**。
-- 面积阈值只限制区域解释，不删除单流域结果。网页允许在 10%、20%、30%、40% 和 50% 之间动态切换。
+- 主样本为 **{events:,} 场 POT/Q95 大洪水**，来自 **{primary_catchments:,} 个**满足长记录条件的低雪流域。
+- **{c['GCIN'].nunique():,} 个流域**可估计至少一个连续生成条件指标，共得到 **{len(c):,} 项**流域—指标趋势。理论完整数为 {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}；实际少 {missing} 项，是因为部分 SSI 组合不足10个有效事件年份或首末跨度不足20年，缺失项没有被当作零趋势。
+- 单流域报告斜率、95%置信区间、p value、拟合起点与终点及稳定性检验。
+- L5 是第二层扩展分析。全部 **{len(r):,} 个可估计 L5—指标结果**进入一个完整区域检验族，并使用 Benjamini–Hochberg 假发现率控制（BH-FDR）。
+- 默认采用 **50% L5多边形面积支持**；网页仍可选择10%、20%、30%、40%和50%，但该阈值只改变区域解释，不删除单流域结果。
 
 ![样本覆盖](assets/figure_01_sample_coverage.png)
 
-该图给出研究能够回答问题的观测范围。欧洲和北美明显更密集，因此“全球”指全球分布的可用测站网络，不等于按全球陆地面积加权的总体。
-
 ## 1. 研究问题
 
-研究对象是**大洪水发生时的生成条件是否随时间改变**。具体观察两条连续过程维度：事件降雨是否变得更集中或更持久，以及事件开始前流域是否变得更湿或更干。
+研究不是寻找一个全球平均趋势，而是回答两个递进问题：哪些单个流域的大洪水生成条件发生了持续改变？这些改变是否在相邻流域之间形成更大尺度、可复核的水文空间格局？
 
-## 2. 推断顺序
+## 2. 两层分析结构
 
-证据按以下顺序形成：
+第一层直接研究每个流域；第二层才把同一 HydroBASINS L5 内的流域汇总，检验是否出现区域共同方向。L5 不负责“筛选”单流域，也不取代单流域结论。
 
-1. 对每个合格流域分别构建大洪水事件样本；
-2. 在该流域内部估计连续时间趋势；
-3. 保留无趋势、弱证据和稳定候选，不以颜色替代显著性；
-4. 将出口位于同一 L5 的流域作为区域汇总；
-5. 用面积覆盖率判断该汇总是否有足够空间支持被解释为 L5 模式。
+## 3. 研究时段与观测边界
 
-## 3. 已验证的研究时段
+可复用数据的共同时间范围是1982–2019。这里的“全球”指全球分布的观测网络，不表示对全球陆地面积均匀抽样；亚洲等区域的长记录站点明显偏少。
 
-洪水事件、日降雨/径流和 GLASS-AVHRR 土壤湿度共同可用的时段为 **1982–2019**。所有时间趋势均使用这一连续记录，不人为设置年份断点。
+## 4. 流域入选条件
 
-## 4. 流域总体
+流域需有至少30个观测年份、记录覆盖率至少80%、研究期内至少10个入选事件年份，并且首末入选年份跨度至少20年。有效记录不足的流域—指标组合不展示、不检验，也不记为0。
 
-流域需满足长期雪贡献小于 0.10、两个季节事件目录均存在、至少30个观测事件年、记录跨度至少30年且年度覆盖率至少80%。通过记录筛选的流域有 **{a['eligible_record_catchments']:,} 个**。
+## 5. 事件选择与生成条件分开
 
-## 5. 事件选择与条件描述相互独立
+洪峰大小只用于选择“大洪水事件”；降雨集中度和前期土壤湿润度用于描述这些事件怎样形成。这样不会用待解释的降雨变量反过来定义事件。
 
-事件是否进入极端样本由洪峰决定；进入样本以后，才计算降雨集中度和前期湿润度。因此较大的降雨集中度不会提高事件被选中的概率，也不会构成循环定义。
+## 6. POT/Q95 主样本
 
-## 6. 主事件样本：流域自身 POT/Q95
+POT 是 Peaks Over Threshold（超阈值峰值法）。对每个流域，以该流域洪峰分布的95分位数为阈值，保留超过阈值的事件。它允许一年有多场大洪水，比每年只保留一个最大值更充分地利用事件信息。
 
-对流域 $i$ 的全部重建事件洪峰 $Q_{{ie}}$ 计算长期95%分位数 $Q_{{0.95,i}}$：
+## 7. 事件独立性
 
-$$
-\\mathcal E_i^{{95}}=\{{e:Q_{{ie}}\\ge Q_{{0.95,i}}\}}.
-$$
+原始事件目录已经完成水文事件分离。主样本风暴径流窗口重叠数为 **{int(d.loc['pot_q95', 'stormflow_window_overlaps'])}**。相邻洪峰小于10日并不自动等于同一水文事件，因此10日间隔不再作为额外门槛。
 
-每个流域至少需要10场所选事件，且最早和最晚所选事件相距至少20年。主样本最终为 **{a['sample_counts']['pot_q95']['events']:,} 场、{a['sample_counts']['pot_q95']['catchments']:,} 个流域**。
+## 8. 替代极端样本敏感性
 
-**例子。** 若某流域共有100场重建洪水，其洪峰95%分位数为120 mm/day，那么只保留洪峰不小于120 mm/day的上尾事件，通常约5场。POT允许同一年出现多场真正的上尾事件；随后第12节会把同一年的多场事件先取平均，避免该年获得额外趋势权重。
-
-## 7. 为什么不只使用年最大洪水
-
-年最大值强制每年贡献一场事件，可能把相对普通年份的最大洪水与真正极端洪水放在同一总体。POT/Q95更直接地对应每个流域的上尾事件；年最大样本仍作为敏感性分支。
-
-## 8. 极端样本敏感性
-
-四个替代样本采用“一次只改变一个设定”的设计：POT/Q90 和 POT/Q97.5 只改变极端阈值，10日去簇 POT/Q95 只改变事件间隔规则，年最大洪水改变事件选择方法。因此，10日去簇并不是只有Q95才需要，而是以Q95主样本单独检验去簇敏感性；当前实验没有把阈值和去簇规则完全交叉。主样本中有 {int(d.loc['pot_q95','pairs_under_10_days']):,} 对相邻洪峰间隔小于10日，去簇样本将该数量降为 {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}；主样本事件风暴径流窗口重叠数为 {int(d.loc['pot_q95','stormflow_window_overlaps'])}。
+稳健性统一比较三种替代事件样本：POT/Q90、POT/Q97.5和年度最大洪水。三者与主样本方向一致时，记为“替代极端样本方向稳定”。它把“阈值变化”和“每年一个最大值”合并为一个物理问题：结论是否依赖某一种大洪水定义？
 
 ## 9. 降雨集中度
 
 对事件 $e$：
 
-$$
-C_{{ie}}=\frac{{P_{{\max,ie}}}}{{P_{{\mathrm{{volume}},ie}}}}.
-$$
+$$C_e=\frac{{P_{{\max,e}}}}{{P_{{\mathrm{{volume}},e}}}}$$
 
-$P_{{\max}}$ 是事件降雨窗口内最大日降雨，$P_{{\mathrm{{volume}}}}$ 是整个事件降雨总量。$C$ 增加表示更多事件降雨集中在最湿一天；$C$ 减少表示事件降雨更持久、总量相对更重要。主推断始终使用连续 $C$，不使用二元“强度主导型”标签。
+$P_{{\max,e}}$ 是事件期间降雨最多那一天的降雨量，$P_{{\mathrm{{volume}},e}}$ 是整场事件降雨总量。例：总降雨100 mm，其中最多的一天为42 mm，则 $C_e=0.42=42\%$。若趋势为 +8.83 个百分点/10年，且拟合起点为30%，则拟合终点约为38.83%。物理含义是：入选大洪水事件的降雨逐渐更加集中，整场降雨中落在降雨最多那一天的比例，每10年增加约8.83个百分点；不是洪水次数增加8.83%，也不是洪峰增加8.83%。
 
-**例子。** 一场洪水事件累计降雨80 mm，其中降雨最多的一天为48 mm，则 $C=48/80=0.60$，即整场降雨的60%落在一天内。若趋势为每十年增加8.83个百分点，表示拟合的集中度例如可由38.00%变为46.83%；这是比例增加8.83个百分点，不是洪水次数增加8.83%，也不是日雨量增加8.83 mm。
+## 10. 前期土壤湿润度 SSI
 
-## 10. 前期湿润度 SSI
+事件开始前 $w$ 日的流域平均土壤饱和指数为：
 
-设 $SSI_{{i,t-k}}$ 为降雨开始前第 $k$ 个完整日的土壤饱和指数，则窗口 $w$ 的指标为：
+$$SSI_{{e,w}}=\frac{{1}}{{w}}\sum_{{d=1}}^w SSI_{{e,-d}},\qquad w\in\{{1,3,7,30\}}$$
 
-$$
-SSI_{{ie}}^{{(w)}}=\frac1w\sum_{{k=1}}^w SSI_{{i,t_{{0,ie}}-k}},
-\qquad w\in\{{1,3,7,30\}}.
-$$
+1日反映紧邻事件的湿润状态，30日反映较长记忆。例：某流域7日SSI均值为0.45，趋势为 +0.009/10年，表示入选大洪水发生前7日的平均湿润指数每10年增加0.009；相对于0.45约为 $100\times0.009/0.45=2.0\%$ 每10年。绝对值负责保持物理尺度，相对值仅辅助比较。
 
-正趋势表示大洪水发生前的流域状态长期变湿，负趋势表示长期变干。它不是降雨量、洪峰或体积含水率百分比。
+## 11. 降雨组成辅助量
 
-**例子。** 若降雨开始前3个完整日的 SSI 分别为0.32、0.46和0.52，则 $SSI^{{(3)}}=(0.32+0.46+0.52)/3=0.433$。若3日 SSI 趋势为 $-0.010$/十年，含义是入选大洪水发生前3天的平均前期湿润状态每十年降低0.010个指数单位。
+同时估计最大日降雨量、事件总降雨量和降雨持续时间的原始线性趋势。相对趋势为：
 
-## 11. 降雨物理分量
+$$r=100\frac{{\hat\beta}}{{\bar y}}$$
 
-最大日降雨、事件总降雨和降雨持续时间直接以毫米或日为单位拟合。其相对变化仅由原始线性斜率除以相应长期均值获得：
+例：最大日降雨每10年增加2 mm、长期均值50 mm，则相对变化为4%/10年。若事件总降雨增加8%、最大日降雨增加2%，可以直接解释为总量增长更快，降雨集中度倾向下降；不需要对数模型。
 
-$$
-r=100\frac{{\widehat\beta}}{{\bar y}}.
-$$
+## 12. 流域—年份年度化
 
-这里不使用对数模型。分量用于解释降雨集中度为何变化，不单独承担“洪水原因”的因果归因。
+同一流域同一年可能有多场POT事件，先求当年事件均值：
 
-**例子。** 若某区域事件总降雨的长期均值为100 mm，线性斜率为每十年增加8 mm，则相对变化为 $100\times8/100=8\%$/十年。这里仍然先报告“+8 mm/十年”这个物理量；8%只是便于比较不同量纲或不同平均水平的辅助表达。
+$$\bar y_{{it}}=\frac1{{n_{{it}}}}\sum_e y_{{iet}}$$
 
-## 12. 为什么先按流域—年份汇总
-
-同一流域一年可能出现多场 POT 事件。首先计算：
-
-$$
-\bar y_{{it}}=\frac1{{n_{{it}}}}\sum_e y_{{iet}}.
-$$
-
-这样每个有观测的事件年获得相同时间权重，避免某一年因为事件较多而主导趋势。
-
-**例子。** 某流域在2005年有3场入选洪水，其集中度为40%、55%和65%，则2005年的趋势输入为 $(40+55+65)/3=53.3\%$，而不是把2005年当成3个独立年份。若2006年只有1场事件，2005和2006在时间趋势中各贡献一个年度值。
+例：某年3场事件的集中度为30%、45%和60%，年度值为45%，而不是让这一年因为有3场事件获得3倍趋势权重。
 
 ## 13. 单流域趋势
 
-对每个流域的年度序列使用 Theil–Sen 斜率：
+对每个流域的年度序列使用 Theil–Sen 中位斜率：
 
-$$
-\widehat\beta_i=\operatorname{{median}}_{{t_j>t_k}}
-\frac{{\bar y_{{it_j}}-\bar y_{{it_k}}}}{{t_j-t_k}}\times10.
-$$
+$$\hat\beta_i=\mathrm{{median}}_{{t_2>t_1}}\frac{{\bar y_{{it_2}}-\bar y_{{it_1}}}}{{t_2-t_1}}\times10$$
 
-并使用含并列值修正的 Mann–Kendall 检验判断是否存在单调趋势。至少需要10个有事件的年份，且这些年份跨度至少20年。
+Mann–Kendall 检验给出 p value。例：$\hat\beta_i=-4.2$ 个百分点/10年表示该流域入选大洪水中“最大日降雨占整场降雨的比例”每10年下降4.2个百分点，即降雨过程趋向更长、更均匀。
 
-**例子。** 若某一对年度值从1990年的0.40升至2010年的0.52，这一对年份给出的斜率为 $(0.52-0.40)/(2010-1990)\times10=0.06$/十年，即集中度每十年增加6个百分点。Theil–Sen 不只用首末两点，而是计算所有年份对的斜率并取中位数，因此不容易被某一个异常年份牵动。
+## 14. 稳健单流域趋势
 
-## 14. 为什么单流域结果仍需跨流域多重检验
+降雨集中度需同时满足：p value < 0.05；POT/Q90、POT/Q97.5和年度最大洪水方向都与主样本一致；逐一删除每个事件年份后方向不变。SSI 还要求1、3、7和30日窗口方向一致。满足这些条件的结果称为“稳健单流域趋势”，其余仍作为“单流域趋势估计”保留。
 
-每个“流域 × 指标”先独立得到一个 Mann–Kendall p 值。若研究预先只指定一个流域，当然可以直接解释该流域的 p 值；但本研究同时扫描全球约2,435个流域，并从地图中寻找任何出现趋势的位置。即使所有流域实际上都没有趋势，大量同时检验也会随机产生一些 $p<0.05$ 的结果。
-
-因此，每个物理指标分别在全部可估计流域之间使用 **Benjamini–Hochberg 假发现率控制（Benjamini–Hochberg false discovery rate procedure，简称 BH-FDR）**。这里的检验族不是“一个流域内的5个指标”，而是“同一指标在所有流域上的 p 值”：降雨集中度、SSI 1日和SSI 3日各有2,435个检验，SSI 7日有2,433个，SSI 30日有2,425个。
-
-将同一指标的 $m$ 个 p 值排序为 $p_{{(1)}}\le\cdots\le p_{{(m)}}$，寻找最大的 $k$ 满足：
-
-$$
-p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
-\qquad \alpha=0.05.
-$$
-
-BH-FDR控制的是被判为“发现”的流域中预期假发现所占的比例；它不改变单流域斜率，只改变能否将该位置称为经过网络范围多重检验确认的发现。
-
-**本项目的真实例子。** 降雨集中度共有2,435个单流域检验。若全部原假设都成立，仅按 $p<0.05$ 平均也会偶然得到约 $2435\times0.05=121.75$ 个结果；实际有154个未经校正的 $p<0.05$。BH-FDR的第一个门槛为 $0.05/2435=0.0000205$，而最小 p 值为0.000367，仍不够小，所以没有单流域通过5% BH-FDR。其余四个指标同样为0。
-
-“零个通过”不是BH-FDR没有必要，而是结果表明：当前记录不足以把任何单流域提升为在全球搜索后仍得到确认的发现。报告仍保留原始斜率、p值和378个跨敏感性检验方向稳定的候选，供后续复核；候选与BH-FDR确认结果承担不同的证据角色。
-
-## 15. 单流域稳定候选
-
-“稳定候选”同时要求主样本未校正 $p<0.05$，POT/Q90 与 POT/Q97.5 方向一致，10日去簇方向一致，年最大样本方向一致，留一年后方向不变；SSI 还需四个时间窗方向一致。候选是有针对性的后续研究对象，不等于通过 BH-FDR 的严格信号。
-
-![单流域空间结果](assets/figure_02_mechanism_change_maps.png)
-
-图中浅色位置是可估计的单流域趋势，描边位置是稳定候选。所有方向均保留；没有用分类阈值把连续变化压缩成“有/无机制”。
-
-## 16. 单流域结果
+## 15. 单流域结果总览
 
 {_local_table(s, 'zh')}
 
-## 17. 单流域主要结论
+![单流域趋势地图](assets/figure_02_mechanism_change_maps.png)
 
-共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，同时包含增加和减少方向；**跨流域 BH-FDR 通过数为0**。因此本研究不支持“全球大多数流域都存在长期生成条件变化”，而支持“多数流域缺少严格长期证据，少数位置值得进一步核验”。
+![单流域稳健性检验与方向](assets/figure_03_strong_signal_rankings.png)
 
-![单流域证据漏斗](assets/figure_03_strong_signal_rankings.png)
+## 16. 代表性单流域结果
 
-该图将未校正显著、稳定候选和 BH-FDR 证据分开，避免把稳健性和多重检验混为同一概念。
+下表同时给出“每10年变化”和拟合起点→终点，使斜率具有直观物理含义。
 
-## 18. L5 是第二层空间问题
+{_top_individual(s, 'zh')}
 
-L5 分析回答：多个局地流域的变化是否可能属于同一个更大尺度水文现象。它不决定一个单流域结果是否有价值，也不覆盖或删除单流域图层。
+## 17. 单流域空间格局
 
-## 19. 流域到 L5 的对应
+{_country_table(s, 'zh')}
 
-每个流域通过出口经纬度对应到 HydroBASINS v1.c L5。主样本中 {l['matched_catchments']:,} 个流域匹配成功；2个毛里求斯流域没有匹配到当前 L5 参考边界，但仍保留单流域结果。
+这些计数显示增加与减少方向在不同国家和指标中并存。它们是观测网络中的流域级水文信号，不能按国家面积外推。
 
-## 20. L5 面积支持率
+## 18. L5 是什么
 
-设 $H_j$ 为 L5 多边形，$A_i$ 为出口落在该 L5 的合格流域多边形，则：
+HydroBASINS 是全球分级水文分区体系；level 5（L5）是其中第5级、由河网拓扑划分的中尺度水文单元。这里使用L5回答扩展问题：多个单流域变化是否共同指向一个更大水文区的变化。
 
-$$
-Coverage_j=
-\frac{{Area\left(H_j\cap\bigcup_{{i\in j}}A_i\right)}}{{Area(H_j)}}.
-$$
+## 19. 单流域怎样归入L5
 
-计算使用 EPSG:6933 等面积投影，并先修复无效 polygon。重叠流域通过几何并集只计一次。
+用流域多边形与L5多边形的空间关系确定归属，并将落在同一L5的流域用于区域模型。单流域多边形仍在前端独立展示；归入L5不会改变其自身趋势。
 
-**例子。** 若一个 L5 面积为10,000 km²，落入其中的合格流域多边形在该 L5 内的去重并集面积为2,400 km²，则面积支持率为24%。它通过10%和20%门槛，但不通过30%、40%或50%门槛。
+## 20. 面积支持率
 
-## 21. 动态面积阈值
+$$A_h=100\frac{{\operatorname{{area}}(\bigcup_i B_i\cap H_h)}}{{\operatorname{{area}}(H_h)}}$$
+
+$B_i$ 是被观测流域多边形，$H_h$ 是L5多边形。例：L5面积10,000 km²，观测流域在其内部的并集面积为5,600 km²，则面积支持率为56%，通过默认50%阈值。若一个大流域独自覆盖90%，它可以代表该L5的大部分面积，但区域面板会明确标记为“单流域代表”，而非多流域共同佐证。
+
+## 21. 面积阈值敏感性
 
 {_threshold_table(s, 'zh')}
 
-10%门槛用于网页默认视图，以保留较广的区域探索范围；20%–50%允许读者检验结论如何随空间代表性要求收紧。阈值是空间解释条件，不是统计显著性条件。
-
 ![面积阈值敏感性](assets/figure_05_physical_decomposition.png)
 
-图中下降曲线定量展示区域代表性与样本保留之间的取舍。美国的 L5 划分较碎，因此相同阈值下保留比例低于全球观测网络。
+50%是默认解释门槛；10%–40%用于交互式查看覆盖—数量权衡。没有进入区域层的流域仍完整保留在单流域层。
 
-## 22. 多流域 L5 模型
+## 22. L5 区域趋势模型
 
-对至少两个贡献流域的 L5，拟合流域固定效应趋势：
+对包含多个流域的L5拟合：
 
-$$
-\bar y_{{it}}=\alpha_i+\beta_j x_{{it}}+\varepsilon_{{it}},
-\qquad x_{{it}}=\frac{{year_{{it}}-2000}}{{10}}.
-$$
+$$y_{{it}}=\alpha_i+\beta_h\frac{{t-2000}}{{10}}+\varepsilon_{{it}}$$
 
-$\alpha_i$ 控制不同流域长期水平差异，$\beta_j$ 表示该 L5 内共同的每十年变化。标准误按流域聚类并使用 $t(G-1)$ 参考。
+$\alpha_i$ 吸收每个流域长期平均水平的差异，$\beta_h$ 表示同一L5中各流域相对于自身常态的共同每10年变化。例：上游流域平均集中度30%、下游55%，固定效应不会把两者基线差异误当成时间趋势，只利用各自随时间的变化。
 
-**例子。** 同一 L5 内两个流域的长期平均集中度分别为35%和55%，但两者都大致每十年增加2个百分点。固定效应先保留35%与55%的基线差异，再估计共同的 $\beta_j\approx+2$ 个百分点/十年；不会因为第二个流域本来更高就把它误判成时间变化。
+## 23. 单流域代表的L5
 
-## 23. 单流域占据一个 L5 的情况
+若一个观测流域独自覆盖L5的至少50%，区域趋势直接继承该流域趋势，并标记为 single-catchment representation。该结果说明“大部分L5面积由这个已观测流域代表”，不声称存在多流域一致性。
 
-若一个 L5 只有一个贡献流域但面积支持率达到所选阈值，则区域面板直接继承该流域的 Theil–Sen 结果，并标记为“单流域代表”。它说明该流域覆盖该 L5 的空间比例足够高，但不构成多个流域相互验证。
+## 24. 年份中心化
 
-## 24. 年份中心化中的2000
+$x=(t-2000)/10$ 只是把年份换算为“相距2000年多少个十年”，使截距和数值计算更稳定。2000不是断点，模型没有比较2000年前后；换成1990或2010不会改变斜率。
 
-2000只用于将时间变量中心化。替换为1990或2010不会改变斜率；模型没有把2000年视为突变点，也没有进行2000年前后分段比较。
+## 25. L5 的 BH-FDR
 
-**例子。** 1990年对应 $x=-1$，2010年对应 $x=+1$，二者相差2个“十年”。若改以1990年为中心，它们会变成0和2，差仍为2，因此斜率不变；只有截距的写法改变。
+只有L5层使用 Benjamini–Hochberg false discovery rate（BH-FDR）。将完整区域检验族的 $m$ 个 p values 排序，找最大 $k$ 满足：
 
-## 25. 完整区域检验族
+$$p_{{(k)}}\le\frac{{k}}{{m}}\alpha,\qquad\alpha=0.05$$
 
-全部 {l['primary_family_tests']:,} 个“可估计 L5 × 五个主指标”共同进入一个 BH-FDR 检验族。完整族比按指标分别校正更保守，目的是避免从多个空间单元和多个湿润度时间窗中挑选偶然显著结果。
+并把 $p_{{(1)}}\ldots p_{{(k)}}$ 判为通过。例：若490个实际无趋势的检验都单独用 p<0.05，平均可能出现 $490\times0.05=24.5$ 个偶然显著；BH-FDR用于控制被报告区域发现中的预期错误比例。
 
-## 26. 五个区域证据门
+## 26. 强区域信号的完整条件
 
-网页中的强区域信号同时满足：
+降雨集中度需通过：当前面积支持阈值、完整L5检验族BH-FDR、三种替代极端样本方向一致、留一流域方向稳定。SSI 再增加四个湿润时间窗方向一致。条件数量随指标而定，不人为凑成固定“五门”。
 
-1. 当前所选 L5 面积支持率；
-2. 完整区域族 5% BH-FDR；
-3. 四个替代极端事件样本方向一致；
-4. SSI 的1/3/7/30日时间窗方向一致（降雨集中度该项自动满足）；
-5. 多流域 L5 留一流域后方向不变；单流域代表则使用留一年检验。
-
-## 27. 默认10%面积支持下的区域结果
+## 27. 默认50%阈值下的区域结果
 
 {_regional_table(s, 'zh')}
 
-![面积支持后的区域模式](assets/figure_04_mechanism_trajectories.png)
+![L5区域趋势](assets/figure_04_mechanism_trajectories.png)
 
-区域层同时出现正向和负向结果。它说明一些局地变化在空间上可以聚合为共享方向，但不支持统一的全球平均变化方向。
-
-## 28. 最强区域结果
+## 28. 强区域信号位于哪里
 
 {_top_regions(s, 'zh')}
 
-## 29. 区域结果如何回到单流域
+表中的正负号分别表示降雨更集中/更分散，或洪水发生前更湿/更干。区域信号仍有相反方向，因此结论是局地和区域异质性，而非全球统一变化。
+
+## 29. 从L5回看贡献流域
 
 ![区域与贡献流域](assets/figure_06_robustness_matrix.png)
 
-灰点是同一 L5 内各单流域斜率，菱形及区间是 L5 共同斜率和95%置信区间。区域显著不要求每一个单流域独立显著；它利用方向相近的多流域年度变化提高检验能力。
+区域估计必须能追溯到贡献流域。多流域区域信号说明若干流域相对于自身常态共同移动；单流域代表则明确显示其面积覆盖率。两者不会被混写。
 
-## 30. 支持的科学结论
+## 30. 水文学结论
 
-1. 多数可估计单流域没有通过网络范围的严格长期趋势证据；
-2. 378个稳定候选提供了明确的后续复核位置；
-3. 一些候选及弱单流域变化在 L5 中形成统计上更清晰的共享方向；
-4. 区域信号随面积支持阈值收紧而减少，但方向相反的局地模式始终并存。
+1. 全球观测网络中的多数流域没有满足完整稳健性条件的长期生成条件变化，说明变化并非普遍或空间一致。
+2. {robust:,} 个稳健单流域趋势揭示了真正值得关注的局地改变：部分流域的大洪水降雨变得更集中，部分变得更均匀；前期土壤状态也同时存在变湿和变干。
+3. 在默认50%面积支持下，{default['strong_regions']} 个L5表现出可复核的较大尺度共同格局，说明其中一些变化不是孤立测站现象。
+4. 科学结果应回答“哪些流域、哪些L5、哪种生成条件、向什么方向改变”，而不是用相反方向互相抵消后的全球平均。
 
-## 31. 不能由当前设计推出的结论
+## 31. 局限性
 
-结果不能直接解释为洪水发生次数、洪峰或洪量的变化，也不能直接归因于人为气候变化、土地利用或工程调控。面积覆盖率衡量观测空间支持，不衡量人口、资产或全球陆地代表性。
-
-## 32. 主要限制
-
-亚洲长期流域明显不足；降雨集中度只有日尺度分辨率；SSI 和重建降雨误差会进入事件指标；L5 之间可能存在空间相关；聚类稳健推断在流域数很少时仍不精确。单流域候选尤其需要独立数据或更长记录复核。
-
-## 33. 下一步
-
-优先对稳定候选和强 L5 信号开展原始时间序列复核、独立降雨/土壤湿度产品验证和局地机制解释；随后再评估更细 HydroBASINS 层级是否能在保持较高面积支持率的同时提高空间分辨率。
-
-## 34. 可复现入口
-
-```powershell
-$projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
-& $projectPython src/run_pipeline.py --stage all --force
-& $projectPython src/validate_outputs.py
-```
-
-源项目 `Event_Typology` 按只读路径复用；本仓库保存方法、派生结果、图表、报告和 GitHub Pages 数据。交互网页：<https://grups666.github.io/Global_Flood_Cause_Evolution/>。
-""").replace(chr(92) * 2, chr(92))
+观测网络空间不均匀，亚洲尤其稀疏；日尺度降雨集中度不能表示小时级峰值结构；SSI和事件重建存在测量误差；L5之间可能空间相关；面积支持率衡量的是水文空间覆盖，不是人口、资产或全球面积代表性。趋势描述生成条件，不等于洪水次数、洪峰或径流量趋势，也不单独证明气候变化、土地利用或工程调控的因果作用。
+"""
 
 
 def build_english(s: dict[str, Any]) -> str:
     a = s["analysis"]
-    l = s["local"]
-    d = s["diagnostics"]
     c = s["catchments"]
+    r = s["regions"]
+    d = s["diagnostics"]
     threshold = s["default_threshold"]
     default = next(row for row in s["threshold_rows"] if row["threshold"] == threshold)
-    return (fr"""# Long-Term Changes in Rainfall-Driven Large-Flood Generating Conditions (1982–2019)
+    events = int(a["sample_counts"]["pot_q95"]["events"])
+    primary_catchments = int(a["sample_counts"]["pot_q95"]["catchments"])
+    robust = int(c["robust_local_trend"].sum())
+    missing = c["GCIN"].nunique() * len(PRIMARY_METRICS) - len(c)
+    return rf"""# Long-term changes in rainfall-driven large-flood generating conditions (1982–2019)
 
-**Technical report · generated 2026-09-01**
+**Complete technical report · generated 2026-09-02**
+
+> **Main result.** Individual catchments are the first-level research objects. Among {len(c):,} estimable catchment–metric trends, {robust:,} satisfy the p-value, alternative-extreme-sample, and leave-one-year-out checks; SSI additionally requires agreement across all antecedent windows. HydroBASINS level 5 (L5) is a separate, expanded regional analysis. At the default ≥{threshold}% area support, {default['strong_signals']} strong regional signals occur in {default['strong_regions']} L5 units. Local increases and decreases coexist; the result is not one spatially uniform global direction.
 
 ## Technical summary
 
-- Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
-- The primary sample contains **{a['sample_counts']['pot_q95']['events']:,} POT/Q95 floods in {a['sample_counts']['pot_q95']['catchments']:,} long-record low-snow catchments**. At least one primary direct trend is estimable in **{c['GCIN'].nunique():,} catchments**.
-- The five continuous outcomes produce **{len(c):,} catchment–metric tests** (the complete grid is {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}; the 7-day and 30-day SSI outcomes lack {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} and {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **{int(c['potential_local_shift'].sum()):,} directionally stable candidates**, but **no direct catchment signal passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
-- Among {l['primary_family_tests']:,} L5–metric tests, **{l['primary_family_fdr_signals']} pass complete-family BH-FDR and {l['strong_evidence_signals']} pass the full statistical robustness screen**. With the default **≥{threshold}% area support**, **{default['strong_signals']} strong regional signals remain in {default['strong_regions']} L5 units**.
-- Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
+- The primary sample contains **{events:,} POT/Q95 large-flood events** from **{primary_catchments:,}** eligible long-record, low-snow catchments.
+- At least one continuous condition trend is estimable in **{c['GCIN'].nunique():,} catchments**, producing **{len(c):,} catchment–metric estimates**. A complete grid would contain {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}; the {missing} missing combinations lack 10 valid event years or a 20-year first-to-last span and are not coded as zero.
+- Catchment results report slopes, confidence intervals, p values, fitted endpoints, and stability checks.
+- L5 is the second-level expanded analysis. All **{len(r):,} estimable L5–metric results** enter one complete regional testing family with Benjamini–Hochberg false discovery rate control (BH-FDR).
+- The default L5 polygon-area support is **50%**. The web explorer also exposes 10%, 20%, 30%, and 40% to show the coverage–availability trade-off without removing individual results.
 
 ![Sample coverage](assets/figure_01_sample_coverage.png)
 
-The map defines the observational domain. Europe and North America are much denser than Asia, so “global” means a globally distributed gauge sample rather than an area-weighted global land population.
+## 1. Research question
 
-## 1. Scientific question
+The study asks two sequential questions: which individual catchments show persistent changes in the conditions that generate selected large floods, and do some nearby catchments form a reproducible larger hydrological pattern?
 
-The study asks whether the **conditions accompanying large rainfall-driven floods** changed through time: whether event rainfall became more concentrated or more prolonged, and whether the catchment before rainfall became wetter or drier.
+## 2. Two analysis levels
 
-## 2. Evidence order
+The first level analyses each catchment directly. The second level pools catchments within HydroBASINS L5 units. L5 does not screen or define the value of an individual result; it is an expanded spatial question.
 
-The workflow is catchment-first:
+## 3. Period and observational boundary
 
-1. construct an extreme-event sample separately in every eligible catchment;
-2. estimate a continuous-time trend inside that catchment;
-3. retain nulls, weak estimates, and stable candidates;
-4. pool catchments whose outlets fall in the same HydroBASINS L5;
-5. use polygon-area coverage to determine whether that pooled estimate has enough spatial support for an L5 interpretation.
+The reusable overlapping record is 1982–2019. “Global” describes the geographical spread of the observed network, not uniform area-weighted land coverage. Long records are especially sparse in Asia.
 
-## 3. Verified period
+## 4. Catchment eligibility
 
-The common verified overlap of the flood-event catalogue, daily rainfall/runoff data, and GLASS-AVHRR soil moisture is **1982–2019**. Trends use the continuous record without a calendar breakpoint.
-
-## 4. Catchment population
-
-Catchments require long-term snow fraction below 0.10, both seasonal event catalogues, at least 30 observed event years, at least a 30-year record span, and at least 80% annual coverage. **{a['eligible_record_catchments']:,} catchments** pass this record screen.
+A catchment requires at least 30 observed years, at least 80% record coverage, at least 10 selected event years for a fitted metric, and at least 20 years from the first to last selected year. Insufficient combinations are omitted rather than treated as zero trends.
 
 ## 5. Event selection is separate from condition description
 
-Flood peak selects the extreme-event sample. Rainfall concentration and antecedent wetness are calculated only after selection, avoiding a circular definition in which the outcome also determines inclusion.
+Flood-peak magnitude selects large-flood events. Rainfall concentration and antecedent wetness then describe how the selected events formed. The explanatory rainfall condition therefore does not define the event population.
 
-## 6. Primary population: catchment-specific POT/Q95
+## 6. Primary POT/Q95 population
 
-For catchment $i$, the retained events are:
+POT means Peaks Over Threshold. Within each catchment, events above the 95th percentile of flood peaks are retained. Unlike annual maxima, POT can retain more than one large flood in a year and therefore uses the event record more fully.
 
-$$
-\\mathcal E_i^{{95}}=\{{e:Q_{{ie}}\\ge Q_{{0.95,i}}\}}.
-$$
+## 7. Event independence
 
-Each catchment requires at least 10 selected events spanning at least 20 years. The final primary sample contains **{a['sample_counts']['pot_q95']['events']:,} events in {a['sample_counts']['pot_q95']['catchments']:,} catchments**.
+The source event catalogue already separates hydrological events. Primary-sample stormflow-window overlaps equal **{int(d.loc['pot_q95', 'stormflow_window_overlaps'])}**. A peak interval shorter than 10 days does not by itself prove that two reconstructed hydrological events are dependent, so a 10-day gap is not retained as an additional evidence gate.
 
-**Example.** If a catchment has 100 reconstructed floods and its 95th-percentile peak is 120 mm/day, only upper-tail events at or above 120 mm/day are retained—typically about five. POT may retain more than one genuinely extreme event in a year; Section 12 then averages events within that year so it does not receive extra trend weight.
+## 8. Alternative extreme-sample sensitivity
 
-## 7. Why annual maxima are a sensitivity population
-
-Annual maxima force one event into every year, even when that event is not particularly extreme relative to the catchment record. POT/Q95 directly targets the catchment upper tail, while annual maxima remain an important alternative definition.
-
-## 8. Extreme-event sensitivities
-
-The four alternatives change one setting at a time: POT/Q90 and POT/Q97.5 change only the extreme threshold, 10-day-declustered POT/Q95 changes only event separation, and annual maxima change the event-selection rule. Q95 is not uniquely in need of declustering; the Q95 branch isolates declustering sensitivity around the primary sample, and the present experiment does not fully cross threshold and declustering choices. The primary sample contains {int(d.loc['pot_q95','pairs_under_10_days']):,} adjacent peak pairs under 10 days; the declustered sample contains {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}. Primary-sample stormflow-window overlaps equal {int(d.loc['pot_q95','stormflow_window_overlaps'])}.
+One combined check compares POT/Q90, POT/Q97.5, and annual maxima with the primary POT/Q95 result. Passing means that all three alternatives preserve the main slope direction. This directly asks whether the conclusion depends on one particular definition of a large flood.
 
 ## 9. Rainfall concentration
 
-$$
-C_{{ie}}=\frac{{P_{{\max,ie}}}}{{P_{{\mathrm{{volume}},ie}}}}.
-$$
+For event $e$:
 
-An increase means a larger share of event rainfall fell in the wettest day; a decrease means movement toward longer, volume-dominated rainfall. The continuous ratio is the inferential outcome; no binary intensity-dominated label is used.
+$$C_e=\frac{{P_{{\max,e}}}}{{P_{{\mathrm{{volume}},e}}}}$$
 
-**Example.** If total event rainfall is 80 mm and 48 mm falls on the rainiest day, then $C=48/80=0.60$: 60% of the event rainfall fell in one day. A trend of +8.83 percentage points per decade could move a fitted concentration level from 38.00% to 46.83% over ten years. It is not an 8.83% increase in flood count and not an 8.83 mm increase in daily rainfall.
+$P_{{\max,e}}$ is rainfall on the wettest day and $P_{{\mathrm{{volume}},e}}$ is total event rainfall. If an event contains 100 mm and its wettest day supplies 42 mm, $C_e=0.42=42\%$. A trend of +8.83 percentage points per 10 years with a fitted starting level of 30% implies a fitted ending level near 38.83%. Physically, a larger share of event rainfall falls on the wettest day; it is not an 8.83% change in flood count or peak discharge.
 
-## 10. Antecedent wetness
+## 10. Antecedent Soil Saturation Index (SSI)
 
-$$
-SSI_{{ie}}^{{(w)}}=\frac1w\sum_{{k=1}}^w SSI_{{i,t_{{0,ie}}-k}},
-\qquad w\in\{{1,3,7,30\}}.
-$$
+For an antecedent window $w$:
 
-Positive slopes mean large floods occurred after increasingly wet antecedent states; negative slopes mean increasingly dry states. SSI units are normalized index units, not millimetres or flood percentages.
+$$SSI_{{e,w}}=\frac1w\sum_{{d=1}}^w SSI_{{e,-d}},\qquad w\in\{{1,3,7,30\}}$$
 
-**Example.** If SSI on the three complete days before rainfall onset is 0.32, 0.46, and 0.52, then $SSI^{{(3)}}=(0.32+0.46+0.52)/3=0.433$. A 3-day SSI trend of $-0.010$ per decade means the mean antecedent state before selected large floods declined by 0.010 index units every ten years.
+One day represents immediate pre-event wetness; 30 days represents longer memory. If mean 7-day SSI is 0.45 and the slope is +0.009 per 10 years, selected floods occur after conditions that become 0.009 SSI units wetter per decade. The auxiliary relative change is $100\times0.009/0.45=2.0\%$ per 10 years.
 
-## 11. Physical rainfall components
+## 11. Supporting rainfall components
 
-Maximum daily rainfall, event rainfall total, and precipitation duration are fitted in raw physical units. Their secondary relative slopes are:
+Maximum daily rainfall, total event rainfall, and precipitation duration are fitted in raw units. Their auxiliary relative slope is:
 
-$$
-r=100\frac{{\widehat\beta}}{{\bar y}}.
-$$
+$$r=100\frac{{\hat\beta}}{{\bar y}}$$
 
-No logarithmic trend model is used. These components aid interpretation of the concentration ratio without claiming causal attribution.
-
-**Example.** If mean total event rainfall is 100 mm and its linear trend is +8 mm per decade, then the relative trend is $100\times8/100=8\%$ per decade. The physical result remains +8 mm per decade; 8% is only a secondary scale for comparing variables or regions with different means.
+For example, +2 mm per 10 years around a 50 mm mean equals +4% per 10 years. If total rainfall increases by 8% while the daily maximum increases by 2%, total rainfall grows faster and concentration tends to decline. No logarithmic trend model is needed.
 
 ## 12. Catchment-year annualization
 
-Multiple POT events in one catchment-year are averaged:
+Multiple selected events in one catchment-year are averaged:
 
-$$
-\bar y_{{it}}=\frac1{{n_{{it}}}}\sum_e y_{{iet}}.
-$$
+$$\bar y_{{it}}=\frac1{{n_{{it}}}}\sum_e y_{{iet}}$$
 
-This prevents a year with several reconstructed events from receiving extra trend weight solely because of event count.
+For example, three events with concentrations of 30%, 45%, and 60% produce one annual value of 45%. The year does not receive three times the trend weight merely because it contains three events.
 
-**Example.** If one catchment has three selected floods in 2005 with concentrations of 40%, 55%, and 65%, the 2005 value used in the trend is $(40+55+65)/3=53.3\%$. The year is not entered three times. If 2006 has one event, 2005 and 2006 each contribute one annual value.
+## 13. Individual-catchment trend
 
-## 13. Direct catchment trend
+The Theil–Sen median slope is:
 
-The annual sequence uses a Theil–Sen slope:
+$$\hat\beta_i=\mathrm{{median}}_{{t_2>t_1}}\frac{{\bar y_{{it_2}}-\bar y_{{it_1}}}}{{t_2-t_1}}\times10$$
 
-$$
-\widehat\beta_i=\operatorname{{median}}_{{t_j>t_k}}
-\frac{{\bar y_{{it_j}}-\bar y_{{it_k}}}}{{t_j-t_k}}\times10,
-$$
+Mann–Kendall supplies the p value. A concentration slope of −4.2 percentage points per 10 years means that the fraction of event rainfall falling on the wettest day decreases by 4.2 points per decade: selected large floods are shifting toward longer, more evenly distributed rainfall.
 
-with a tie-corrected Mann–Kendall test. At least 10 event years spanning at least 20 years are required.
+## 14. Robust individual trend
 
-**Example.** If one pair of annual values rises from 0.40 in 1990 to 0.52 in 2010, that pair gives $(0.52-0.40)/(2010-1990)\times10=0.06$ per decade, or +6 concentration percentage points per decade. Theil–Sen calculates this slope for every year-pair and takes the median, so one unusual year has limited leverage.
+Rainfall concentration requires p value < 0.05, direction agreement under POT/Q90, POT/Q97.5, and annual maxima, and direction stability after removing every observed event year in turn. SSI additionally requires agreement across the 1-, 3-, 7-, and 30-day windows. Results passing these conditions are “robust individual trends”; all other estimable results remain “individual trend estimates.”
 
-## 14. Why direct catchment results still require network-wide multiplicity control
-
-Every catchment–metric pair first receives its own Mann–Kendall p value. A p value could be interpreted directly if the study had prespecified only one catchment. This study instead scans about 2,435 catchments and asks whether any location shows a trend. Even when no catchment has a real trend, thousands of simultaneous tests will generate some $p<0.05$ values by chance.
-
-Each physical metric therefore uses the **Benjamini–Hochberg false discovery rate procedure (BH-FDR)** across all estimable catchments. The family is not “the five metrics inside one catchment.” It is “one metric across the full catchment network”: rainfall concentration, 1-day SSI, and 3-day SSI each contain 2,435 tests; 7-day SSI contains 2,433; and 30-day SSI contains 2,425.
-
-Ordering the $m$ p values for one metric, BH-FDR finds the largest $k$ satisfying:
-
-$$
-p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
-\qquad \alpha=0.05.
-$$
-
-BH-FDR controls the expected proportion of false discoveries among the catchments labelled as discoveries. It does not alter a catchment slope; it determines whether a location can be called confirmed after searching the network.
-
-**Observed example.** Rainfall concentration has 2,435 direct catchment tests. If every null hypothesis were true, using $p<0.05$ alone would still produce about $2435\times0.05=121.75$ chance results on average; 154 unadjusted $p<0.05$ results are observed. The first BH-FDR cutoff is $0.05/2435=0.0000205$, while the smallest observed p value is 0.000367, so none passes 5% BH-FDR. The other four metrics also have zero BH-FDR discoveries.
-
-Zero discoveries do not make BH-FDR unnecessary. They mean that the current records cannot promote any direct catchment trend to a network-confirmed discovery after a global search. Raw slopes, p values, and the 378 directionally stable sensitivity candidates remain available for follow-up; candidates and BH-FDR discoveries represent different evidence grades.
-
-## 15. Stable local candidate
-
-A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not a BH-FDR-confirmed shift.
-
-![Direct catchment results](assets/figure_02_mechanism_change_maps.png)
-
-Light marks retain all estimable trends; outlined marks identify stable candidates. Color encodes effect direction and magnitude, not statistical significance.
-
-## 16. Direct catchment results
+## 15. Individual results overview
 
 {_local_table(s, 'en')}
 
-## 17. Direct catchment conclusion
+![Individual catchment trend maps](assets/figure_02_mechanism_change_maps.png)
 
-There are **{int(c['potential_local_shift'].sum()):,} stable candidates in opposing directions and zero across-catchment BH-FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
+![Individual robustness checks and directions](assets/figure_03_strong_signal_rankings.png)
 
-![Catchment evidence funnel](assets/figure_03_strong_signal_rankings.png)
+## 16. Representative individual results
 
-The evidence funnel keeps unadjusted significance, sensitivity stability, and multiplicity control distinct.
+The fitted start → end column gives each per-decade slope a direct physical interpretation.
 
-## 18. L5 is a second-stage spatial question
+{_top_individual(s, 'en')}
 
-L5 asks whether direct catchment changes may represent a larger hydrological pattern. It does not determine whether a catchment estimate is worth retaining and never removes the primary catchment layer.
+## 17. Geographical distribution of individual trends
 
-## 19. Catchment-to-L5 membership
+{_country_table(s, 'en')}
 
-Catchment outlets are spatially joined to HydroBASINS v1.c level 5. **{l['matched_catchments']:,} catchments** match; two Mauritius catchments remain unmatched in the reference geometry but retain direct results.
+Increasing and decreasing directions coexist across countries and metrics. These are catchment-scale hydrological observations and cannot be extrapolated by national land area.
 
-## 20. L5 area support
+## 18. What L5 means
 
-For L5 polygon $H_j$ and eligible catchment polygons $A_i$ assigned by their outlets:
+HydroBASINS is a nested global hydrological partition. Level 5 (L5) is its fifth, river-network-defined intermediate spatial level. Here L5 asks whether individual changes form a larger hydrological pattern.
 
-$$
-Coverage_j=
-\frac{{Area\left(H_j\cap\bigcup_{{i\in j}}A_i\right)}}{{Area(H_j)}}.
-$$
+## 19. Assigning catchments to L5
 
-Areas use equal-area EPSG:6933. Invalid polygons are repaired, and overlapping catchments are counted once through a geometric union.
+Catchment polygons are spatially matched to L5 polygons. Catchments assigned to the same unit enter the regional model, while every catchment remains independently available in the primary map layer.
 
-**Example.** If an L5 polygon covers 10,000 km² and the non-overlapping union of eligible catchment polygons inside it covers 2,400 km², its area support is 24%. It passes the 10% and 20% settings but not 30%, 40%, or 50%.
+## 20. Area support
 
-## 21. Dynamic threshold sensitivity
+$$A_h=100\frac{{\operatorname{{area}}(\bigcup_i B_i\cap H_h)}}{{\operatorname{{area}}(H_h)}}$$
+
+If an L5 unit covers 10,000 km² and observed catchment polygons cover a 5,600 km² union inside it, support is 56% and passes the default 50% threshold. One catchment covering 90% can represent most of the L5 area, but is explicitly labelled as a single-catchment representation rather than multi-catchment corroboration.
+
+## 21. Area-threshold sensitivity
 
 {_threshold_table(s, 'en')}
 
-The 10% default preserves a broad exploratory regional view; 20–50% thresholds test whether conclusions persist under stricter spatial representation. The threshold is a spatial interpretation condition, not a p-value rule.
+![Area-threshold sensitivity](assets/figure_05_physical_decomposition.png)
 
-![Threshold sensitivity](assets/figure_05_physical_decomposition.png)
+Fifty percent is the default interpretation threshold. The lower controls expose the spatial-coverage trade-off; they never remove underlying individual trends.
 
-US retention falls faster because HydroBASINS L5 units are comparatively fragmented relative to the observed catchment polygons.
+## 22. L5 regional trend model
 
-## 22. Multi-catchment L5 estimator
+For a multi-catchment L5 unit:
 
-For an L5 with at least two contributing catchments:
+$$y_{{it}}=\alpha_i+\beta_h\frac{{t-2000}}{{10}}+\varepsilon_{{it}}$$
 
-$$
-\bar y_{{it}}=\alpha_i+\beta_j x_{{it}}+\varepsilon_{{it}},
-\qquad x_{{it}}=\frac{{year_{{it}}-2000}}{{10}}.
-$$
+$\alpha_i$ absorbs each catchment's persistent mean level and $\beta_h$ estimates their common within-catchment change per 10 years. If upstream concentration averages 30% and downstream concentration 55%, their baseline difference is not mistaken for temporal change.
 
-$\alpha_i$ controls stable catchment differences and $\beta_j$ is the shared per-decade change. Standard errors are clustered by catchment with a $t(G-1)$ reference.
+## 23. Single-catchment L5 representation
 
-**Example.** Suppose two catchments in one L5 have long-term mean concentrations of 35% and 55%, but both rise by about 2 percentage points per decade. Fixed effects retain the 35% versus 55% baseline difference and estimate the shared $\beta_j\approx+2$ percentage points per decade; the higher baseline is not mistaken for temporal change.
+When one observed catchment alone covers at least 50% of an L5 unit, the regional value inherits that catchment trend and is labelled `single-catchment representation`. It supports spatial representation of most of the polygon, not multi-catchment agreement.
 
-## 23. One-catchment representation
+## 24. Centering the year
 
-If one catchment alone supports an L5 polygon at the selected threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly labelled as a single-catchment representation. High area support does not create multi-catchment corroboration.
+$x=(t-2000)/10$ expresses time in decades from 2000. The constant stabilizes calculation and interpretation of the intercept. It is not a breakpoint, and replacing 2000 with 1990 or 2010 does not change the slope.
 
-## 24. Why 2000 appears
+## 25. L5 BH-FDR
 
-The year 2000 is only a numerical centering constant. Replacing it with 1990 or 2010 leaves the slope unchanged; no pre/post-2000 contrast or breakpoint is fitted.
+Only the L5 layer applies the Benjamini–Hochberg false discovery rate procedure (BH-FDR). Sort the complete regional family's $m$ p values and find the largest $k$ satisfying:
 
-**Example.** Under 2000 centering, 1990 has $x=-1$ and 2010 has $x=+1$, a two-decade separation. Under 1990 centering they become 0 and 2, still separated by two decades. The slope is unchanged; only the intercept is written differently.
+$$p_{{(k)}}\le\frac{{k}}{{m}}\alpha,\qquad\alpha=0.05$$
 
-## 25. Complete regional family
+If 490 tests were all null and each used p<0.05 alone, about $490\times0.05=24.5$ chance-positive tests would be expected. BH-FDR limits the expected false proportion among reported regional discoveries.
 
-All {l['primary_family_tests']:,} estimable L5 × five-primary-metric tests enter one BH family. This is intentionally more conservative than correcting each metric separately because the map invites inspection across both space and SSI windows.
+## 26. Complete conditions for a strong regional signal
 
-## 26. Five regional evidence gates
+Rainfall concentration must pass the selected area support, complete-family L5 BH-FDR, direction agreement across the three alternative extreme samples, and leave-one-catchment-out stability. SSI additionally requires direction agreement across all four antecedent windows. The number of checks follows the metric rather than being forced into a fixed “five-gate” label.
 
-The interactive regional signal must pass:
-
-1. the currently selected area-support threshold;
-2. complete regional-family 5% BH-FDR;
-3. sign agreement across all four alternative extreme samples;
-4. sign agreement across 1/3/7/30-day SSI windows where relevant;
-5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a one-catchment representation.
-
-## 27. Regional results at the default 10% threshold
+## 27. Regional results at the default 50% threshold
 
 {_regional_table(s, 'en')}
 
-![Area-supported regional patterns](assets/figure_04_mechanism_trajectories.png)
+![L5 regional trends](assets/figure_04_mechanism_trajectories.png)
 
-Both positive and negative directions remain. The result is spatially heterogeneous regional evidence rather than one uniform global direction.
-
-## 28. Strongest regional results
+## 28. Where the strong regional signals occur
 
 {_top_regions(s, 'en')}
 
-## 29. Returning regional evidence to its catchments
+Positive and negative signs respectively mean more concentrated/more distributed rainfall or wetter/drier antecedent conditions. Opposing directions remain, supporting regional heterogeneity rather than one global trend.
 
-![Regional and contributing catchment trends](assets/figure_06_robustness_matrix.png)
+## 29. Tracing L5 results back to catchments
 
-Grey circles are direct catchment slopes; diamonds and intervals are pooled L5 slopes and 95% confidence intervals. A pooled signal gains power from shared within-catchment movement and does not imply that every contributing catchment is independently significant.
+![Regional estimates and contributing catchments](assets/figure_06_robustness_matrix.png)
 
-## 30. Supported scientific conclusions
+Every regional estimate remains traceable to its contributing catchments. Multi-catchment results show shared within-catchment movement; single-catchment representations explicitly show their area coverage. The two interpretations are kept distinct.
 
-1. Most estimable catchments do not show network-confirmed long-term shifts.
-2. The 378 stable candidates provide explicit targets for independent follow-up.
-3. Some local changes align into statistically clearer L5-scale directions.
-4. Stricter area support reduces the number of interpretable L5 signals while opposing regional directions persist.
+## 30. Hydrological conclusions
 
-## 31. Inference boundary
+1. Most observed catchments do not satisfy the complete robustness conditions for a persistent shift, so change is neither ubiquitous nor spatially uniform.
+2. The {robust:,} robust individual trends identify locally meaningful changes: selected large floods become more concentrated in some catchments and more evenly distributed in others, while antecedent conditions become wetter in some places and drier in others.
+3. At 50% area support, {default['strong_regions']} L5 units show reproducible larger-scale patterns, demonstrating that some local changes are not isolated gauge phenomena.
+4. The scientifically useful result is where, in which condition, and in which direction a catchment or L5 changes—not a global mean that cancels opposing signals.
 
-These trends are not changes in flood count, flood peak, or runoff volume. They do not establish attribution to anthropogenic climate change, land use, or engineering controls. Area coverage measures observational spatial support rather than population, assets, or area-weighted global representativeness.
+## 31. Limitations
 
-## 32. Limitations
-
-Long records are sparse in Asia; rainfall concentration is daily rather than sub-daily; SSI and reconstructed rainfall uncertainty enter event metrics; neighbouring L5 units may be spatially dependent; and clustered inference remains approximate with few catchments. Direct candidates require independent data or longer records for confirmation.
-
-## 33. Next analyses
-
-Prioritize raw-series review and independent precipitation/soil-moisture validation for stable candidates and strong L5 signals. Then test whether finer HydroBASINS levels improve spatial resolution while retaining adequate area support.
-
-## 34. Reproduction
-
-```powershell
-$projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
-& $projectPython src/run_pipeline.py --stage all --force
-& $projectPython src/validate_outputs.py
-```
-
-The related `Event_Typology` source project is used read-only. This repository stores the method, derived evidence, figures, reports, and GitHub Pages explorer: <https://grups666.github.io/Global_Flood_Cause_Evolution/>.
-""").replace(chr(92) * 2, chr(92))
+The network is spatially uneven and especially sparse in Asia; daily concentration cannot resolve sub-daily rainfall structure; SSI and event reconstruction contain measurement error; neighbouring L5 units may be dependent; and area support measures hydrological polygon coverage rather than population, assets, or global land representativeness. These trends describe generating conditions, not flood counts, peaks, or runoff volume, and do not alone establish attribution to climate change, land use, or engineering controls.
+"""
 
 
 def build_reports() -> dict[str, Any]:
@@ -751,8 +617,8 @@ def build_reports() -> dict[str, Any]:
         "status": "complete",
         "chinese": str(zh),
         "english": str(en),
-        "catchment_candidates": int(s["catchments"]["potential_local_shift"].sum()),
-        "regional_strong_signals": int(s["local"]["strong_evidence_signals"]),
+        "robust_catchment_trends": int(s["catchments"]["robust_local_trend"].sum()),
+        "regional_strong_signals": int(s["default_regions"]["strong_evidence"].sum()),
     }
 
 

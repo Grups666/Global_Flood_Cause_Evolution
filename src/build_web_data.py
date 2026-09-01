@@ -163,7 +163,6 @@ def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
         "sensitivities": {
             "Annual maximum": _native(row.get("annual_maximum_slope"), digits + 1),
             "POT/Q90": _native(row.get("pot_q90_slope"), digits + 1),
-            "POT/Q95 · 10-day gap": _native(row.get("pot_q95_gap10_slope"), digits + 1),
             "POT/Q97.5": _native(row.get("pot_q975_slope"), digits + 1),
         },
         "trajectory": [
@@ -190,8 +189,6 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
             _native(row.display_ci_low_per_decade, digits + 1),
             _native(row.display_ci_high_per_decade, digits + 1),
         ],
-        "q": _native(row.mk_q, 6),
-        "familyQ": _native(row.primary_family_q, 6),
         "p": _native(row.mk_p, 6),
         "tau": _native(row.mk_tau, 4),
         "mean": _native(row.mean_level * mean_scale, digits + 1),
@@ -204,15 +201,11 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
         "firstYear": int(row.first_year),
         "lastYear": int(row.last_year),
         "span": int(row.year_span),
-        "fdrSupported": bool(row.fdr_significant),
-        "potential": bool(row.potential_local_shift),
-        "strong": bool(row.strong_local_evidence),
+        "robust": bool(row.robust_local_trend),
         "grade": str(row.evidence_grade),
-        "gateCount": int(row.five_gate_count),
-        "thresholdStable": bool(row.threshold_direction_stable),
-        "declusterStable": bool(row.decluster_direction_stable),
-        "annualMaximumStable": bool(row.annual_max_direction_stable),
-        "sampleStable": bool(row.sample_direction_stable),
+        "checkCount": int(row.local_check_count),
+        "checkTotal": int(row.local_check_total),
+        "alternativeSampleStable": bool(row.alternative_sample_direction_stable),
         "windowStable": bool(row.wetness_window_stable),
         "leaveOneYearStable": bool(row.leave_one_year_out_stable),
         "sensitivities": {
@@ -220,9 +213,6 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
                 getattr(row, "annual_maximum_slope", None), digits + 1
             ),
             "POT/Q90": _native(getattr(row, "pot_q90_slope", None), digits + 1),
-            "POT/Q95 · 10-day gap": _native(
-                getattr(row, "pot_q95_gap10_slope", None), digits + 1
-            ),
             "POT/Q97.5": _native(
                 getattr(row, "pot_q975_slope", None), digits + 1
             ),
@@ -413,16 +403,10 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             "primaryCatchments": int(primary_diag.catchments),
             "catchmentsWithTrend": len(catchments),
             "catchmentPrimaryTests": int(catchment_primary.shape[0]),
-            "catchmentPotentialSignals": int(
-                catchment_primary["potential_local_shift"].sum()
+            "robustCatchmentTrends": int(
+                catchment_primary["robust_local_trend"].sum()
             ),
-            "catchmentFdrSignals": int(
-                catchment_primary["metric_fdr_supported"].sum()
-            ),
-            "catchmentStrongSignals": int(
-                catchment_primary["strong_local_evidence"].sum()
-            ),
-            "candidateHydrobasins": len(basins),
+            "estimableHydrobasins": len(basins),
             "strongEvidenceSignals": int(strong.shape[0]),
             "strongEvidenceBasins": int(strong["HYBAS_ID"].nunique()),
             "primaryFamilyTests": int(primary_family.shape[0]),
@@ -441,7 +425,7 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
                 {
                     "scope": str(item.scope),
                     "threshold": int(item.threshold_pct),
-                    "candidateL5": int(item.candidate_l5),
+                    "estimableL5": int(item.candidate_l5),
                     "passingL5": int(item.passing_l5),
                     "passingCatchments": int(item.passing_catchments),
                     "passingCatchmentShare": _native(
