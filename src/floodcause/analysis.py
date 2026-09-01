@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .io import assign_continent
-from .statistics import fit_continuous_trends
+from .io import assign_continent, benjamini_hochberg
+from .statistics import fit_continuous_trends, theil_sen_per_decade
 
 
 SAMPLE_FILES = {
@@ -150,10 +150,14 @@ def _metric_scale(metric: str) -> tuple[float, str]:
 def _fixed_effect_trend(
     frame: pd.DataFrame, metric: str, minimum_clusters: int = 2
 ) -> dict[str, Any] | None:
-    data = frame[["GCIN", "peak_year", metric]].dropna().copy()
+    event_data = frame[["GCIN", "peak_year", metric]].dropna().copy()
+    data = event_data.groupby(["GCIN", "peak_year"], as_index=False).agg(
+        **{metric: (metric, "mean")},
+        events=(metric, "size"),
+    )
     clusters = int(data["GCIN"].nunique())
-    observations = len(data)
-    if clusters < minimum_clusters or observations <= clusters + 1:
+    modeled_observations = len(data)
+    if clusters < minimum_clusters or modeled_observations <= clusters + 1:
         return None
     data["x"] = (data["peak_year"].astype(float) - 2000.0) / 10.0
     data["y"] = data[metric].astype(float)
@@ -165,8 +169,13 @@ def _fixed_effect_trend(
     beta = float((data["x_within"] * data["y_within"]).sum() / denominator)
     residual = data["y_within"] - beta * data["x_within"]
     scores = (data["x_within"] * residual).groupby(data["GCIN"]).sum()
-    degrees_residual = observations - clusters - 1
-    correction = clusters / (clusters - 1) * (observations - 1) / degrees_residual
+    degrees_residual = modeled_observations - clusters - 1
+    correction = (
+        clusters
+        / (clusters - 1)
+        * (modeled_observations - 1)
+        / degrees_residual
+    )
     variance = correction * float(np.square(scores).sum()) / denominator**2
     standard_error = float(np.sqrt(max(variance, 0.0)))
     t_value = beta / standard_error if standard_error > 0 else np.nan
@@ -191,7 +200,8 @@ def _fixed_effect_trend(
         if reference_raw != 0 else np.nan
     )
     return {
-        "observations": observations,
+        "observations": int(len(event_data)),
+        "modeled_observations": int(modeled_observations),
         "catchments": clusters,
         "mean_level": float(reference_raw * scale),
         "slope_per_decade": float(slope),
@@ -287,6 +297,172 @@ def _write_samples(
         )
 
 
+def _leave_one_year_out_stability(
+    sample: pd.DataFrame, candidates: pd.DataFrame
+) -> pd.DataFrame:
+    """Check whether a catchment trend sign depends on one observed event year."""
+    rows: list[dict[str, Any]] = []
+    for candidate in candidates[["GCIN", "variable", "sen_slope_per_decade"]].itertuples(
+        index=False
+    ):
+        annual = (
+            sample.loc[sample["GCIN"].eq(candidate.GCIN), ["peak_year", candidate.variable]]
+            .dropna()
+            .groupby("peak_year", as_index=False)
+            .agg(value=(candidate.variable, "mean"))
+            .sort_values("peak_year")
+        )
+        slopes: list[float] = []
+        if len(annual) >= 4:
+            for year in annual["peak_year"]:
+                reduced = annual[annual["peak_year"].ne(year)]
+                estimate = theil_sen_per_decade(
+                    reduced["peak_year"].to_numpy(float),
+                    reduced["value"].to_numpy(float),
+                )
+                slopes.append(float(estimate["sen_slope_per_decade"]))
+        values = np.asarray(slopes, dtype=float)
+        primary_sign = np.sign(float(candidate.sen_slope_per_decade))
+        rows.append(
+            {
+                "GCIN": int(candidate.GCIN),
+                "variable": str(candidate.variable),
+                "leave_one_year_out_replicates": int(len(values)),
+                "leave_one_year_out_min": float(values.min()) if len(values) else np.nan,
+                "leave_one_year_out_max": float(values.max()) if len(values) else np.nan,
+                "leave_one_year_out_stable": bool(
+                    len(values) and np.all(np.sign(values) == primary_sign)
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_catchment_evidence(
+    trend_tables: dict[str, pd.DataFrame],
+    primary_events: pd.DataFrame,
+    config: dict[str, Any],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Assemble primary catchment estimates and their sensitivity evidence."""
+    alpha = float(config["trends"]["alpha"])
+    primary_sample = str(config["event_samples"]["primary"])
+    primary_metrics = list(config["local_analysis"]["primary_metrics"])
+    all_trends = pd.concat(
+        [frame.assign(sample=name) for name, frame in trend_tables.items()],
+        ignore_index=True,
+    )
+    all_trends["primary_family_q"] = np.nan
+    for sample_name in trend_tables:
+        mask = all_trends["sample"].eq(sample_name) & all_trends["variable"].isin(
+            primary_metrics
+        )
+        if mask.any():
+            all_trends.loc[mask, "primary_family_q"] = benjamini_hochberg(
+                all_trends.loc[mask, "mk_p"]
+            ).to_numpy()
+
+    primary = all_trends[all_trends["sample"].eq(primary_sample)].copy()
+    sensitivity_names = list(config["event_samples"]["sensitivity_samples"])
+    for sample_name in sensitivity_names:
+        alternate = all_trends[all_trends["sample"].eq(sample_name)][
+            ["GCIN", "variable", "sen_slope_per_decade", "display_slope_per_decade", "mk_p"]
+        ].rename(
+            columns={
+                "sen_slope_per_decade": f"{sample_name}_raw_slope",
+                "display_slope_per_decade": f"{sample_name}_slope",
+                "mk_p": f"{sample_name}_p",
+            }
+        )
+        primary = primary.merge(alternate, on=["GCIN", "variable"], how="left")
+
+    primary_sign = np.sign(primary["sen_slope_per_decade"])
+    q90 = primary["pot_q90_raw_slope"]
+    q975 = primary["pot_q975_raw_slope"]
+    declustered = primary["pot_q95_gap10_raw_slope"]
+    annual_maximum = primary["annual_maximum_raw_slope"]
+    primary["threshold_direction_stable"] = (
+        q90.notna()
+        & q975.notna()
+        & np.sign(q90).eq(primary_sign)
+        & np.sign(q975).eq(primary_sign)
+    )
+    primary["decluster_direction_stable"] = declustered.notna() & np.sign(
+        declustered
+    ).eq(primary_sign)
+    primary["annual_max_direction_stable"] = annual_maximum.notna() & np.sign(
+        annual_maximum
+    ).eq(primary_sign)
+    primary["sample_direction_stable"] = (
+        primary["threshold_direction_stable"]
+        & primary["decluster_direction_stable"]
+        & primary["annual_max_direction_stable"]
+    )
+
+    wet_metrics = [
+        f"ssi_{window}d" for window in config["classification"]["ssi_windows_days"]
+    ]
+    wet_pivot = primary[primary["variable"].isin(wet_metrics)].pivot(
+        index="GCIN", columns="variable", values="sen_slope_per_decade"
+    ).reindex(columns=wet_metrics)
+    wet_stable = wet_pivot.notna().all(axis=1) & np.sign(wet_pivot).nunique(axis=1).eq(1)
+    primary = primary.merge(
+        wet_stable.rename("wetness_window_stable"),
+        left_on="GCIN",
+        right_index=True,
+        how="left",
+    )
+    primary.loc[~primary["variable"].isin(wet_metrics), "wetness_window_stable"] = True
+
+    candidates = primary[
+        primary["variable"].isin(primary_metrics) & primary["mk_p"].lt(alpha)
+    ]
+    leave_one_year = _leave_one_year_out_stability(primary_events, candidates)
+    primary = primary.merge(leave_one_year, on=["GCIN", "variable"], how="left")
+    primary["leave_one_year_out_stable"] = primary["leave_one_year_out_stable"].fillna(
+        False
+    )
+    primary["metric_fdr_supported"] = primary["metric_q"].lt(alpha)
+    primary["complete_family_fdr_supported"] = primary["primary_family_q"].lt(alpha)
+    primary["potential_local_shift"] = (
+        primary["variable"].isin(primary_metrics)
+        & primary["mk_p"].lt(alpha)
+        & primary["sample_direction_stable"]
+        & primary["leave_one_year_out_stable"]
+        & primary["wetness_window_stable"].fillna(False)
+    )
+    primary["strong_local_evidence"] = (
+        primary["variable"].isin(primary_metrics)
+        & primary["metric_fdr_supported"]
+        & primary["sample_direction_stable"]
+        & primary["leave_one_year_out_stable"]
+        & primary["wetness_window_stable"].fillna(False)
+    )
+    primary["five_gate_count"] = (
+        primary[
+            [
+                "metric_fdr_supported",
+                "threshold_direction_stable",
+                "decluster_direction_stable",
+                "annual_max_direction_stable",
+                "leave_one_year_out_stable",
+            ]
+        ]
+        .fillna(False)
+        .sum(axis=1)
+        .astype(int)
+    )
+    primary["evidence_grade"] = np.select(
+        [
+            primary["strong_local_evidence"],
+            primary["metric_fdr_supported"],
+            primary["potential_local_shift"],
+        ],
+        ["strong", "fdr-supported", "robust-candidate"],
+        default="estimate",
+    )
+    return primary, all_trends
+
+
 def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     output_summary = config["paths"]["logs"] / "analysis_summary.json"
     if output_summary.exists() and not force:
@@ -325,12 +501,29 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     )
     trajectories.to_csv(tables / "global_regional_trajectories.csv", index=False)
 
-    catchment_metrics = [
-        *config["local_analysis"]["displayed_metrics"],
-        *config["local_analysis"]["driver_metrics"],
-    ]
-    catchment_trends = fit_continuous_trends(
-        samples["pot_q95"], catchment_metrics, float(config["trends"]["alpha"])
+    catchment_metrics = list(
+        dict.fromkeys(
+            [
+                *config["local_analysis"]["displayed_metrics"],
+                *config["local_analysis"]["driver_metrics"],
+            ]
+        )
+    )
+    primary_metrics = list(config["local_analysis"]["primary_metrics"])
+    trend_tables: dict[str, pd.DataFrame] = {}
+    for sample_name, sample in samples.items():
+        variables = catchment_metrics if sample_name == "pot_q95" else primary_metrics
+        trend_tables[sample_name] = fit_continuous_trends(
+            sample,
+            variables,
+            float(config["trends"]["alpha"]),
+            minimum_years=int(config["event_samples"]["minimum_events"]),
+            minimum_span_years=int(
+                config["event_samples"]["minimum_selected_span_years"]
+            ),
+        )
+    catchment_trends, catchment_sensitivity = _build_catchment_evidence(
+        trend_tables, samples["pot_q95"], config
     )
     metadata = events[
         ["GCIN", "country", "continent", "longitude", "latitude", "snow_fraction"]
@@ -338,7 +531,13 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     catchment_trends = catchment_trends.merge(
         metadata, on="GCIN", how="left", validate="many_to_one"
     )
+    catchment_sensitivity = catchment_sensitivity.merge(
+        metadata, on="GCIN", how="left", validate="many_to_one"
+    )
     catchment_trends.to_csv(tables / "catchment_mechanism_trends.csv", index=False)
+    catchment_sensitivity.to_csv(
+        tables / "catchment_sensitivity_trends.csv", index=False
+    )
 
     diagnostics_rows = []
     for name, sample in samples.items():
@@ -369,6 +568,21 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
         },
         "primary_independence": _independence_diagnostics(samples["pot_q95"]),
         "catchment_trend_rows": len(catchment_trends),
+        "catchment_primary_tests": int(
+            catchment_trends["variable"].isin(primary_metrics).sum()
+        ),
+        "catchment_metric_fdr_signals": int(
+            catchment_trends.loc[
+                catchment_trends["variable"].isin(primary_metrics),
+                "metric_fdr_supported",
+            ].sum()
+        ),
+        "catchment_strong_signals": int(
+            catchment_trends["strong_local_evidence"].sum()
+        ),
+        "catchment_potential_signals": int(
+            catchment_trends["potential_local_shift"].sum()
+        ),
         "elapsed_seconds": time.time() - started,
     }
     output_summary.write_text(json.dumps(summary, indent=2), encoding="utf-8")

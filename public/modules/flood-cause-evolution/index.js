@@ -1,6 +1,6 @@
 /**
  * Global Flood Cause Evolution — interactive Tereon module.
- * Continuous flood-generating-condition trends at HydroBASINS L5 and catchment scales.
+ * Catchment-first trends with an area-supported HydroBASINS L5 regional lens.
  */
 window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   constructor(app, manifest = {}) {
@@ -9,7 +9,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.basePath = manifest.basePath || "/";
     this.dataFile = manifest.dataFile || manifest.datasets?.[0]?.file || "./data/flood-cause-explorer.json";
     this.metric = "intensity_fraction";
-    this.evidenceView = "strong";
+    this.evidenceView = "supported";
+    this.coverageThreshold = 10;
     this.basinLayerId = "flood-cause-hydrobasins";
     this.catchmentLayerId = "flood-cause-catchments";
     this.legendId = "flood-cause-trend-legend";
@@ -37,8 +38,11 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const response = await fetch(this.resolve(this.dataFile));
     if (!response.ok) throw new Error(`Unable to load flood-cause data (${response.status})`);
     this.data = await response.json();
+    this.coverageThreshold = Number(this.data.meta.defaultCoverageThreshold || 10);
     this.basins = (this.data.basins || []).map((item) => ({ ...item, _kind: "basin" }));
-    this.catchments = (this.data.catchments || []).map((item) => ({ ...item, _kind: "catchment" }));
+    this.catchments = (this.data.catchments || [])
+      .map((item) => ({ ...item, _kind: "catchment" }))
+      .sort((a, b) => Number(b.areaKm2 || 0) - Number(a.areaKm2 || 0));
     this.ensureStyles();
     this.addLayers();
     this.ensureToolbar();
@@ -74,25 +78,25 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   addLayers() {
     this.app.layerManager.addLayer({
       id: this.basinLayerId,
-      name: "HydroBASINS L5 regions",
+      name: "Area-supported HydroBASINS L5 patterns",
       type: "vector",
       visible: true,
       interactive: true,
       moduleId: this.manifest.id,
       groupPath: ["flood-generating conditions"],
-      metadata: { removable: false, evidenceScale: "multi-catchment region" },
+      metadata: { removable: false, evidenceScale: "secondary regional pattern" },
       renderer: (ctx, _layer, viewport) => this.renderBasins(ctx, viewport),
       hitTest: (lon, lat) => this.hitTestBasins(lon, lat)
     });
     this.app.layerManager.addLayer({
       id: this.catchmentLayerId,
-      name: "Individual catchment diagnostics",
+      name: "Individual catchment trends",
       type: "vector",
-      visible: false,
+      visible: true,
       interactive: true,
       moduleId: this.manifest.id,
       groupPath: ["flood-generating conditions"],
-      metadata: { removable: false, evidenceScale: "single catchment" },
+      metadata: { removable: false, evidenceScale: "primary catchment evidence" },
       renderer: (ctx, _layer, viewport) => this.renderCatchments(ctx, viewport),
       hitTest: (lon, lat, viewport) => this.hitTestCatchments(lon, lat, viewport)
     });
@@ -119,15 +123,15 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const shifts = this.worldShifts(viewport);
     const limit = this.outcome().limit;
     const ordered = [...this.basins].sort((a, b) => {
-      const aStrong = a.metrics?.[this.metric]?.strong ? 1 : 0;
-      const bStrong = b.metrics?.[this.metric]?.strong ? 1 : 0;
+      const aStrong = this.regionalStrong(a) ? 1 : 0;
+      const bStrong = this.regionalStrong(b) ? 1 : 0;
       return aStrong - bStrong;
     });
     for (const basin of ordered) {
       const metric = basin.metrics?.[this.metric];
-      if (!metric) continue;
-      const strong = !!metric.strong;
-      const contextual = this.evidenceView === "strong" && !strong;
+      if (!metric || !this.basinPassesCoverage(basin)) continue;
+      const strong = this.regionalStrong(basin);
+      const contextual = this.evidenceView === "supported" && !strong;
       for (const shift of shifts) {
         ctx.save();
         this.traceGeometry(ctx, basin.geometry, viewport, shift);
@@ -135,12 +139,12 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ctx.lineCap = "round";
         ctx.miterLimit = 1.4;
         ctx.fillStyle = contextual ? "#e8edf0" : this.colorFor(metric.slope, limit);
-        ctx.globalAlpha = strong ? 0.9 : (contextual ? 0.42 : (metric.fdrSupported ? 0.52 : 0.3));
+        ctx.globalAlpha = strong ? 0.78 : (contextual ? 0.30 : (metric.fdrSupported ? 0.46 : 0.27));
         ctx.fill("evenodd");
         ctx.globalAlpha = 1;
         ctx.setLineDash([]);
-        ctx.strokeStyle = strong ? "rgba(20, 49, 67, .94)" : "rgba(71, 85, 105, .48)";
-        ctx.lineWidth = strong ? 1.12 : 0.58;
+        ctx.strokeStyle = strong ? "rgba(20, 49, 67, .88)" : "rgba(51, 65, 85, .52)";
+        ctx.lineWidth = strong ? 0.92 : 0.48;
         ctx.stroke();
         ctx.restore();
       }
@@ -162,7 +166,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   drawBasinHighlight(ctx, basin, viewport, hovered) {
-    if (!basin?.metrics?.[this.metric]) return;
+    if (!basin?.metrics?.[this.metric] || !this.basinPassesCoverage(basin)) return;
     for (const shift of this.worldShifts(viewport)) {
       ctx.save();
       this.traceGeometry(ctx, basin.geometry, viewport, shift);
@@ -171,49 +175,95 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       ctx.miterLimit = 1.4;
       ctx.setLineDash([]);
       ctx.shadowColor = hovered ? "rgba(34, 211, 238, .98)" : "rgba(6, 182, 212, .94)";
-      ctx.shadowBlur = hovered ? 28 : 22;
+      ctx.shadowBlur = hovered ? 30 : 24;
       ctx.strokeStyle = hovered ? "rgba(103, 232, 249, .98)" : "rgba(34, 211, 238, .98)";
-      ctx.lineWidth = hovered ? 1.2 : 1.15;
+      ctx.lineWidth = hovered ? 1.45 : 1.3;
       ctx.stroke();
       ctx.restore();
     }
   }
 
   renderCatchments(ctx, viewport) {
-    const base = (viewport.height / 180) * viewport.scale;
     const shifts = this.worldShifts(viewport);
     const limit = this.catchmentLimit();
     for (const catchment of this.catchments) {
       const metric = catchment.metrics?.[this.metric];
       if (!metric) continue;
-      const hovered = this.app.hoveredLayer?.id === this.catchmentLayerId && this.app.hoveredFeatureId === catchment.id;
-      const active = this.selected?._kind === "catchment" && this.selected.id === catchment.id;
+      const focal = !!metric.potential || !!metric.strong;
+      const contextual = this.evidenceView === "supported" && !focal;
       for (const shift of shifts) {
-        const x = viewport.width / 2 + (catchment.lon + shift) * base + viewport.offsetX;
-        const y = viewport.height / 2 - catchment.lat * base + viewport.offsetY;
-        if (x < -9 || x > viewport.width + 9 || y < -9 || y > viewport.height + 9) continue;
-        const radius = active ? 4.7 : Math.max(1.8, Math.min(3.35, 1.5 + Math.sqrt(viewport.scale) * 0.5));
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.colorFor(metric.slope, limit);
-        ctx.globalAlpha = 0.82;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        if (hovered || active) {
-          ctx.shadowColor = hovered ? "rgba(34, 211, 238, .98)" : "rgba(6, 182, 212, .94)";
-          ctx.shadowBlur = hovered ? 22 : 17;
-          ctx.strokeStyle = "rgba(103, 232, 249, .98)";
-          ctx.lineWidth = 1.15;
+        if (catchment.geometry) {
+          this.traceGeometry(ctx, catchment.geometry, viewport, shift);
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.miterLimit = 1.25;
+          ctx.fillStyle = contextual ? "#dfe6e9" : this.colorFor(metric.slope, limit);
+          ctx.globalAlpha = focal ? 0.42 : (contextual ? 0.055 : 0.14);
+          ctx.fill("evenodd");
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = focal ? "rgba(24, 39, 52, .74)" : "rgba(51, 65, 85, .24)";
+          ctx.lineWidth = focal ? 0.78 : 0.34;
+          ctx.stroke();
         } else {
-          ctx.strokeStyle = metric.fdrSupported ? "rgba(15, 23, 42, .9)" : "rgba(15, 23, 42, .42)";
-          ctx.lineWidth = metric.fdrSupported ? 1.05 : 0.5;
+          const point = this.project(catchment.lon + shift, catchment.lat, viewport);
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, focal ? 2.8 : 1.7, 0, Math.PI * 2);
+          ctx.fillStyle = contextual ? "#aeb8bf" : this.colorFor(metric.slope, limit);
+          ctx.globalAlpha = focal ? 0.86 : 0.45;
+          ctx.fill();
         }
-        ctx.stroke();
         ctx.restore();
       }
     }
+
+    const activeCatchment = this.selected?._kind === "catchment"
+      ? this.catchments.find((item) => item.id === this.selected.id)
+      : null;
+    const hoveredCatchment = this.app.hoveredLayer?.id === this.catchmentLayerId
+      ? this.catchments.find((item) => item.id === this.app.hoveredFeatureId)
+      : null;
+    if (activeCatchment && activeCatchment.id !== hoveredCatchment?.id) {
+      this.drawCatchmentHighlight(ctx, activeCatchment, viewport, false);
+    }
+    if (hoveredCatchment) this.drawCatchmentHighlight(ctx, hoveredCatchment, viewport, true);
+
+    // Repaint regional interaction outlines after every catchment boundary so
+    // the cyan focus edge is always the topmost map mark.
+    const activeBasin = this.selected?._kind === "basin"
+      ? this.basins.find((item) => item.id === this.selected.id)
+      : null;
+    const hoveredBasin = this.app.hoveredLayer?.id === this.basinLayerId
+      ? this.basins.find((item) => item.id === this.app.hoveredFeatureId)
+      : null;
+    if (activeBasin && activeBasin.id !== hoveredBasin?.id) {
+      this.drawBasinHighlight(ctx, activeBasin, viewport, false);
+    }
+    if (hoveredBasin) this.drawBasinHighlight(ctx, hoveredBasin, viewport, true);
     this.updateHoverTooltip(ctx, viewport);
+  }
+
+  drawCatchmentHighlight(ctx, catchment, viewport, hovered) {
+    if (!catchment?.metrics?.[this.metric]) return;
+    for (const shift of this.worldShifts(viewport)) {
+      ctx.save();
+      if (catchment.geometry) {
+        this.traceGeometry(ctx, catchment.geometry, viewport, shift);
+      } else {
+        const point = this.project(catchment.lon + shift, catchment.lat, viewport);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, hovered ? 5 : 4.5, 0, Math.PI * 2);
+      }
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.miterLimit = 1.25;
+      ctx.shadowColor = "rgba(34, 211, 238, .98)";
+      ctx.shadowBlur = hovered ? 31 : 25;
+      ctx.strokeStyle = hovered ? "rgba(103, 232, 249, 1)" : "rgba(34, 211, 238, 1)";
+      ctx.lineWidth = hovered ? 1.55 : 1.35;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   updateHoverTooltip(ctx, viewport) {
@@ -267,8 +317,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       ? "percentage points / decade"
       : "SSI units / decade";
     const evidence = layerId === this.basinLayerId
-      ? `${this.gateCount(metric)}/5 gates · ${this.integer(metric.catchments)} catchments`
-      : `${this.integer(metric.observations)} events · ${this.integer(metric.years)} observed years`;
+      ? `${this.gateCount(metric, feature)}/5 gates · ${Number(feature.coveragePct).toFixed(1)}% area support`
+      : `${metric.gateCount}/5 stability checks · ${this.integer(metric.years)} event years`;
     this.hoverTooltip.innerHTML = `<strong>${this.escape(title)}</strong><span>${this.escape(evidence)}</span><span>${this.escape(this.direction(metric.slope))}</span><b>${this.signed(metric.slope, outcome.digits)} <small>${unit}</small></b>`;
     this.hoverTooltip.classList.add("visible");
 
@@ -331,7 +381,9 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const normalized = ((lon + 180) % 360 + 360) % 360 - 180;
     for (let index = this.basins.length - 1; index >= 0; index -= 1) {
       const basin = this.basins[index];
-      if (basin.metrics?.[this.metric] && this.geometryContains(basin.geometry, normalized, lat)) return basin;
+      if (basin.metrics?.[this.metric]
+        && this.basinPassesCoverage(basin)
+        && this.geometryContains(basin.geometry, normalized, lat)) return basin;
     }
     return null;
   }
@@ -354,6 +406,15 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   hitTestCatchments(lon, lat, viewport) {
     const normalized = ((lon + 180) % 360 + 360) % 360 - 180;
+    const polygons = this.catchments.filter((catchment) => {
+      if (!catchment.metrics?.[this.metric] || !catchment.geometry || !catchment.bounds) return false;
+      const [minLon, minLat, maxLon, maxLat] = catchment.bounds;
+      return normalized >= minLon && normalized <= maxLon && lat >= minLat && lat <= maxLat
+        && this.geometryContains(catchment.geometry, normalized, lat);
+    });
+    if (polygons.length) {
+      return polygons.reduce((smallest, item) => Number(item.areaKm2 || Infinity) < Number(smallest.areaKm2 || Infinity) ? item : smallest);
+    }
     const threshold = Math.max(0.08, 8 / ((viewport.height / 180) * viewport.scale));
     let best = null;
     let distance = Infinity;
@@ -390,7 +451,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   setEvidenceView(view) {
-    if (!["strong", "all"].includes(view) || this.evidenceView === view) return;
+    if (!["supported", "all"].includes(view) || this.evidenceView === view) return;
     this.evidenceView = view;
     this.toolbar?.querySelectorAll("[data-evidence]")
       .forEach((button) => button.classList.toggle("active", button.dataset.evidence === view));
@@ -398,16 +459,41 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.app.draw?.();
   }
 
+  setCoverageThreshold(value) {
+    const threshold = Number(value);
+    if (!Number.isFinite(threshold) || threshold === this.coverageThreshold) return;
+    this.coverageThreshold = threshold;
+    this.toolbar?.querySelectorAll("[data-threshold]")
+      .forEach((button) => button.classList.toggle("active", Number(button.dataset.threshold) === threshold));
+    this.updateEvidenceSummary();
+    this.updateLegend();
+    if (this.selected?._kind === "basin") {
+      if (!this.basinPassesCoverage(this.selected)) this.selected = null;
+      else this.showInspector(this.selected, this.basinLayerId);
+    }
+    this.app.draw?.();
+  }
+
+  basinPassesCoverage(basin) {
+    return Number(basin?.coveragePct) >= this.coverageThreshold;
+  }
+
+  regionalStrong(basin) {
+    return this.basinPassesCoverage(basin) && !!basin?.metrics?.[this.metric]?.strong;
+  }
+
   evidenceSummary() {
-    const metrics = this.basins
-      .map((basin) => basin.metrics?.[this.metric])
-      .filter(Boolean);
-    const strong = metrics.filter((metric) => metric.strong);
+    const qualifiedBasins = this.basins.filter((basin) => basin.metrics?.[this.metric] && this.basinPassesCoverage(basin));
+    const strongBasins = qualifiedBasins.filter((basin) => this.regionalStrong(basin));
+    const catchmentMetrics = this.catchments.map((item) => item.metrics?.[this.metric]).filter(Boolean);
+    const potentialCatchments = catchmentMetrics.filter((metric) => metric.potential || metric.strong);
     return {
-      total: metrics.length,
-      strong: strong.length,
-      positive: strong.filter((metric) => Number(metric.slope) > 0).length,
-      negative: strong.filter((metric) => Number(metric.slope) < 0).length
+      totalBasins: qualifiedBasins.length,
+      strongBasins: strongBasins.length,
+      positiveBasins: strongBasins.filter((basin) => Number(basin.metrics[this.metric].slope) > 0).length,
+      negativeBasins: strongBasins.filter((basin) => Number(basin.metrics[this.metric].slope) < 0).length,
+      catchmentEstimates: catchmentMetrics.length,
+      potentialCatchments: potentialCatchments.length
     };
   }
 
@@ -415,8 +501,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const summary = this.evidenceSummary();
     const count = this.toolbar?.querySelector("[data-evidence-count]");
     const directions = this.toolbar?.querySelector("[data-evidence-directions]");
-    if (count) count.textContent = `${summary.strong} / ${summary.total}`;
-    if (directions) directions.textContent = `${summary.positive} positive · ${summary.negative} negative`;
+    if (count) count.textContent = `${summary.potentialCatchments} local · ${summary.strongBasins} regional`;
+    if (directions) directions.textContent = `${summary.totalBasins} L5 pass ≥${this.coverageThreshold}% area support`;
   }
 
   ensureToolbar() {
@@ -435,10 +521,14 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <button class="fce-overview-button" data-overview>Research overview</button>
       </div>
       <div class="fce-evidence-row">
-        <div class="fce-evidence-summary"><strong data-evidence-count></strong><span>L5 units pass all five gates</span><small data-evidence-directions></small></div>
+        <div class="fce-evidence-summary"><strong data-evidence-count></strong><span>candidate shifts</span><small data-evidence-directions></small></div>
+        <div class="fce-threshold-control" aria-label="Minimum observed area coverage for the HydroBASINS L5 layer">
+          <span>L5 area support</span>
+          <div>${(this.data.meta.coverageThresholdOptions || [10, 20, 30, 40, 50]).map((value) => `<button data-threshold="${value}" class="${Number(value) === this.coverageThreshold ? "active" : ""}">${value}%</button>`).join("")}</div>
+        </div>
         <div class="fce-evidence-toggle" aria-label="Evidence display">
-          <button data-evidence="strong" class="active">Focus 5/5</button>
-          <button data-evidence="all">All eligible</button>
+          <button data-evidence="supported" class="active">Supported focus</button>
+          <button data-evidence="all">All estimates</button>
         </div>
       </div>`;
     document.body.appendChild(this.toolbar);
@@ -446,6 +536,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       .forEach((button) => button.addEventListener("click", () => this.setMetric(button.dataset.metric)));
     this.toolbar.querySelectorAll("[data-evidence]")
       .forEach((button) => button.addEventListener("click", () => this.setEvidenceView(button.dataset.evidence)));
+    this.toolbar.querySelectorAll("[data-threshold]")
+      .forEach((button) => button.addEventListener("click", () => this.setCoverageThreshold(button.dataset.threshold)));
     this.toolbar.querySelector("[data-overview]").addEventListener("click", () => this.showOverview());
     this.updateEvidenceSummary();
   }
@@ -463,12 +555,12 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-legend-axis"><span>${this.axisValue(-limit)}</span><span>0</span><span>+${this.axisValue(limit)}</span></div>
         <div class="fce-legend-directions"><span>${this.escape(outcome.low)}</span><span>${this.escape(outcome.high)}</span></div>
         <div class="fce-legend-unit">${this.escape(outcome.unit)}. Values beyond the color scale are clipped.</div>
-        <div class="fce-legend-evidence"><strong>${summary.strong} / ${summary.total}</strong><span>L5 units pass all five evidence gates</span><small>${summary.positive} positive · ${summary.negative} negative</small></div>
-        <div class="fce-legend-key"><i class="strong-boundary"></i> Five-gate strong evidence</div>
-        <div class="fce-legend-key"><i class="boundary"></i> Eligible L5 context (≥${this.data.meta.minimumCatchments} catchments)</div>
+        <div class="fce-legend-evidence"><strong>${summary.potentialCatchments} local candidates</strong><span>${summary.strongBasins} supported regional patterns at ≥${this.coverageThreshold}% area coverage</span><small>${summary.positiveBasins} positive · ${summary.negativeBasins} negative regional directions</small></div>
+        <div class="fce-legend-key"><i class="strong-boundary"></i> Region passes statistical gates + selected area support</div>
+        <div class="fce-legend-key"><i class="boundary"></i> L5 passes selected area support; statistical evidence is weaker</div>
         <div class="fce-legend-key"><i class="glow"></i> Hover / selected feature</div>
-        <div class="fce-legend-key"><i class="dot"></i> Individual-catchment diagnostic (off by default)</div>
-        <div class="fce-legend-note">Strong L5 units use saturated fill and a crisp boundary; subdued units remain spatial context. Open a unit to inspect every gate.</div>`
+        <div class="fce-legend-key"><i class="dot"></i> Individual catchment polygon; robust candidates use stronger fill</div>
+        <div class="fce-legend-note">The area threshold changes only the L5 layer. Individual catchment results remain visible at every threshold.</div>`
     });
   }
 
@@ -477,14 +569,15 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const outcome = this.outcome();
     if (!metric) return;
     if (layerId === this.basinLayerId) {
-      const gateCount = this.gateCount(metric);
-      const status = metric.strong ? "Strong regional evidence · 5/5 gates" : `Regional estimate · ${gateCount}/5 gates`;
-      const statusClass = metric.strong ? "pass" : "neutral";
+      const gateCount = this.gateCount(metric, feature);
+      const regionStrong = this.regionalStrong(feature);
+      const status = regionStrong ? "Supported regional pattern · 5/5 gates" : `Regional estimate · ${gateCount}/5 gates`;
+      const statusClass = regionStrong ? "pass" : "neutral";
       const interpretation = this.interpretation(metric.slope);
       this.app.showInspector?.(`${feature.code} · ${feature.countries}`, `
-        <p class="fce-inspector-lead">HydroBASINS level-5 multi-catchment estimate · ${this.escape(outcome.label)}</p>
+        <p class="fce-inspector-lead">HydroBASINS level-5 ${metric.estimatorType === "single_catchment_proxy" ? "single-catchment representation" : "pooled regional estimate"} · ${this.escape(outcome.label)}</p>
         <div class="fce-status ${statusClass}">${status}</div>
-        ${this.gates(metric)}
+        ${this.gates(metric, feature)}
         <div class="fce-plain-result">${this.escape(interpretation)}</div>
         ${this.signal(metric, "Change per decade")}
         <div class="fce-grid">
@@ -492,6 +585,9 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
           ${this.fact("Complete-family q", this.prob(metric.q))}
           ${this.fact("Catchments", this.integer(metric.catchments))}
           ${this.fact("Event observations", this.integer(metric.observations))}
+          ${this.fact("Catchment-years", this.integer(metric.modeledObservations))}
+          ${this.fact("Observed area support", `${this.num(feature.coveragePct, 1)}%`)}
+          ${this.fact("Observed area", `${this.integer(feature.observedAreaKm2)} km²`)}
           ${this.fact("Mean condition", this.num(metric.mean, outcome.digits))}
           ${this.metric.startsWith("ssi_") ? this.fact("Relative change", `${this.signed(metric.relativeSlope, 2)}% per decade`) : ""}
           ${this.fact("HydroBASINS L5", feature.code)}
@@ -499,26 +595,30 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ${this.trajectory(metric, outcome)}
         ${this.sensitivity(metric, outcome)}
         ${this.drivers(feature)}
-        <p class="fce-note">${this.escape(outcome.definition)} Every mapped region contains at least ${this.data.meta.minimumCatchments} contributing catchments; the model controls their stable differences.</p>`);
+        <p class="fce-note">${this.escape(outcome.definition)} The selected area threshold is a spatial-support condition, not a significance test. ${metric.estimatorType === "single_catchment_proxy" ? "This L5 estimate inherits one large catchment's trend and is not presented as multi-catchment corroboration." : "The pooled model compares catchment-year values within each contributing catchment before estimating their shared direction."}</p>`);
       return;
     }
 
     this.app.showInspector?.(`GCIN ${feature.id} · ${feature.country}`, `
-      <p class="fce-inspector-lead">Eligible single-catchment Theil–Sen trend · ${this.escape(outcome.label)}</p>
+      <p class="fce-inspector-lead">Primary single-catchment Theil–Sen trend · ${this.escape(outcome.label)}</p>
       <div class="fce-plain-result">${this.escape(this.interpretation(metric.slope, true))}</div>
       ${this.signal(metric, "Catchment change per decade")}
       <div class="fce-grid">
         ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
         ${this.fact("Catchment-family q", this.prob(metric.q))}
+        ${this.fact("Unadjusted p", this.prob(metric.p))}
         ${this.fact("Selected events", this.integer(metric.observations))}
         ${this.fact("Observed event years", this.integer(metric.years))}
         ${this.fact("Event-year range", `${metric.firstYear}–${metric.lastYear}`)}
         ${this.fact("Time span", `${metric.span} years`)}
         ${this.fact("Kendall tau", this.signed(metric.tau, 3))}
         ${this.fact("HydroBASINS L5", feature.hydrobasinId || "Unmatched")}
+        ${this.fact("Catchment area", feature.areaKm2 ? `${this.integer(feature.areaKm2)} km²` : "—")}
       </div>
-      <div class="fce-status ${metric.fdrSupported ? "pass" : "neutral"}">${metric.fdrSupported ? "Passes catchment-level 5% FDR" : "Does not pass catchment-level 5% FDR"}</div>
-      <p class="fce-note">Only catchments with at least 10 selected POT/Q95 events spanning at least 20 years are displayed. Single-catchment points give local context; the multi-catchment HydroBASINS layer is the primary spatial evidence.</p>`);
+      <div class="fce-status ${metric.strong ? "pass" : (metric.potential ? "candidate" : "neutral")}">${metric.strong ? "Strictly supported local shift" : (metric.potential ? "Robust local candidate · not FDR-supported" : "No stable network-wide local shift detected")}</div>
+      ${this.catchmentGates(metric)}
+      ${this.sensitivity(metric, outcome)}
+      <p class="fce-note">Displayed catchments have enough selected event years and time span for an annualized trend. The L5 area threshold never removes this single-catchment result.</p>`);
   }
 
   interpretation(slope, single = false) {
@@ -576,25 +676,36 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     return `<div class="fce-block"><div class="fce-subhead"><b>Rainfall-process decomposition</b><span>raw linear slope ÷ catchment-equal mean</span></div><div class="fce-drivers">${entries.map((item) => `<div><span>${this.escape(item.label)}</span><strong>${this.signed(item.slope, 1)}%</strong><small>95% CI ${this.signed(item.ci?.[0], 1)} to ${this.signed(item.ci?.[1], 1)}% / decade</small></div>`).join("")}</div></div>`;
   }
 
-  gates(metric) {
+  gates(metric, basin) {
     if (!metric) return "";
-    const gates = this.gateDefinitions(metric);
+    const gates = this.gateDefinitions(metric, basin);
     const passed = gates.filter((gate) => gate.pass).length;
     return `<div class="fce-block fce-evidence-block"><div class="fce-subhead"><b>Five evidence gates</b><span>${passed}/5 passed</span></div><div class="fce-gates">${gates.map((gate, index) => `<span class="${gate.pass ? "pass" : "fail"}" title="${this.escape(gate.detail)}"><i>${index + 1}</i>${gate.pass ? "✓" : "·"} ${this.escape(gate.name)}</span>`).join("")}</div></div>`;
   }
 
-  gateDefinitions(metric) {
+  gateDefinitions(metric, basin) {
     return [
-      { name: "Complete-family FDR", pass: !!metric.fdrSupported, detail: "Passes 5% Benjamini–Hochberg FDR across all 140 primary region–metric tests." },
-      { name: `≥${this.data.meta.minimumCatchments} catchments`, pass: metric.catchments >= this.data.meta.minimumCatchments, detail: "Meets the single prespecified regional sample threshold." },
+      { name: `Area support ≥${this.coverageThreshold}%`, pass: this.basinPassesCoverage(basin), detail: `Eligible catchment polygons cover ${this.num(basin?.coveragePct, 1)}% of this L5 unit.` },
+      { name: "Complete-family FDR", pass: !!metric.fdrSupported, detail: `Passes 5% Benjamini–Hochberg FDR across ${this.data.meta.primaryFamilyTests.toLocaleString()} primary L5 region–metric tests.` },
       { name: "Extreme-sample direction", pass: !!metric.sampleStable, detail: "Keeps its direction across all four large-flood event samples." },
       { name: "Window direction", pass: !!metric.windowStable, detail: "Rainfall concentration is not window-dependent; SSI agrees across all four antecedent windows." },
-      { name: "Leave-one-out stability", pass: !!metric.jackknifeStable, detail: "Keeps its direction when each contributing catchment is removed in turn." }
+      { name: "Leave-one-out stability", pass: !!metric.jackknifeStable, detail: metric.estimatorType === "single_catchment_proxy" ? "Keeps its direction when each observed event year is removed in turn." : "Keeps its direction when each contributing catchment is removed in turn." }
     ];
   }
 
-  gateCount(metric) {
-    return this.gateDefinitions(metric).filter((gate) => gate.pass).length;
+  gateCount(metric, basin) {
+    return this.gateDefinitions(metric, basin).filter((gate) => gate.pass).length;
+  }
+
+  catchmentGates(metric) {
+    const gates = [
+      ["Metric-wide FDR", !!metric.fdrSupported],
+      ["Q90 / Q97.5 direction", !!metric.thresholdStable],
+      ["10-day declustering", !!metric.declusterStable],
+      ["Annual-maximum direction", !!metric.annualMaximumStable],
+      ["Leave-one-year-out", !!metric.leaveOneYearStable]
+    ];
+    return `<div class="fce-block fce-evidence-block"><div class="fce-subhead"><b>Local evidence checks</b><span>${gates.filter((item) => item[1]).length}/5 passed</span></div><div class="fce-gates">${gates.map(([name, pass], index) => `<span class="${pass ? "pass" : "fail"}"><i>${index + 1}</i>${pass ? "✓" : "·"} ${this.escape(name)}</span>`).join("")}</div>${this.metric.startsWith("ssi_") ? `<p class="fce-note">SSI 1/3/7/30-day direction: <b>${metric.windowStable ? "consistent" : "mixed"}</b>.</p>` : ""}</div>`;
   }
 
   fact(label, value) {
@@ -605,7 +716,11 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.ensureModal();
     const meta = this.data.meta;
     const outcome = this.outcome();
-    const rankings = (meta.ranking || []).slice(0, 12);
+    const mapSummary = this.evidenceSummary();
+    const rankings = (meta.ranking || []).filter((item) => {
+      const basin = this.basins.find((candidate) => candidate.id === item.basinId);
+      return basin && this.basinPassesCoverage(basin);
+    }).slice(0, 12);
     const figures = [
       {
         id: "coverage",
@@ -618,62 +733,62 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       {
         id: "spatial-change",
         number: "02",
-        title: "Changes separate into opposing local directions",
+        title: "Single-catchment estimates come first",
         image: "reports/assets/figure_02_mechanism_change_maps.png",
-        alt: "HydroBASINS level-5 maps of rainfall organization and antecedent wetness trends",
-        text: `${meta.eligibleHydrobasins} eligible HydroBASINS L5 regions contain both positive and negative shifts. The primary result is this local spatial heterogeneity—not a single global mean direction.`
+        alt: "Single-catchment maps of rainfall organization and antecedent wetness trends",
+        text: `${meta.catchmentsWithTrend.toLocaleString()} catchments have enough selected event years for a direct trend estimate. Most do not pass a network-wide multiple-testing threshold; ${meta.catchmentPotentialSignals.toLocaleString()} remain directionally stable candidates.`
       },
       {
         id: "magnitude",
         number: "03",
-        title: "The strongest local shifts are large enough to interpret",
+        title: "Strict local evidence is sparse",
         image: "reports/assets/figure_03_strong_signal_rankings.png",
-        alt: "Ranked strong-evidence regional trends in rainfall concentration and antecedent wetness",
-        text: `${meta.strongByMetric?.intensity_fraction || 0} strong rainfall-concentration signals span −2.54 to +2.92 percentage points per decade. Strong SSI signals also occur in both wetter and drier directions across the 1–30 day windows.`
+        alt: "Evidence funnel and magnitude distribution for catchment-level trend candidates",
+        text: `Across ${meta.catchmentPrimaryTests.toLocaleString()} catchment–metric tests, ${meta.catchmentFdrSignals} pass metric-wide 5% FDR. Stable unadjusted candidates are retained as hypotheses, not promoted to confirmed local changes.`
       },
       {
         id: "trajectories",
         number: "04",
-        title: "Continuous trajectories show how conditions moved through time",
+        title: "Some local candidates align into larger L5 patterns",
         image: "reports/assets/figure_04_mechanism_trajectories.png",
-        alt: "Continuous-time trajectories for representative HydroBASINS regions",
-        text: "Annual adjusted means and fitted trends retain the full 1982–2019 record. They show sustained movement without inventing a calendar breakpoint or reducing the result to an early-versus-late contrast."
+        alt: "Area-supported HydroBASINS L5 regional trend maps",
+        text: `At the current ≥${this.coverageThreshold}% area-support setting, ${mapSummary.totalBasins} L5 regions are shown and ${mapSummary.strongBasins} satisfy the complete statistical evidence screen.`
       },
       {
         id: "decomposition",
         number: "05",
-        title: "Rainfall components give the ratio a physical reading",
+        title: "The area threshold is an interactive interpretation choice",
         image: "reports/assets/figure_05_physical_decomposition.png",
-        alt: "Physical decomposition of rainfall-concentration changes into maximum daily rain, event total, and duration",
-        text: "Changes in Pmax/Pvolume are read alongside maximum daily rainfall, event rainfall total, and duration. This distinguishes increasingly concentrated events from longer, volume-dominated events while avoiding a causal attribution claim."
+        alt: "Sensitivity of mapped L5 regions and represented catchments to area-coverage thresholds",
+        text: "Moving from 10% to 50% spatial support makes regional interpretation stricter. It never removes the underlying single-catchment trend layer."
       },
       {
         id: "robustness",
         number: "06",
-        title: "Strong signals survive alternative definitions of a large flood",
+        title: "Regional evidence must be visible inside its contributing catchments",
         image: "reports/assets/figure_06_robustness_matrix.png",
-        alt: "Sensitivity matrix across annual maxima, POT/Q90, declustered POT/Q95, and POT/Q97.5 samples",
-        text: "Annual maxima, POT/Q90, 10-day-declustered POT/Q95, and POT/Q97.5 provide independent stress tests. The reported strong signals retain their direction across all four alternatives."
+        alt: "Regional estimates shown with their contributing catchment trends",
+        text: "A pooled L5 signal is interpreted as a larger-scale pattern only when its estimate, alternative event samples, SSI windows, leave-one-catchment-out test, and selected spatial support all agree."
       }
     ];
     this.modal.querySelector(".fce-modal-body").innerHTML = `
       <section class="fce-hero fce-overview-section" id="overview-summary">
         <span class="fce-kicker">${meta.period} · rainfall-driven large floods</span>
-        <h2>Where did flood-generating conditions move—and how?</h2>
-        <p>This project asks how the conditions producing large rainfall-driven floods changed through time. It follows whether event rainfall became more concentrated or more prolonged, and whether the land before the event became wetter or drier. Opposing local changes are retained instead of being averaged into one global direction.</p>
+        <h2>Which catchments show persistent shifts in flood-generating conditions?</h2>
+        <p>The analysis starts with each catchment, tests whether rainfall organization or pre-event wetness moved consistently through time, and then asks whether nearby catchments form a coherent HydroBASINS L5 pattern. A regional polygon is a second-stage synthesis, never a replacement for its individual catchments.</p>
       </section>
       <div class="fce-kpis">
         ${this.kpi(meta.primaryEvents.toLocaleString(), "selected POT/Q95 events")}
-        ${this.kpi(meta.primaryCatchments.toLocaleString(), "eligible catchments")}
-        ${this.kpi(meta.eligibleHydrobasins, "mapped L5 regions")}
-        ${this.kpi(meta.strongEvidenceBasins, "regions with strong evidence")}
+        ${this.kpi(meta.catchmentsWithTrend.toLocaleString(), "catchments with direct trends")}
+        ${this.kpi(meta.catchmentPotentialSignals.toLocaleString(), "stable local candidates")}
+        ${this.kpi(mapSummary.strongBasins, `supported L5 patterns at ≥${this.coverageThreshold}%`)}
       </div>
-      <section class="fce-overview-section" id="research-question"><span class="fce-section-index">Research question</span><h3>The target is a process trajectory, not a flood-count trend</h3>
-        <p class="fce-section-lead"><b>Main answer.</b> The observed network does not support one uniform global direction. It supports reproducible, directionally opposed changes in the generating conditions of large floods within ${meta.strongEvidenceBasins} smaller hydrological regions.</p>
+      <section class="fce-overview-section" id="research-question"><span class="fce-section-index">Research question</span><h3>Most catchments do not show strict long-term evidence; a smaller set forms testable local and regional patterns</h3>
+        <p class="fce-section-lead"><b>Main answer.</b> None of the ${meta.catchmentPrimaryTests.toLocaleString()} direct catchment–metric tests passes metric-wide 5% FDR after annualizing selected events. ${meta.catchmentPotentialSignals.toLocaleString()} trends nevertheless retain their direction across the declared sensitivity checks and remain visible as candidates. Regional pooling identifies stronger L5 patterns where nearby catchments move coherently.</p>
         <div class="fce-reading">
         <div><b>Rainfall organization</b><span>Pmax/Pvolume measures how much of an event's rain fell in its wettest day. Positive change means more concentrated rainfall; negative change means more prolonged, volume-dominated rainfall.</span></div>
         <div><b>Antecedent wetness</b><span>SSI summarizes soil wetness before rainfall starts. The 1-, 3-, 7- and 30-day windows show whether a result depends on the chosen memory window.</span></div>
-        <div><b>Two spatial layers</b><span>Colored polygons pool neighboring catchments within HydroBASINS L5. Points retain eligible single-catchment trends for local inspection.</span></div>
+        <div><b>Two evidence scales</b><span>Catchment polygons are the primary observations. L5 polygons summarize a possible larger-scale pattern only when the selected area-support threshold is met.</span></div>
       </div></section>
       <section class="fce-overview-section" id="key-findings"><span class="fce-section-index">Evidence at a glance</span><h3>Strongest reproducible local signals</h3><p class="fce-section-note">Select a row to switch the mapped metric and open that HydroBASINS unit.</p>
         <div class="fce-ranking">${rankings.map((item) => {
@@ -686,23 +801,24 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-method-grid">
           <div><b>1 · Select large floods</b><span>The primary population is catchment-specific POT/Q95. Flood-peak magnitude selects events; it does not assign their generating condition.</span></div>
           <div><b>2 · Preserve continuous descriptors</b><span>Rainfall organization and four antecedent-wetness windows remain continuous before any summary or evidence grade is applied.</span></div>
-          <div><b>3 · Estimate continuous time trends</b><span>HydroBASINS L5 fixed-effect models compare within-catchment change over ${meta.period} while controlling stable differences among catchments.</span></div>
-          <div><b>4 · Stress-test the direction</b><span>Every region first clears the single ≥${meta.minimumCatchments}-catchment rule; strong evidence then combines complete-family FDR, four extreme-event populations, leave-one-catchment-out stability, and SSI-window agreement.</span></div>
+          <div><b>3 · Test every catchment first</b><span>Selected events are averaged within catchment-year, followed by Theil–Sen and Mann–Kendall trends over ${meta.period}. Null and non-FDR results remain on the map.</span></div>
+          <div><b>4 · Look for larger-scale alignment</b><span>L5 estimates pool within-catchment annual change. Complete-family FDR, four extreme-event populations, SSI-window agreement, leave-one-out stability, and the selected polygon-area support form the regional screen.</span></div>
         </div>
       </section>
-      <section class="fce-overview-section" id="statistics"><span class="fce-section-index">Statistical meaning</span><h3>One regional threshold and one declared multiple-testing family</h3>
+      <section class="fce-overview-section" id="statistics"><span class="fce-section-index">Statistical meaning</span><h3>Statistical evidence and spatial support answer different questions</h3>
         <div class="fce-method-grid">
-          <div><b>≥${meta.minimumCatchments} catchments</b><span>This is the only regional inclusion threshold. Smaller L5 units are not mapped. Twenty is a conservative lower design bound for conventional catchment-clustered inference, not a theorem of exact finite-sample validity.</span></div>
-          <div><b>${meta.primaryFamilyTests} primary tests</b><span>${meta.eligibleHydrobasins} L5 regions × five continuous metrics form one Benjamini–Hochberg family. ${meta.fdrSupportedSignals} pass 5% False Discovery Rate control; testing each at unadjusted p&lt;0.05 would yield about ${(meta.primaryFamilyTests * .05).toFixed(1)} chance positives if all nulls were true.</span></div>
-          <div><b>Within-catchment change</b><span>Fixed effects compare every catchment with its own long-run baseline. The year 2000 is only a centering constant and is not a breakpoint.</span></div>
+          <div><b>Catchment evidence</b><span>${meta.catchmentPrimaryTests.toLocaleString()} primary tests are corrected within physical metric. Stable p&lt;0.05 candidates are exploratory when FDR is not passed.</span></div>
+          <div><b>${meta.primaryFamilyTests.toLocaleString()} regional tests</b><span>All candidate L5 regions × five continuous metrics form one Benjamini–Hochberg family. ${meta.fdrSupportedSignals} pass 5% False Discovery Rate control before the dynamic area filter is applied.</span></div>
+          <div><b>Area support ≥${this.coverageThreshold}%</b><span>The catchment-polygon union covers at least this share of the L5 polygon. Changing it alters regional interpretation only; catchment trends remain available.</span></div>
+          <div><b>Within-catchment annual change</b><span>Every model compares catchment-year values with the same catchment's long-run level. The year 2000 is only a centering constant and is not a breakpoint.</span></div>
           <div><b>Absolute + relative scale</b><span>SSI remains in raw index units and also shows slope ÷ catchment-equal mean. Rainfall components use raw linear slopes converted to the same relative scale; no logarithmic model is used.</span></div>
         </div>
         <p class="fce-note">Adjusted annual trajectories mean: after placing all catchments on the same long-run mean, how far above or below their own normal level were that year's participating catchments on average?</p>
       </section>
       <section class="fce-overview-section" id="interpretation"><span class="fce-section-index">Inference boundary</span><h3>What the evidence can—and cannot—support</h3>
         <div class="fce-claims">
-          <div class="can"><b>Supported</b><ul><li>Generating conditions changed reproducibly in some smaller hydrological regions.</li><li>Local rainfall-organization changes reach several percentage points per decade.</li><li>Wetness shifts occur in both wetter and drier directions and persist across 1–30 day windows.</li></ul></div>
-          <div class="cannot"><b>Not supported</b><ul><li>A spatially uniform or area-weighted global land trend.</li><li>A claim about flood counts, peak flow, or flood volume themselves.</li><li>Direct attribution to climate change, land use, or engineering controls.</li></ul></div>
+          <div class="can"><b>Supported</b><ul><li>Most direct catchment trends do not survive network-wide multiplicity correction.</li><li>A smaller set of stable candidates identifies where follow-up evidence is concentrated.</li><li>Some area-supported L5 units show a reproducible shared direction across catchments.</li></ul></div>
+          <div class="cannot"><b>Not supported</b><ul><li>Every colored catchment has a confirmed long-term change.</li><li>A spatially uniform or area-weighted global land trend.</li><li>A claim about flood counts, peak flow, flood volume, or causal attribution.</li></ul></div>
         </div>
         <p class="fce-note">Current map metric: <b>${this.escape(outcome.label)}</b> — ${this.escape(outcome.definition)} Primary sample: ${this.escape(meta.primarySample)}.</p>
       </section>
@@ -744,7 +860,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       return `Wettest-day share of event rainfall ${direction} by <b>${value.toFixed(2)} percentage points over 10 years</b>.`;
     }
     const relative = Math.abs(Number(metric?.relativeSlope));
-    const relativeText = Number.isFinite(relative) ? `, equal to <b>${relative.toFixed(2)}% of this region's catchment-equal mean</b>` : "";
+    const relativeText = Number.isFinite(relative) ? `, equal to <b>${relative.toFixed(2)}% of the relevant long-term mean</b>` : "";
     return `Mean pre-event soil wetness ${direction} by <b>${value.toFixed(3)} SSI units over 10 years</b>${relativeText}.`;
   }
 
@@ -906,14 +1022,14 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     style.textContent = `
       .panel-section-header{font-size:13px}.module-item,.layer-item,.layer-expandable,.layer-sublayer,.map-display-option{font-size:13px}.legend-card{font-size:12px;padding:13px 14px}.legend-title{font-size:14px}.inspector-title{font-size:16px}.inspector-body{font-size:13px;line-height:1.55}
       .fce-hover-tooltip{position:fixed;z-index:1250;display:none;min-width:245px;max-width:min(390px,calc(100vw - 20px));padding:11px 13px;border:1px solid #334155;border-radius:11px;background:#172235;color:#f8fafc;box-shadow:0 13px 34px rgba(15,23,42,.32);opacity:1;pointer-events:none;font:13px/1.35 Inter,system-ui,sans-serif}.fce-hover-tooltip.visible{display:block}.fce-hover-tooltip strong,.fce-hover-tooltip span,.fce-hover-tooltip b{display:block}.fce-hover-tooltip strong{font-size:13px;color:#fff}.fce-hover-tooltip span{margin-top:3px;color:#d7e1e8;font-size:12px}.fce-hover-tooltip b{margin-top:6px;color:#67e8f9;font-size:14px}.fce-hover-tooltip small{color:#d7e1e8;font-size:11px;font-weight:600}
-      .fce-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:850;display:flex;flex-direction:column;gap:7px;max-width:calc(100vw - 32px);padding:8px;border:1px solid rgba(148,163,184,.35);border-radius:16px;background:rgba(255,255,255,.97);box-shadow:0 12px 34px rgba(15,23,42,.13);backdrop-filter:blur(16px);font:13px/1.25 Inter,system-ui,sans-serif;color:#334155}.fce-toolbar-main{display:flex;align-items:center;gap:10px;padding-left:6px}.fce-toolbar-label{font-weight:750;white-space:nowrap}.fce-segmented{display:flex;padding:3px;border-radius:10px;background:#edf1f4}.fce-segmented button,.fce-overview-button,.fce-evidence-toggle button{border:0;border-radius:8px;padding:8px 10px;background:transparent;color:#526171;font:650 12px Inter,system-ui;white-space:nowrap;cursor:pointer}.fce-segmented button.active{background:#fff;color:#173d55;box-shadow:0 2px 8px rgba(15,23,42,.1)}.fce-overview-button{background:#173d55;color:#fff}.fce-evidence-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:7px 7px 7px 10px;border-radius:11px;background:#edf6f7}.fce-evidence-summary{display:flex;align-items:baseline;gap:7px;white-space:nowrap}.fce-evidence-summary strong{color:#0f6070;font-size:15px}.fce-evidence-summary span{font-size:12px;font-weight:700;color:#315463}.fce-evidence-summary small{padding-left:8px;border-left:1px solid #c8dde1;color:#6b7f88;font-size:11px}.fce-evidence-toggle{display:flex;padding:2px;border-radius:9px;background:#dcebed}.fce-evidence-toggle button{padding:6px 9px;font-size:11px}.fce-evidence-toggle button.active{background:#123e55;color:#fff;box-shadow:0 2px 7px rgba(15,23,42,.14)}
+      .fce-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:850;display:flex;flex-direction:column;gap:7px;max-width:calc(100vw - 32px);padding:8px;border:1px solid rgba(148,163,184,.35);border-radius:16px;background:rgba(255,255,255,.98);box-shadow:0 12px 34px rgba(15,23,42,.13);backdrop-filter:blur(16px);font:13px/1.25 Inter,system-ui,sans-serif;color:#334155}.fce-toolbar-main{display:flex;align-items:center;gap:10px;padding-left:6px}.fce-toolbar-label{font-weight:750;white-space:nowrap}.fce-segmented{display:flex;padding:3px;border-radius:10px;background:#edf1f4}.fce-segmented button,.fce-overview-button,.fce-evidence-toggle button,.fce-threshold-control button{border:0;border-radius:8px;padding:8px 10px;background:transparent;color:#526171;font:650 12px Inter,system-ui;white-space:nowrap;cursor:pointer}.fce-segmented button.active{background:#fff;color:#173d55;box-shadow:0 2px 8px rgba(15,23,42,.1)}.fce-overview-button{background:#173d55;color:#fff}.fce-evidence-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 7px 7px 10px;border-radius:11px;background:#edf6f7}.fce-evidence-summary{display:flex;align-items:baseline;gap:7px;white-space:nowrap}.fce-evidence-summary strong{color:#0f6070;font-size:15px}.fce-evidence-summary span{font-size:12px;font-weight:700;color:#315463}.fce-evidence-summary small{padding-left:8px;border-left:1px solid #c8dde1;color:#6b7f88;font-size:11px}.fce-threshold-control{display:flex;align-items:center;gap:7px;white-space:nowrap}.fce-threshold-control>span{font-size:11px;font-weight:750;color:#476673}.fce-threshold-control>div{display:flex;padding:2px;border-radius:9px;background:#dcebed}.fce-threshold-control button{padding:6px 8px;font-size:11px}.fce-threshold-control button.active{background:#fff;color:#0c6172;box-shadow:0 2px 7px rgba(15,23,42,.13)}.fce-evidence-toggle{display:flex;padding:2px;border-radius:9px;background:#dcebed}.fce-evidence-toggle button{padding:6px 9px;font-size:11px}.fce-evidence-toggle button.active{background:#123e55;color:#fff;box-shadow:0 2px 7px rgba(15,23,42,.14)}
       .fce-legend-scale-title{margin:6px 0 5px;font-size:12px;font-weight:750;color:#475569}.fce-legend-bar{height:11px;border-radius:99px;background:linear-gradient(90deg,#2b6487,#ebe8de 50%,#cf673f)}.fce-legend-axis{display:flex;justify-content:space-between;margin-top:4px;font:12px/1.25 ui-monospace,monospace;color:#64748b}.fce-legend-directions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:12px;line-height:1.35;color:#526171}.fce-legend-directions span:last-child{text-align:right}.fce-legend-unit,.fce-legend-note{margin:9px 0;font-size:12px;line-height:1.5;color:#64748b}.fce-legend-evidence{margin:11px 0 10px;padding:10px 11px;border-radius:10px;background:#edf6f7}.fce-legend-evidence strong,.fce-legend-evidence span,.fce-legend-evidence small{display:block}.fce-legend-evidence strong{font-size:19px;color:#0f6070}.fce-legend-evidence span{margin-top:2px;font-size:12px;font-weight:700;color:#315463}.fce-legend-evidence small{margin-top:4px;font-size:11px;color:#6b7f88}.fce-legend-key{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;line-height:1.35;color:#475569}.fce-legend-key i{display:inline-block;flex:0 0 auto;width:19px;height:10px}.fce-legend-key .strong-boundary{border:2px solid #143143;background:linear-gradient(90deg,#5c89a1,#d77b58)}.fce-legend-key .boundary{border:1px solid #64748b;background:#e8edf0}.fce-legend-key .glow{height:5px;border:1px solid #67e8f9;box-shadow:0 0 8px 4px rgba(34,211,238,.7)}.fce-legend-key .dot{width:9px;height:9px;border-radius:50%;background:#527b95;border:1px solid #334155}
-      .fce-inspector-lead,.fce-note{font-size:12px;line-height:1.65;color:#64748b}.fce-plain-result{margin:12px 0 0;padding:11px 12px;border-left:3px solid #22d3ee;border-radius:0 9px 9px 0;background:#eefbfc;font-size:13px;font-weight:650;line-height:1.5;color:#214558}.fce-signal{margin:12px 0;padding:15px;border-radius:12px;background:#f3f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:12px}.fce-signal strong{display:block;margin:5px 0 3px;font-size:30px;letter-spacing:-.04em}.fce-signal p{margin:10px 0 0;padding-top:9px;border-top:1px solid #dce5e9;color:#526b7b;font-size:12px;line-height:1.5}.fce-signal p b{color:#24465a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fce-fact{padding:11px;border:1px solid #dfe6eb;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.025em;color:#6f7f8e}.fce-fact strong{margin-top:5px;font-size:13px;color:#263646}.fce-status{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-status.pass{background:#e3efe7;color:#315e45}.fce-status.neutral{background:#eef1f3;color:#667482}
+      .fce-inspector-lead,.fce-note{font-size:12px;line-height:1.65;color:#64748b}.fce-plain-result{margin:12px 0 0;padding:11px 12px;border-left:3px solid #22d3ee;border-radius:0 9px 9px 0;background:#eefbfc;font-size:13px;font-weight:650;line-height:1.5;color:#214558}.fce-signal{margin:12px 0;padding:15px;border-radius:12px;background:#f3f6f7}.fce-signal span,.fce-signal small{display:block;color:#64748b;font-size:12px}.fce-signal strong{display:block;margin:5px 0 3px;font-size:30px;letter-spacing:-.04em}.fce-signal p{margin:10px 0 0;padding-top:9px;border-top:1px solid #dce5e9;color:#526b7b;font-size:12px;line-height:1.5}.fce-signal p b{color:#24465a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fce-fact{padding:11px;border:1px solid #dfe6eb;border-radius:10px}.fce-fact span,.fce-fact strong{display:block}.fce-fact span{font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.025em;color:#6f7f8e}.fce-fact strong{margin-top:5px;font-size:13px;color:#263646}.fce-status{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-status.pass{background:#e3efe7;color:#315e45}.fce-status.candidate{background:#fff2d8;color:#7c5720}.fce-status.neutral{background:#eef1f3;color:#667482}
       .fce-block,.fce-chart{margin-top:15px;padding-top:13px;border-top:1px solid #e2e8ec}.fce-subhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:9px}.fce-subhead b{font-size:13px;color:#314455}.fce-subhead span{font-size:12px;color:#7a8793}.fce-chart svg{display:block;width:100%;height:auto;overflow:visible}.fce-chart svg text{font:11px Inter,system-ui;fill:#758290}.fce-chart .grid{stroke:#dce4e8;stroke-width:1}.fce-chart .observed circle{fill:#7698aa;opacity:.68}.fce-chart .fit{fill:none;stroke:#173d55;stroke-width:2.2;stroke-linecap:round}.fce-sensitivity{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-sensitivity div{padding:9px;border-radius:9px;background:#f1f4f5;border-left:3px solid #aab4bc}.fce-sensitivity div.same{border-left-color:#5c9270}.fce-sensitivity div.different{border-left-color:#d27a55}.fce-sensitivity span,.fce-sensitivity strong{display:block;font-size:12px}.fce-sensitivity span{color:#687784}.fce-sensitivity strong{margin-top:3px;color:#263646}.fce-drivers{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.fce-drivers div{padding:10px;border-radius:9px;background:#f1f4f5}.fce-drivers span,.fce-drivers strong,.fce-drivers small{display:block}.fce-drivers span,.fce-drivers small{font-size:11px;line-height:1.4;color:#687784}.fce-drivers strong{margin:4px 0;font-size:16px;color:#263646}.fce-evidence-block{padding:13px;border:1px solid #d5e4e8;border-radius:12px;background:#f8fbfc}.fce-gates{display:flex;flex-wrap:wrap;gap:7px;margin:0}.fce-gates span{display:flex;align-items:center;gap:5px;padding:6px 9px;border-radius:99px;font:650 12px/1.25 Inter,system-ui}.fce-gates span i{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:rgba(255,255,255,.68);font:700 10px ui-monospace,monospace}.fce-gates .pass{background:#e4eee7;color:#315e45}.fce-gates .fail{background:#eef1f3;color:#788592}
       .fce-modal{position:fixed;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(15,23,42,.48);backdrop-filter:blur(9px)}.fce-modal.visible{display:flex}.fce-modal-card{position:relative;display:grid;grid-template-columns:228px minmax(0,1fr);width:min(1260px,96vw);height:min(920px,92vh);overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:22px;background:#f8fafb;box-shadow:0 32px 90px rgba(15,23,42,.28);color:#223143;font:14px/1.65 Inter,system-ui,sans-serif}.fce-overview-nav{display:flex;flex-direction:column;min-width:0;padding:25px 17px 18px;border-right:1px solid #dce3e8;background:#f1f5f7}.fce-nav-brand{padding:0 8px 18px;margin-bottom:11px;border-bottom:1px solid #d9e1e6}.fce-nav-brand strong,.fce-nav-brand span{display:block}.fce-nav-brand strong{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#173d55}.fce-nav-brand span{margin-top:4px;font-size:12px;line-height:1.4;color:#778795}.fce-overview-nav nav{display:flex;flex-direction:column;gap:2px;overflow:auto}.fce-overview-nav nav button{display:grid;grid-template-columns:25px minmax(0,1fr);gap:7px;align-items:center;width:100%;padding:7px 8px;border:0;border-radius:8px;background:transparent;color:#647487;text-align:left;font:600 12px/1.3 Inter,system-ui;cursor:pointer}.fce-overview-nav nav button i{font:10px/1.2 ui-monospace,monospace;color:#9aa7b2}.fce-overview-nav nav button:hover{background:#e6edf1;color:#2c4d61}.fce-overview-nav nav button.active{background:#dcecef;color:#126276}.fce-overview-nav nav button.active i{color:#13a9c0}.fce-nav-foot{margin-top:auto;padding:16px 8px 0;border-top:1px solid #d9e1e6;font-size:11px;color:#8996a1}.fce-modal-scroll{position:relative;min-width:0;overflow:auto;scroll-behavior:smooth}.fce-close{position:sticky;float:right;top:16px;margin:16px 16px -54px 0;z-index:5;width:40px;height:40px;border:0;border-radius:50%;background:#e7ecef;color:#415161;font-size:23px;cursor:pointer}.fce-close:hover{background:#dce5e9;color:#173d55}.fce-modal-body{max-width:1000px;margin:0 auto;padding:46px 52px 76px}.fce-overview-section{scroll-margin-top:25px}.fce-hero{padding:4px 58px 28px 0;border-bottom:1px solid #dce3e8}.fce-kicker,.fce-section-index{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9b6a26}.fce-hero h2{max-width:760px;margin:9px 0 12px;font-size:39px;line-height:1.08;letter-spacing:-.04em;color:#172638}.fce-hero p{max-width:800px;margin:0;color:#5f6f7e;font-size:15px;line-height:1.75}.fce-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 48px}.fce-kpis div{padding:16px;border:1px solid #dce3e8;border-radius:13px;background:#fff}.fce-kpis strong,.fce-kpis span{display:block}.fce-kpis strong{font-size:24px;color:#173d55}.fce-kpis span{margin-top:4px;font-size:12px;color:#73818f}.fce-modal section{margin-top:54px;padding-top:5px}.fce-modal section h3{max-width:760px;margin:8px 0 12px;font-size:24px;line-height:1.3;letter-spacing:-.02em;color:#243648}.fce-section-lead{max-width:820px;margin:0 0 18px;color:#5f6f7e;font-size:14px;line-height:1.75}.fce-reading{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fce-reading div{padding:16px;border-radius:13px;background:#edf2f4}.fce-reading b,.fce-reading span{display:block}.fce-reading b{color:#243648}.fce-reading span{margin-top:5px;font-size:12px;color:#667684}.fce-section-note{margin-top:-4px;color:#788795;font-size:12px}.fce-ranking{display:grid;grid-template-columns:1fr 1fr;gap:7px}.fce-ranking button{position:relative;overflow:hidden;display:flex;justify-content:space-between;gap:10px;padding:12px 13px;border:1px solid #dce3e8;border-radius:10px;background:#fff;color:#3e4e5d;text-align:left;cursor:pointer}.fce-ranking button span,.fce-ranking button strong{position:relative;z-index:1;font-size:12px}.fce-ranking button i{position:absolute;bottom:0;left:0;height:3px}.fce-ranking button:hover{border-color:#8fa7b5;transform:translateY(-1px)}
       .fce-evidence-section{padding-top:30px;border-top:1px solid #dce3e8}.fce-report-figure{position:relative;display:block;width:100%;margin-top:21px;padding:0;overflow:hidden;border:1px solid #dce3e8;border-radius:15px;background:#fff;box-shadow:0 13px 34px rgba(36,49,66,.08);cursor:zoom-in}.fce-report-figure img{display:block;width:100%;height:auto}.fce-report-figure>span{position:absolute;right:12px;bottom:12px;padding:7px 10px;border-radius:99px;background:rgba(23,61,85,.88);color:#fff;font:650 11px/1.2 Inter,system-ui;opacity:0;transform:translateY(3px);transition:.18s}.fce-report-figure:hover{border-color:#86a7b5;box-shadow:0 18px 42px rgba(36,49,66,.13)}.fce-report-figure:hover>span,.fce-report-figure:focus-visible>span{opacity:1;transform:none}.fce-report-figure:focus-visible{outline:3px solid rgba(34,211,238,.45);outline-offset:3px}.fce-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fce-method-grid div{padding:16px;border:1px solid #dce3e8;border-radius:12px;background:#fff}.fce-method-grid b,.fce-method-grid span{display:block}.fce-method-grid b{color:#274254}.fce-method-grid span{margin-top:6px;font-size:12px;line-height:1.6;color:#677785}.fce-claims{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fce-claims>div{padding:18px;border-radius:13px}.fce-claims .can{background:#eaf3ee}.fce-claims .cannot{background:#f3efea}.fce-claims b{color:#29485a}.fce-claims ul{margin:8px 0 0;padding-left:18px}.fce-claims li{margin:7px 0;color:#586b78;font-size:12px;line-height:1.55}.fce-resource-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fce-resource-grid a{position:relative;min-height:130px;padding:17px 18px 35px;border:1px solid #dce3e8;border-radius:12px;background:#fff;color:#334b5c;text-decoration:none}.fce-resource-grid a:hover{border-color:#83a5b4;transform:translateY(-1px)}.fce-resource-grid b,.fce-resource-grid span{display:block}.fce-resource-grid span{margin-top:6px;font-size:12px;line-height:1.55;color:#6a7a87}.fce-resource-grid i{position:absolute;left:18px;bottom:13px;font:650 11px/1.2 Inter,system-ui;color:#1689a0}.fce-figure-viewer{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:28px;background:rgba(12,21,31,.92);backdrop-filter:blur(9px)}.fce-figure-viewer.open{display:flex}.fce-figure-viewer figure{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:97vw;max-height:95vh;margin:0}.fce-figure-viewer img{max-width:97vw;max-height:calc(95vh - 45px);object-fit:contain;border-radius:10px;background:#fff;box-shadow:0 26px 80px rgba(0,0,0,.42)}.fce-figure-viewer figcaption{color:#e9f1f5;font-size:12px}.fce-figure-close{position:fixed;top:18px;right:20px;width:43px;height:43px;border:1px solid rgba(255,255,255,.34);border-radius:50%;background:rgba(16,28,40,.75);color:#fff;font-size:25px;cursor:pointer}
-      @media(max-width:1100px){.fce-toolbar-label,.fce-evidence-summary small{display:none}.fce-segmented button{padding:8px 7px}.fce-drivers{grid-template-columns:1fr}.fce-modal-card{grid-template-columns:205px minmax(0,1fr)}.fce-modal-body{padding-inline:35px}.fce-hero h2{font-size:34px}}
-      @media(max-width:780px){.fce-toolbar{top:auto;bottom:12px;width:calc(100vw - 24px);max-width:none}.fce-toolbar-main{width:100%;padding-left:0;overflow-x:auto}.fce-segmented{max-width:100%;overflow:auto}.fce-overview-button{margin-left:auto}.fce-evidence-row{width:auto;gap:8px}.fce-evidence-summary span{font-size:11px}.fce-modal{padding:0}.fce-modal-card{display:flex;flex-direction:column;width:100%;height:100%;max-height:100%;border-radius:0}.fce-overview-nav{display:block;flex:0 0 auto;padding:10px 52px 9px 10px;border-right:0;border-bottom:1px solid #dce3e8}.fce-nav-brand,.fce-nav-foot{display:none}.fce-overview-nav nav{display:flex;flex-direction:row;gap:3px;overflow-x:auto}.fce-overview-nav nav button{display:block;width:auto;min-width:max-content;padding:7px 10px}.fce-overview-nav nav button i{display:none}.fce-modal-scroll{flex:1}.fce-close{position:fixed;top:8px;right:8px;margin:0;width:36px;height:36px}.fce-modal-body{padding:30px 19px 65px}.fce-hero{padding-right:25px}.fce-hero h2{font-size:29px}.fce-hero p{font-size:14px}.fce-kpis{grid-template-columns:1fr 1fr;margin-bottom:35px}.fce-modal section{margin-top:42px}.fce-modal section h3{font-size:21px}.fce-reading,.fce-ranking,.fce-method-grid,.fce-claims,.fce-resource-grid{grid-template-columns:1fr}.fce-report-figure>span{opacity:1;transform:none}.fce-figure-viewer{padding:12px}.fce-figure-close{top:10px;right:10px}}
+      @media(max-width:1100px){.fce-toolbar-label,.fce-evidence-summary small,.fce-threshold-control>span{display:none}.fce-segmented button{padding:8px 7px}.fce-drivers{grid-template-columns:1fr}.fce-modal-card{grid-template-columns:205px minmax(0,1fr)}.fce-modal-body{padding-inline:35px}.fce-hero h2{font-size:34px}}
+      @media(max-width:780px){.fce-toolbar{top:auto;bottom:12px;width:calc(100vw - 24px);max-width:none}.fce-toolbar-main{width:100%;padding-left:0;overflow-x:auto}.fce-segmented{max-width:100%;overflow:auto}.fce-overview-button{margin-left:auto}.fce-evidence-row{width:auto;gap:7px;overflow-x:auto}.fce-evidence-summary span{display:none}.fce-threshold-control>div{flex:0 0 auto}.fce-evidence-toggle{flex:0 0 auto}.fce-modal{padding:0}.fce-modal-card{display:flex;flex-direction:column;width:100%;height:100%;max-height:100%;border-radius:0}.fce-overview-nav{display:block;flex:0 0 auto;padding:10px 52px 9px 10px;border-right:0;border-bottom:1px solid #dce3e8}.fce-nav-brand,.fce-nav-foot{display:none}.fce-overview-nav nav{display:flex;flex-direction:row;gap:3px;overflow-x:auto}.fce-overview-nav nav button{display:block;width:auto;min-width:max-content;padding:7px 10px}.fce-overview-nav nav button i{display:none}.fce-modal-scroll{flex:1}.fce-close{position:fixed;top:8px;right:8px;margin:0;width:36px;height:36px}.fce-modal-body{padding:30px 19px 65px}.fce-hero{padding-right:25px}.fce-hero h2{font-size:29px}.fce-hero p{font-size:14px}.fce-kpis{grid-template-columns:1fr 1fr;margin-bottom:35px}.fce-modal section{margin-top:42px}.fce-modal section h3{font-size:21px}.fce-reading,.fce-ranking,.fce-method-grid,.fce-claims,.fce-resource-grid{grid-template-columns:1fr}.fce-report-figure>span{opacity:1;transform:none}.fce-figure-viewer{padding:12px}.fce-figure-close{top:10px;right:10px}}
     `;
     document.head.appendChild(style);
   }

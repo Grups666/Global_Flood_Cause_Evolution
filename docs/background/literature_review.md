@@ -19,7 +19,7 @@ Source: [Tarasova et al. (2019), WIREs Water](https://doi.org/10.1002/wat2.1353)
 
 ### Dimensionless descriptors improve transferability
 
-Tarasova et al. (2020) used dimensionless rainfall descriptors, including maximum-intensity-to-volume ratios and temporal variability, in a process-based typology. The current analysis adopts the continuous daily `Pmax/Pvolume` ratio as a transparent rainfall-organization axis. The auxiliary `>0.50` label is not presented as the complete Tarasova classification.
+Tarasova et al. (2020) used dimensionless rainfall descriptors, including maximum-intensity-to-volume ratios and temporal variability, in a process-based typology. The current analysis adopts the continuous daily `Pmax/Pvolume` ratio as a transparent rainfall-organization axis and does not create a binary event type.
 
 Source: [Tarasova et al. (2020), Water Resources Research](https://doi.org/10.1029/2019WR026951).
 
@@ -65,6 +65,6 @@ Source: [Zhang et al. (2025), Earth System Science Data](https://doi.org/10.5194
 
 ## Position of this study
 
-The study is an observational, event-based extension of process-change research to a global long-record gauge sample. It contributes a joint continuous analysis of rainfall organization and multiple antecedent-wetness windows, explicit POT threshold and declustering sensitivity, multi-catchment hydrological-region inference, complete-family multiple-testing control, and an interactive catchment layer.
+The study is an observational, event-based extension of process-change research to a global long-record gauge sample. It contributes catchment-first continuous trend estimates, joint rainfall-organization and antecedent-wetness analysis, explicit POT and declustering sensitivity, area-supported regional pooling, complete-family multiple-testing control, and interactive traceability from L5 patterns back to individual catchments.
 
 The results support statements about temporal association and changing composition of generating conditions in the available gauge sample. They do not establish attribution to anthropogenic forcing or represent an area-weighted global land trend.

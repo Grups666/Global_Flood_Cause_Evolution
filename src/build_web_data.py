@@ -4,13 +4,17 @@ import json
 from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely import make_valid, union_all
 
+from floodcause.config import load_config
 from floodcause.local_analysis import load_hydrobasins
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONFIG = load_config(PROJECT_ROOT / "config" / "analysis.yaml")
 TABLES = PROJECT_ROOT / "outputs" / "tables"
 HYDROBASINS = PROJECT_ROOT / "data" / "reference" / "hydrobasins"
 DESTINATION = (
@@ -20,6 +24,9 @@ DESTINATION = (
     / "flood-cause-evolution"
     / "data"
     / "flood-cause-explorer.json"
+)
+CATCHMENT_BOUNDARIES = (
+    CONFIG["paths"]["source_global_data"] / "Gauged_Catchments_Boundaries.gpkg"
 )
 
 
@@ -111,6 +118,20 @@ def _coordinates(value: Any) -> Any:
     return value
 
 
+def _polygonal_geometry(geometry: Any) -> Any:
+    if geometry is None or geometry.is_empty:
+        return geometry
+    repaired = make_valid(geometry) if not geometry.is_valid else geometry
+    if repaired.geom_type in {"Polygon", "MultiPolygon"}:
+        return repaired
+    polygons = [
+        part
+        for part in getattr(repaired, "geoms", [])
+        if part.geom_type in {"Polygon", "MultiPolygon"}
+    ]
+    return union_all(polygons) if polygons else None
+
+
 def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
     metric = str(row.metric)
     digits = int(OUTCOMES[metric]["digits"])
@@ -131,6 +152,8 @@ def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
         "unit": row.slope_unit,
         "catchments": int(row.catchments),
         "observations": int(row.observations),
+        "modeledObservations": int(row.modeled_observations),
+        "estimatorType": str(row.estimator_type),
         "grade": str(row.evidence_grade),
         "strong": bool(row.strong_evidence),
         "sampleStable": bool(row.sample_direction_stable),
@@ -168,6 +191,8 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
             _native(row.display_ci_high_per_decade, digits + 1),
         ],
         "q": _native(row.mk_q, 6),
+        "familyQ": _native(row.primary_family_q, 6),
+        "p": _native(row.mk_p, 6),
         "tau": _native(row.mk_tau, 4),
         "mean": _native(row.mean_level * mean_scale, digits + 1),
         "relativeSlope": _native(row.relative_slope_percent_per_decade, 2),
@@ -178,6 +203,28 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
         "lastYear": int(row.last_year),
         "span": int(row.year_span),
         "fdrSupported": bool(row.fdr_significant),
+        "potential": bool(row.potential_local_shift),
+        "strong": bool(row.strong_local_evidence),
+        "grade": str(row.evidence_grade),
+        "gateCount": int(row.five_gate_count),
+        "thresholdStable": bool(row.threshold_direction_stable),
+        "declusterStable": bool(row.decluster_direction_stable),
+        "annualMaximumStable": bool(row.annual_max_direction_stable),
+        "sampleStable": bool(row.sample_direction_stable),
+        "windowStable": bool(row.wetness_window_stable),
+        "leaveOneYearStable": bool(row.leave_one_year_out_stable),
+        "sensitivities": {
+            "Annual maximum": _native(
+                getattr(row, "annual_maximum_slope", None), digits + 1
+            ),
+            "POT/Q90": _native(getattr(row, "pot_q90_slope", None), digits + 1),
+            "POT/Q95 · 10-day gap": _native(
+                getattr(row, "pot_q95_gap10_slope", None), digits + 1
+            ),
+            "POT/Q97.5": _native(
+                getattr(row, "pot_q975_slope", None), digits + 1
+            ),
+        },
     }
 
 
@@ -188,6 +235,14 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
     summaries = pd.read_csv(TABLES / "hydrobasin_mechanism_summary.csv").set_index("HYBAS_ID")
     catchment_trends = pd.read_csv(TABLES / "catchment_mechanism_trends.csv")
     membership = pd.read_csv(TABLES / "hydrobasin_catchment_membership.csv")
+    spatial_support = pd.read_csv(
+        TABLES / "spatial_support" / "l5_spatial_support_audit.csv"
+    ).set_index("hybas_id_l5")
+    threshold_sensitivity = pd.read_csv(
+        TABLES
+        / "spatial_support"
+        / "l5_spatial_support_threshold_sensitivity.csv"
+    )
     diagnostics = pd.read_csv(TABLES / "extreme_sample_diagnostics.csv")
     primary_diag = diagnostics[diagnostics["sample"].eq("pot_q95")].iloc[0]
 
@@ -203,6 +258,7 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
         if basin_id not in geometry.index:
             continue
         row = rows.iloc[0]
+        support = spatial_support.loc[basin_id] if basin_id in spatial_support.index else None
         timeline = trajectories[trajectories["HYBAS_ID"].eq(basin_id)]
         metrics = {}
         for metric, metric_rows in rows[rows["metric"].isin(OUTCOMES)].groupby("metric"):
@@ -231,6 +287,18 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
                 "countries": str(row.dominant_countries),
                 "center": [round(float(row.centroid_longitude), 4), round(float(row.centroid_latitude), 4)],
                 "subAreaKm2": _native(geometry.loc[basin_id].SUB_AREA, 0),
+                "coveragePct": _native(support.coverage_pct, 2) if support is not None else None,
+                "observedAreaKm2": _native(support.observed_union_inside_km2, 0) if support is not None else None,
+                "largestCatchmentCoveragePct": _native(
+                    support.largest_catchment_coverage_pct, 2
+                ) if support is not None else None,
+                "largestCatchmentId": (
+                    str(int(float(support.largest_catchment_gcin)))
+                    if support is not None
+                    and pd.notna(support.largest_catchment_gcin)
+                    else None
+                ),
+                "assignedCatchments": int(support.catchments) if support is not None else int(row.assigned_catchments),
                 "geometry": {"type": geom.geom_type, "coordinates": _coordinates(geom.__geo_interface__["coordinates"])},
                 "mechanism": {
                     "rainfall": str(summary.rainfall_direction) if summary is not None else "unavailable",
@@ -243,6 +311,31 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             }
         )
 
+    catchment_ids = set(
+        catchment_trends.loc[
+            catchment_trends["variable"].isin(OUTCOMES), "GCIN"
+        ].astype(int).astype(str)
+    )
+    boundaries = gpd.read_file(
+        CATCHMENT_BOUNDARIES, columns=["GCIN", "geometry"]
+    )
+    boundaries["GCIN"] = (
+        boundaries["GCIN"].astype(str).str.replace(r"\.0$", "", regex=True)
+    )
+    boundaries = boundaries[boundaries["GCIN"].isin(catchment_ids)].copy()
+    boundaries["geometry"] = boundaries.geometry.map(_polygonal_geometry)
+    boundaries = boundaries[
+        boundaries.geometry.notna() & ~boundaries.geometry.is_empty
+    ].copy()
+    equal_area = boundaries.to_crs("EPSG:6933")
+    boundaries["area_km2"] = equal_area.geometry.area.to_numpy() / 1e6
+    boundaries = boundaries.to_crs("EPSG:4326")
+    boundaries["geometry"] = boundaries.geometry.simplify(
+        0.01, preserve_topology=True
+    )
+    boundary_lookup = boundaries.set_index("GCIN")
+
+    membership["GCIN"] = membership["GCIN"].astype(int)
     membership = membership.set_index("GCIN")
     catchments = []
     for gcin, rows in catchment_trends[
@@ -250,12 +343,20 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
     ].groupby("GCIN"):
         first = rows.iloc[0]
         member = membership.loc[gcin] if gcin in membership.index else None
+        boundary_key = str(int(gcin))
+        boundary = (
+            boundary_lookup.loc[boundary_key]
+            if boundary_key in boundary_lookup.index
+            else None
+        )
         metrics = {
             str(row.variable): _catchment_metric(row)
             for row in rows.itertuples(index=False)
         }
         if not metrics:
             continue
+        catchment_geometry = boundary.geometry if boundary is not None else None
+        bounds = list(catchment_geometry.bounds) if catchment_geometry is not None else None
         catchments.append(
             {
                 "id": str(int(gcin)),
@@ -265,12 +366,27 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
                 "lat": round(float(first.latitude), 4),
                 "hydrobasinId": str(int(member.hybas_id_l5)) if member is not None and pd.notna(member.hybas_id_l5) else None,
                 "subAreaKm2": _native(member.sub_area_km2_l5, 0) if member is not None else None,
+                "areaKm2": _native(boundary.area_km2, 1) if boundary is not None else None,
+                "bounds": [_native(value, 4) for value in bounds] if bounds else None,
+                "geometry": {
+                    "type": catchment_geometry.geom_type,
+                    "coordinates": _coordinates(
+                        catchment_geometry.__geo_interface__["coordinates"]
+                    ),
+                } if catchment_geometry is not None else None,
                 "metrics": metrics,
             }
         )
 
     primary_family = evidence[evidence["metric"].isin(OUTCOMES)]
     strong = primary_family[primary_family["strong_evidence"]]
+    catchment_primary = catchment_trends[
+        catchment_trends["variable"].isin(OUTCOMES)
+    ]
+    threshold_rows = threshold_sensitivity[
+        threshold_sensitivity["scope"].isin(["Global", "United States"])
+        & threshold_sensitivity["metric"].eq("coverage_fraction")
+    ].copy()
     ranking = []
     for item in strong.itertuples(index=False):
         limit = float(OUTCOMES[item.metric]["limit"])
@@ -293,7 +409,18 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             "primarySample": "Catchment-specific upper 5% of reconstructed event peaks (POT/Q95)",
             "primaryEvents": int(primary_diag.events),
             "primaryCatchments": int(primary_diag.catchments),
-            "eligibleHydrobasins": len(basins),
+            "catchmentsWithTrend": len(catchments),
+            "catchmentPrimaryTests": int(catchment_primary.shape[0]),
+            "catchmentPotentialSignals": int(
+                catchment_primary["potential_local_shift"].sum()
+            ),
+            "catchmentFdrSignals": int(
+                catchment_primary["metric_fdr_supported"].sum()
+            ),
+            "catchmentStrongSignals": int(
+                catchment_primary["strong_local_evidence"].sum()
+            ),
+            "candidateHydrobasins": len(basins),
             "strongEvidenceSignals": int(strong.shape[0]),
             "strongEvidenceBasins": int(strong["HYBAS_ID"].nunique()),
             "primaryFamilyTests": int(primary_family.shape[0]),
@@ -302,7 +429,27 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
                 metric: int(count)
                 for metric, count in strong.groupby("metric").size().items()
             },
-            "minimumCatchments": 20,
+            "defaultCoverageThreshold": int(
+                CONFIG["local_analysis"]["default_area_coverage_threshold_percent"]
+            ),
+            "coverageThresholdOptions": list(
+                CONFIG["local_analysis"]["area_coverage_threshold_options_percent"]
+            ),
+            "coverageSensitivity": [
+                {
+                    "scope": str(item.scope),
+                    "threshold": int(item.threshold_pct),
+                    "candidateL5": int(item.candidate_l5),
+                    "passingL5": int(item.passing_l5),
+                    "passingCatchments": int(item.passing_catchments),
+                    "passingCatchmentShare": _native(
+                        item.passing_catchment_share_pct, 2
+                    ),
+                }
+                for item in threshold_rows.sort_values(
+                    ["scope", "threshold_pct"]
+                ).itertuples(index=False)
+            ],
             "outcomes": OUTCOMES,
             "driverLabels": DRIVERS,
             "ranking": ranking,

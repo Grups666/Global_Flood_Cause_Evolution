@@ -12,6 +12,7 @@ import pandas as pd
 
 from .analysis import SAMPLE_FILES, _fixed_effect_trend
 from .io import benjamini_hochberg
+from .spatial_support_audit import run_audit as run_spatial_support_audit
 
 
 def load_hydrobasins(directory: Path, level: int) -> gpd.GeoDataFrame:
@@ -94,7 +95,7 @@ def _fit_local_trends(
     membership: pd.DataFrame,
     levels: list[int],
     metrics: list[str],
-    minimum_catchments: int,
+    catchment_trends: pd.DataFrame,
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     id_columns = [f"hybas_id_l{level}" for level in levels]
@@ -108,13 +109,46 @@ def _fit_local_trends(
         for level in levels:
             id_column = f"hybas_id_l{level}"
             for basin_id, basin in joined.dropna(subset=[id_column]).groupby(id_column):
-                if basin["GCIN"].nunique() < minimum_catchments:
-                    continue
                 for metric in metrics:
-                    estimate = _fixed_effect_trend(basin, metric)
+                    clusters = int(basin["GCIN"].nunique())
+                    if clusters >= 2:
+                        estimate = _fixed_effect_trend(basin, metric)
+                        if estimate is not None:
+                            estimate["estimator_type"] = "pooled_fixed_effect"
+                    else:
+                        gcin = int(basin["GCIN"].iloc[0])
+                        local = catchment_trends[
+                            catchment_trends["sample"].eq(sample_name)
+                            & catchment_trends["GCIN"].eq(gcin)
+                            & catchment_trends["variable"].eq(metric)
+                        ]
+                        if local.empty:
+                            estimate = None
+                        else:
+                            row = local.iloc[0]
+                            scale = 100.0 if metric == "intensity_fraction" else 1.0
+                            estimate = {
+                                "observations": int(row.n_observations),
+                                "modeled_observations": int(row.n_years),
+                                "catchments": 1,
+                                "mean_level": float(row.mean_level * scale),
+                                "slope_per_decade": float(row.display_slope_per_decade),
+                                "ci_low": float(row.display_ci_low_per_decade),
+                                "ci_high": float(row.display_ci_high_per_decade),
+                                "relative_slope_percent_per_decade": float(
+                                    row.relative_slope_percent_per_decade
+                                ),
+                                "relative_ci_low_percent_per_decade": float(
+                                    row.relative_ci_low_percent_per_decade
+                                ),
+                                "relative_ci_high_percent_per_decade": float(
+                                    row.relative_ci_high_percent_per_decade
+                                ),
+                                "p_value": float(row.mk_p),
+                                "slope_unit": str(row.display_unit),
+                                "estimator_type": "single_catchment_proxy",
+                            }
                     if estimate is None:
-                        continue
-                    if estimate["catchments"] < minimum_catchments:
                         continue
                     rows.append(
                         {
@@ -205,6 +239,7 @@ def _jackknife_signs(
     primary: pd.DataFrame,
     membership: pd.DataFrame,
     evidence: pd.DataFrame,
+    catchment_evidence: pd.DataFrame,
     config: dict[str, Any],
 ) -> pd.DataFrame:
     level = int(config["local_analysis"]["primary_level"])
@@ -218,13 +253,59 @@ def _jackknife_signs(
     rows: list[dict[str, Any]] = []
     for candidate in candidates.itertuples(index=False):
         basin = joined[joined[id_column].eq(candidate.HYBAS_ID)]
-        estimates: list[float] = []
-        for gcin in basin["GCIN"].unique():
-            estimate = _fixed_effect_trend(
-                basin[basin["GCIN"].ne(gcin)], candidate.metric, minimum_clusters=2
+        gcins = basin["GCIN"].drop_duplicates().astype(int).tolist()
+        if len(gcins) == 1:
+            local = catchment_evidence[
+                catchment_evidence["GCIN"].eq(gcins[0])
+                & catchment_evidence["variable"].eq(candidate.metric)
+            ]
+            stable = bool(
+                not local.empty
+                and pd.notna(local.iloc[0]["leave_one_year_out_stable"])
+                and local.iloc[0]["leave_one_year_out_stable"]
             )
-            if estimate is not None:
-                estimates.append(float(estimate["slope_per_decade"]))
+            rows.append(
+                {
+                    "HYBAS_ID": int(candidate.HYBAS_ID),
+                    "metric": candidate.metric,
+                    "jackknife_replicates": int(
+                        local.iloc[0]["leave_one_year_out_replicates"]
+                    )
+                    if not local.empty
+                    else 0,
+                    "jackknife_slope_min": float(
+                        local.iloc[0]["leave_one_year_out_min"]
+                    )
+                    if not local.empty
+                    else np.nan,
+                    "jackknife_slope_max": float(
+                        local.iloc[0]["leave_one_year_out_max"]
+                    )
+                    if not local.empty
+                    else np.nan,
+                    "jackknife_sign_stable": stable,
+                    "jackknife_method": "leave_one_year_out",
+                }
+            )
+            continue
+        estimates: list[float] = []
+        for gcin in gcins:
+            reduced = basin[basin["GCIN"].ne(gcin)]
+            remaining = int(reduced["GCIN"].nunique())
+            if remaining >= 2:
+                estimate = _fixed_effect_trend(
+                    reduced, candidate.metric, minimum_clusters=2
+                )
+                if estimate is not None:
+                    estimates.append(float(estimate["slope_per_decade"]))
+            elif remaining == 1:
+                remaining_gcin = int(reduced["GCIN"].iloc[0])
+                local = catchment_evidence[
+                    catchment_evidence["GCIN"].eq(remaining_gcin)
+                    & catchment_evidence["variable"].eq(candidate.metric)
+                ]
+                if not local.empty:
+                    estimates.append(float(local.iloc[0]["display_slope_per_decade"]))
         values = np.asarray(estimates, dtype=float)
         rows.append(
             {
@@ -237,6 +318,7 @@ def _jackknife_signs(
                     len(values)
                     and np.all(np.sign(values) == np.sign(candidate.slope_per_decade))
                 ),
+                "jackknife_method": "leave_one_catchment_out",
             }
         )
     return pd.DataFrame(rows)
@@ -361,6 +443,12 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         name: pd.read_parquet(derived / filename)
         for name, filename in SAMPLE_FILES.items()
     }
+    catchment_sensitivity = pd.read_csv(
+        config["paths"]["tables"] / "catchment_sensitivity_trends.csv"
+    )
+    catchment_evidence = pd.read_csv(
+        config["paths"]["tables"] / "catchment_mechanism_trends.csv"
+    )
     primary = samples[str(config["event_samples"]["primary"])]
     catchments = primary[
         ["GCIN", "country", "longitude", "latitude"]
@@ -385,7 +473,7 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         membership,
         levels,
         metrics,
-        int(settings["minimum_catchments"]),
+        catchment_sensitivity,
     )
     trends = _add_multiple_testing(
         trends,
@@ -398,7 +486,9 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         labels, on=["level", "HYBAS_ID"], how="left", validate="many_to_one"
     )
     evidence = _robustness_table(trends, config)
-    jackknife = _jackknife_signs(primary, membership, evidence, config)
+    jackknife = _jackknife_signs(
+        primary, membership, evidence, catchment_evidence, config
+    )
     evidence = _add_evidence_grade(evidence, jackknife, config)
     trajectories = _basin_trajectories(
         primary,
@@ -416,6 +506,9 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
     evidence.to_csv(tables / "hydrobasin_evidence.csv", index=False)
     trajectories.to_csv(tables / "hydrobasin_trajectories.csv", index=False)
     mechanism.to_csv(tables / "hydrobasin_mechanism_summary.csv", index=False)
+    spatial_support = run_spatial_support_audit(
+        Path(__file__).resolve().parents[2], tables / "spatial_support"
+    )
 
     checksum_rows = []
     for path in sorted(config["paths"]["hydrobasins"].glob("hybas_*_v1c.zip")):
@@ -436,9 +529,14 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         "hydrobasins_version": "1.c",
         "primary_sample": str(config["event_samples"]["primary"]),
         "primary_level": primary_level,
-        "minimum_catchments": int(settings["minimum_catchments"]),
+        "default_area_coverage_threshold_percent": int(
+            settings["default_area_coverage_threshold_percent"]
+        ),
+        "area_coverage_threshold_options_percent": list(
+            settings["area_coverage_threshold_options_percent"]
+        ),
         "matched_catchments": int(membership[f"hybas_id_l{primary_level}"].notna().sum()),
-        "eligible_primary_basins": int(primary_l5["HYBAS_ID"].nunique()),
+        "candidate_primary_basins": int(primary_l5["HYBAS_ID"].nunique()),
         "primary_family_tests": int(
             primary_l5["metric"].isin(settings["primary_metrics"]).sum()
         ),
@@ -449,6 +547,12 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         "strong_evidence_basins": int(
             primary_l5.loc[primary_l5["strong_evidence"], "HYBAS_ID"].nunique()
         ),
+        "spatial_support": {
+            "candidate_l5": int(spatial_support["global"]["candidate_l5"]),
+            "median_coverage_pct": float(
+                spatial_support["global"]["median_coverage_pct"]
+            ),
+        },
         "elapsed_seconds": time.time() - started,
     }
     output_summary.write_text(json.dumps(summary, indent=2), encoding="utf-8")

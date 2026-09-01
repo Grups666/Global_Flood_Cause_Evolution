@@ -2,11 +2,11 @@
 
 | Figure | Analytical role | Encodings |
 |---|---|---|
-| 01 Sample coverage | Establish the observable population and geographic imbalance | catchment points and regional counts |
-| 02 Mechanism change maps | Show where rainfall concentration and antecedent SSI moved | zero-centered blue–neutral–orange fill; cyan outline for strong evidence |
-| 03 Strong signal rankings | Compare local magnitudes and uncertainty | point estimate with 95% CI |
-| 04 Mechanism trajectories | Show continuous-time movement without a calendar breakpoint | adjusted annual means and fitted line |
-| 05 Physical decomposition | Explain concentration-ratio change with rainfall components | maximum daily rain, total event rain, and duration |
-| 06 Robustness matrix | Confirm direction under alternative extreme samples | directional cells for Q95, annual maxima, Q90, Q95+10d, and Q97.5 |
+| 01 Sample coverage | Define the observable gauge network | catchment locations and regional sample counts |
+| 02 Direct catchment trends | Map all estimable local slopes and stable candidates | zero-centered blue–neutral–orange color; candidate outline |
+| 03 Catchment evidence funnel | Separate nominal p-values, stability, and FDR | paired bars and opposing-direction counts |
+| 04 Area-supported L5 patterns | Show second-stage regional evidence at the default threshold | L5 fill; cyan boundary for the complete regional screen |
+| 05 Area-threshold sensitivity | Quantify regional coverage/retention tradeoffs | threshold lines for L5 units and represented catchments |
+| 06 Regional traceability | Relate pooled L5 estimates to contributing direct slopes | catchment circles, pooled diamonds, 95% CIs |
 
-All figures use the same high-resolution, minimal visual system. PNG supports direct reading; SVG supports publication editing.
+All figures use one high-resolution minimal visual system. PNG supports direct browser reading; SVG supports publication editing. Color always represents direction and magnitude, while outlines or explicit labels carry evidence status.

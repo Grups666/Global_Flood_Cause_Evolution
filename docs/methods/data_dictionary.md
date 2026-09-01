@@ -4,12 +4,13 @@
 
 | Asset | Role | Key fields |
 |---|---|---|
-| `events_dormant.csv`, `events_growing.csv` | Reconstructed rainfall–runoff event windows | `GCIN`, precipitation and response dates, source volumes, snow contribution |
-| `daily_data/observations/*.csv` | Daily event reconstruction | `date`, `water_input_mm`, `streamflow_mm`, `soil_saturation_index` |
-| seasonal metadata files | Catchment screen and coordinates | `GCIN`, country, longitude, latitude, snow fraction |
-| HydroBASINS level-5 archives | Local hydrological regions | `HYBAS_ID`, area, polygon geometry |
+| `events_dormant.csv`, `events_growing.csv` | Reconstructed rainfall–runoff event windows | `GCIN`, precipitation/response dates, source volumes, snow contribution |
+| `daily_data/observations/*.csv` | Daily reconstruction | `date`, `water_input_mm`, `streamflow_mm`, `soil_saturation_index` |
+| seasonal metadata | Catchment screen and outlet location | `GCIN`, country, longitude, latitude, snow fraction |
+| catchment shapefile | Observed drainage polygons | `GCIN`, geometry |
+| HydroBASINS v1.c level 5 | Regional polygons | `HYBAS_ID`, area, geometry |
 
-## Derived event features
+## Event features
 
 File: `data/derived/event_features.parquet`
 
@@ -17,40 +18,40 @@ File: `data/derived/event_features.parquet`
 |---|---|
 | `event_key` | Season-prefixed source event identifier |
 | `GCIN` | Catchment identifier |
-| `q_peak_date`, `peak_year` | Date and calendar year of maximum daily streamflow in the response window |
-| `q_peak_mm_day` | Maximum daily streamflow in the response window |
-| `q_event_total_mm` | Sum of daily streamflow over the event response window |
-| `p_volume_daily_mm` | Sum of daily event water input |
-| `p_max_daily_mm` | Maximum daily event water input |
+| `q_peak_date`, `peak_year` | Date and year of maximum daily streamflow in the response window |
+| `q_peak_mm_day` | Event-window maximum daily streamflow |
+| `q_event_total_mm` | Event-response-window streamflow sum |
+| `p_volume_daily_mm` | Event rainfall total |
+| `p_max_daily_mm` | Wettest daily event rainfall |
 | `intensity_fraction` | `p_max_daily_mm / p_volume_daily_mm` |
-| `precipitation_cv` | Population standard deviation divided by mean daily event rainfall |
 | `ssi_1d`, `ssi_3d`, `ssi_7d`, `ssi_30d` | Mean SSI over complete antecedent days |
-| `precip_window_complete`, `streamflow_window_complete` | Exact date coverage and nonmissing values for event windows |
+| `precip_window_complete`, `streamflow_window_complete` | Exact coverage checks |
 
-## Analysis samples
+## Event populations
 
 | File | Definition |
 |---|---|
-| `primary_extreme_events.parquet` | Catchment-specific POT/Q95 events after the long-record, event-count, and selected-span screens |
-| `sensitivity_annual_maximum_events.parquet` | One maximum reconstructed flood per eligible catchment-year |
-| `sensitivity_pot_q90_events.parquet` | Catchment-specific POT/Q90 events |
-| `sensitivity_pot_q95_gap10_events.parquet` | POT/Q95 after 10-day peak declustering |
-| `sensitivity_pot_q975_events.parquet` | Catchment-specific POT/Q97.5 events |
+| `primary_extreme_events.parquet` | Catchment-specific POT/Q95 after record, count, and span screens |
+| `sensitivity_annual_maximum_events.parquet` | One maximum reconstructed flood per catchment-year |
+| `sensitivity_pot_q90_events.parquet` | Catchment-specific POT/Q90 |
+| `sensitivity_pot_q95_gap10_events.parquet` | POT/Q95 after 10-day declustering |
+| `sensitivity_pot_q975_events.parquet` | Catchment-specific POT/Q97.5 |
 
-## Current result tables
+## Result tables
 
-| Table | Grain | Purpose |
+| Table | Grain | Main contents |
 |---|---|---|
-| `record_eligibility.csv` | Catchment | Event-year count, span, coverage, and long-record eligibility |
-| `extreme_sample_diagnostics.csv` | Sample | Event and catchment counts plus independence diagnostics |
-| `global_regional_trends.csv` | Sample × region × metric | Continuous within-catchment slopes and confidence intervals |
-| `global_regional_trajectories.csv` | Region × metric × year | Adjusted annual means for the primary sample |
-| `catchment_mechanism_trends.csv` | Catchment × metric | Theil–Sen trends, Mann–Kendall tests, and FDR |
-| `hydrobasin_catchment_membership.csv` | Catchment | Level-5 HydroBASINS membership |
-| `hydrobasin_sample_summary.csv` | HydroBASINS unit | Assigned catchments, countries, and map centers |
-| `hydrobasin_mechanism_trends.csv` | Sample × L5 basin × metric | Multi-catchment fixed-effect estimates, raw slopes, and catchment-equal relative slopes |
-| `hydrobasin_evidence.csv` | Level-5 basin × metric | Complete-family FDR, alternative-sample, SSI-window, jackknife, and evidence grades |
-| `hydrobasin_trajectories.csv` | Basin × metric × year | Adjusted annual trajectory and fitted trend |
-| `hydrobasin_mechanism_summary.csv` | Level-5 basin | Plain-language rainfall and wetness directions |
+| `record_eligibility.csv` | catchment | record years, span, coverage, eligibility |
+| `extreme_sample_diagnostics.csv` | sample | events, catchments, independence diagnostics |
+| `catchment_mechanism_trends.csv` | catchment × metric | annualized Theil–Sen slope, Mann–Kendall p, metric/family q, stability checks, candidate grade |
+| `catchment_sensitivity_trends.csv` | sample × catchment × metric | alternative-sample direct trends |
+| `hydrobasin_catchment_membership.csv` | catchment | L5 membership from outlet |
+| `hydrobasin_mechanism_trends.csv` | sample × L5 × metric | fixed-effect or single-catchment estimate and uncertainty |
+| `hydrobasin_evidence.csv` | L5 × metric | complete-family FDR, sample/window/leave-one-out checks, evidence grade |
+| `hydrobasin_trajectories.csv` | L5 × metric × year | adjusted annual trajectory and fitted trend |
+| `spatial_support/l5_spatial_support_audit.csv` | L5 | polygon areas, observed union, coverage, largest contributing catchment |
+| `spatial_support/l5_spatial_support_threshold_sensitivity.csv` | scope × threshold | retained L5 and catchment counts at 10–50% support |
 
-The complete variable definitions and evidence rules are specified in [`analysis_protocol.md`](analysis_protocol.md).
+Important catchment evidence fields are `potential_local_shift`, `strong_local_evidence`, `five_gate_count`, and the individual stability flags. Important regional fields are `estimator_type`, `primary_family_q`, `sample_direction_stable`, `wetness_window_stable`, `jackknife_sign_stable`, and `strong_evidence`.
+
+The complete calculation and evidence rules are in [`analysis_protocol.md`](analysis_protocol.md).

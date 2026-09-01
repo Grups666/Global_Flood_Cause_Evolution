@@ -9,6 +9,7 @@ import shutil
 from pathlib import Path
 
 import markdown
+import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,22 @@ def build_html_report(
     analysis_summary = json.loads((ROOT / "outputs" / "logs" / "analysis_summary.json").read_text(encoding="utf-8"))
     local_summary = json.loads((ROOT / "outputs" / "logs" / "local_analysis_summary.json").read_text(encoding="utf-8"))
     primary = analysis_summary["sample_counts"]["pot_q95"]
+    threshold = int(local_summary["default_area_coverage_threshold_percent"])
+    evidence = pd.read_csv(ROOT / "outputs" / "tables" / "hydrobasin_evidence.csv")
+    support = pd.read_csv(
+        ROOT / "outputs" / "tables" / "spatial_support" / "l5_spatial_support_audit.csv"
+    ).rename(columns={"hybas_id_l5": "HYBAS_ID"})
+    default_evidence = evidence[
+        evidence["sample"].eq("pot_q95")
+        & evidence["level"].eq(5)
+        & evidence["metric"].isin(
+            ["intensity_fraction", "ssi_1d", "ssi_3d", "ssi_7d", "ssi_30d"]
+        )
+    ].merge(support[["HYBAS_ID", "coverage_pct"]], on="HYBAS_ID", how="left")
+    default_strong = default_evidence[
+        default_evidence["strong_evidence"].fillna(False)
+        & default_evidence["coverage_pct"].ge(threshold)
+    ]
     expected_images = len(re.findall(r"!\[[^\]]*\]\([^)]+\)", markdown_source))
     markdown_source = _embed_images(markdown_source, source.parent)
     markdown_source = _neutralize_local_links(markdown_source)
@@ -71,7 +88,7 @@ def build_html_report(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>全球降雨型大洪水生成条件的局地演变（1982–2019）</title>
+  <title>全球降雨型大洪水生成条件的长期变化（1982–2019）</title>
   <style>
     :root {{ --ink:#233143; --muted:#647487; --line:#dce4ea; --paper:#fff; --canvas:#f2f6f8; --blue:#2f6688; --cyan:#22d3ee; --orange:#cf673f; --shadow:0 18px 54px rgba(28,43,58,.10); }}
     * {{ box-sizing:border-box; }} html {{ scroll-behavior:smooth; }}
@@ -102,7 +119,7 @@ def build_html_report(
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图表大图" aria-hidden="true"><button class="lightbox-close" aria-label="关闭大图">×</button><figure><img alt=""><figcaption></figcaption></figure></div>
   <div class="shell">
     <aside><div class="brand"><strong>Research report</strong><span>完整实验 · 2026-09-01</span></div><nav class="toc" aria-label="目录">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside>
-    <article><div class="facts"><div class="fact"><b>{primary['events']:,}</b><span>POT/Q95 极端事件</span></div><div class="fact"><b>{primary['catchments']:,}</b><span>合格长期观测流域</span></div><div class="fact"><b>{local_summary['strong_evidence_basins']}</b><span>具有强证据的水文区</span></div><div class="fact"><b>{local_summary['strong_evidence_signals']}</b><span>强证据机制信号</span></div></div>{article}</article>
+    <article><div class="facts"><div class="fact"><b>{primary['events']:,}</b><span>POT/Q95 极端事件</span></div><div class="fact"><b>{primary['catchments']:,}</b><span>合格长期观测流域</span></div><div class="fact"><b>{default_strong['HYBAS_ID'].nunique()}</b><span>≥{threshold}%面积支持的强证据 L5</span></div><div class="fact"><b>{len(default_strong)}</b><span>强区域信号</span></div></div>{article}</article>
   </div>
   <script>
     const progress=document.getElementById('progress'); const links=[...document.querySelectorAll('.toc a')]; const sections=links.map(a=>document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);

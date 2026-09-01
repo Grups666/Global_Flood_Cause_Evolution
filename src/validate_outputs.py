@@ -177,17 +177,31 @@ def main() -> None:
     record(checks, "event_independence_diagnostics", independence_ok, f"Q95 overlaps=0; Q95 pairs<10d={int(primary_diag.pairs_under_10_days):,}; declustered pairs<10d={int(gap10.pairs_under_10_days)}")
 
     evidence = pd.read_csv(TABLES / "hydrobasin_evidence.csv")
-    family = evidence[(evidence["sample"].eq("pot_q95")) & (evidence["level"].eq(5)) & evidence["metric"].isin(PRIMARY_METRICS)].copy()
+    family = evidence[
+        evidence["sample"].eq("pot_q95")
+        & evidence["level"].eq(5)
+        & evidence["metric"].isin(PRIMARY_METRICS)
+    ].copy()
     expected_q = independent_bh(family["p_value"].to_numpy(float))
-    q_error = float(np.nanmax(np.abs(expected_q - family["primary_family_q"].to_numpy(float))))
-    expected_tests = family["HYBAS_ID"].nunique() * len(PRIMARY_METRICS)
-    record(checks, "complete_primary_fdr", len(family) == expected_tests == 140 and q_error < 1e-12, f"tests={len(family)}; FDR-supported={int(family.primary_family_fdr_supported.sum())}; max error={q_error:.3g}")
-
-    regional_floor = (
-        family["catchments"].ge(CONFIG["local_analysis"]["minimum_catchments"]).all()
-        and int(family["catchments"].min()) == 20
+    q_error = float(
+        np.nanmax(
+            np.abs(expected_q - family["primary_family_q"].to_numpy(float))
+        )
     )
-    record(checks, "single_regional_sample_threshold", regional_floor, f"minimum catchments={int(family.catchments.min())}; regions={family.HYBAS_ID.nunique()}")
+    expected_tests = family["HYBAS_ID"].nunique() * len(PRIMARY_METRICS)
+    complete_family_ok = (
+        len(family) == expected_tests == 1_475
+        and q_error < 1e-12
+        and int(family["primary_family_fdr_supported"].sum()) == 106
+    )
+    record(
+        checks,
+        "complete_regional_fdr",
+        complete_family_ok,
+        f"tests={len(family):,}; L5={family.HYBAS_ID.nunique()}; "
+        f"FDR-supported={int(family.primary_family_fdr_supported.sum())}; "
+        f"max error={q_error:.3g}",
+    )
 
     recomputed_strong = (
         family["primary_family_fdr_supported"].fillna(False)
@@ -195,17 +209,129 @@ def main() -> None:
         & family["jackknife_sign_stable"].fillna(False)
         & family["wetness_window_stable"].fillna(False)
     )
-    strong_match = recomputed_strong.equals(family["strong_evidence"].fillna(False))
-    record(checks, "strong_evidence_gates", strong_match and int(recomputed_strong.sum()) == 62, f"signals={int(recomputed_strong.sum())}; basins={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}")
+    strong_match = recomputed_strong.equals(
+        family["strong_evidence"].fillna(False)
+    )
+    record(
+        checks,
+        "regional_statistical_gates",
+        strong_match
+        and int(recomputed_strong.sum()) == 94
+        and family.loc[recomputed_strong, "HYBAS_ID"].nunique() == 43,
+        f"signals={int(recomputed_strong.sum())}; "
+        f"L5={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}",
+    )
+
+    support = pd.read_csv(
+        TABLES / "spatial_support" / "l5_spatial_support_audit.csv"
+    ).rename(columns={"hybas_id_l5": "HYBAS_ID"})
+    family_support = family.merge(
+        support[["HYBAS_ID", "coverage_pct"]], on="HYBAS_ID", how="left"
+    )
+    thresholds = list(
+        CONFIG["local_analysis"]["area_coverage_threshold_options_percent"]
+    )
+    strong_by_threshold = [
+        int(
+            (
+                family_support["strong_evidence"].fillna(False)
+                & family_support["coverage_pct"].ge(threshold)
+            ).sum()
+        )
+        for threshold in thresholds
+    ]
+    threshold_sensitivity = pd.read_csv(
+        TABLES
+        / "spatial_support"
+        / "l5_spatial_support_threshold_sensitivity.csv"
+    )
+    global_support = threshold_sensitivity[
+        threshold_sensitivity["scope"].eq("Global")
+        & threshold_sensitivity["metric"].eq("coverage_fraction")
+    ].sort_values("threshold_pct")
+    support_ok = (
+        thresholds == [10, 20, 30, 40, 50]
+        and global_support["threshold_pct"].astype(int).tolist() == thresholds
+        and global_support["passing_l5"].astype(int).tolist()
+        == [156, 85, 50, 34, 19]
+        and strong_by_threshold == [84, 42, 28, 19, 10]
+        and support["coverage_pct"].between(0, 100).all()
+    )
+    record(
+        checks,
+        "area_support_threshold_sensitivity",
+        support_ok,
+        f"thresholds={thresholds}; passing L5="
+        f"{global_support.passing_l5.astype(int).tolist()}; "
+        f"strong signals={strong_by_threshold}",
+    )
 
     trajectories = pd.read_csv(TABLES / "hydrobasin_trajectories.csv")
     trajectory_ok = trajectories["year"].between(1982, 2019).all() and set(PRIMARY_METRICS).issubset(set(trajectories.metric))
     record(checks, "continuous_time_trajectories", trajectory_ok, f"rows={len(trajectories):,}; years={trajectories.year.min()}–{trajectories.year.max()}")
 
     catchment = pd.read_csv(TABLES / "catchment_mechanism_trends.csv")
-    catchment_primary = catchment[catchment["variable"].isin(PRIMARY_METRICS)]
-    catchment_ok = catchment_primary.n_observations.ge(10).all() and catchment_primary.year_span.ge(20).all()
-    record(checks, "catchment_trend_eligibility", catchment_ok, f"catchments={catchment_primary.GCIN.nunique():,}; FDR-supported={int(catchment_primary.fdr_significant.sum())}")
+    catchment_primary = catchment[
+        catchment["variable"].isin(PRIMARY_METRICS)
+    ].copy()
+    catchment_ok = (
+        catchment_primary.n_years.ge(10).all()
+        and catchment_primary.year_span.ge(20).all()
+        and catchment_primary.GCIN.nunique() == 2_435
+        and len(catchment_primary) == 12_163
+    )
+    record(
+        checks,
+        "catchment_trend_eligibility",
+        catchment_ok,
+        f"catchments={catchment_primary.GCIN.nunique():,}; "
+        f"tests={len(catchment_primary):,}",
+    )
+    metric_q_errors = []
+    for _, frame in catchment_primary.groupby("variable", sort=False):
+        expected_metric_q = independent_bh(frame["mk_p"].to_numpy(float))
+        metric_q_errors.append(
+            float(
+                np.nanmax(
+                    np.abs(expected_metric_q - frame["metric_q"].to_numpy(float))
+                )
+            )
+        )
+    expected_catchment_family_q = independent_bh(
+        catchment_primary["mk_p"].to_numpy(float)
+    )
+    catchment_family_error = float(
+        np.nanmax(
+            np.abs(
+                expected_catchment_family_q
+                - catchment_primary["primary_family_q"].to_numpy(float)
+            )
+        )
+    )
+    recomputed_candidates = (
+        catchment_primary["mk_p"].lt(0.05)
+        & catchment_primary["sample_direction_stable"].fillna(False)
+        & catchment_primary["leave_one_year_out_stable"].fillna(False)
+        & catchment_primary["wetness_window_stable"].fillna(False)
+    )
+    local_evidence_ok = (
+        max(metric_q_errors) < 1e-12
+        and catchment_family_error < 1e-12
+        and recomputed_candidates.equals(
+            catchment_primary["potential_local_shift"].fillna(False)
+        )
+        and int(recomputed_candidates.sum()) == 378
+        and int(catchment_primary["metric_fdr_supported"].sum()) == 0
+        and int(catchment_primary["strong_local_evidence"].sum()) == 0
+    )
+    record(
+        checks,
+        "catchment_fdr_and_stability",
+        local_evidence_ok,
+        f"metric q max error={max(metric_q_errors):.3g}; "
+        f"family q error={catchment_family_error:.3g}; "
+        f"stable candidates={int(recomputed_candidates.sum())}; FDR signals=0",
+    )
 
     figure_failures: list[str] = []
     expected_asset_names = {f"{stem}.png" for stem in FIGURE_STEMS}
@@ -228,8 +354,12 @@ def main() -> None:
     report_md = (ROOT / "reports" / "global_flood_cause_evolution.md").read_text(encoding="utf-8")
     report_en = (ROOT / "reports" / "global_flood_cause_evolution_en.md").read_text(encoding="utf-8")
     report_html = (ROOT / "reports" / "global_flood_cause_evolution.html").read_text(encoding="utf-8")
-    html_ok = report_html.count("data:image/png;base64,") == 6 and 'id="lightbox"' in report_html and "openFigure(image)" in report_html and "59,048" in report_html and "21" in report_html
-    html_ok &= "140" in report_html and "62" in report_html
+    html_ok = (
+        report_html.count("data:image/png;base64,") == 6
+        and 'id="lightbox"' in report_html
+        and "openFigure(image)" in report_html
+        and all(value in report_html for value in ["59,048", "12,163", "378", "1,475", "84", "36"])
+    )
     record(checks, "self_contained_html_report", html_ok, f"bytes={len(report_html.encode('utf-8')):,}; embedded PNGs={report_html.count('data:image/png;base64,')}")
 
     public_report = PUBLIC_REPORTS / "global_flood_cause_evolution.html"
@@ -248,28 +378,95 @@ def main() -> None:
         web = json.loads(web_text, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
         basins = web["basins"]
         catchments = web["catchments"]
-        strong_count = sum(metric.get("strong", False) for basin in basins for key, metric in basin["metrics"].items() if key in PRIMARY_METRICS)
-        web_ok = len(basins) == 28 and len(catchments) == 2624 and strong_count == 62
+        strong_count = sum(
+            metric.get("strong", False)
+            for basin in basins
+            for key, metric in basin["metrics"].items()
+            if key in PRIMARY_METRICS
+        )
+        web_ok = (
+            len(basins) == 295
+            and len(catchments) == 2_435
+            and strong_count == 94
+            and web["meta"]["catchmentPotentialSignals"] == 378
+            and web["meta"]["catchmentFdrSignals"] == 0
+            and web["meta"]["defaultCoverageThreshold"] == 10
+            and web["meta"]["coverageThresholdOptions"] == [10, 20, 30, 40, 50]
+        )
         web_ok &= all(
             1 <= len(item.get("metrics", {})) <= len(PRIMARY_METRICS)
             and set(item.get("metrics", {})).issubset(PRIMARY_METRICS)
             for item in catchments
         )
-        web_ok &= all(metric["observations"] >= 10 and metric["span"] >= 20 for item in catchments for metric in item["metrics"].values())
-        web_ok &= all(item["geometry"]["type"] in {"Polygon", "MultiPolygon"} for item in basins)
+        web_ok &= all(
+            metric["years"] >= 10 and metric["span"] >= 20
+            for item in catchments
+            for metric in item["metrics"].values()
+        )
+        web_ok &= all(
+            item["geometry"]["type"] in {"Polygon", "MultiPolygon"}
+            and 0 <= item["coveragePct"] <= 100
+            for item in basins
+        )
+        web_ok &= all(
+            item["geometry"]["type"] in {"Polygon", "MultiPolygon"}
+            and len(item.get("bounds", [])) == 4
+            and item.get("areaKm2", 0) > 0
+            for item in catchments
+        )
         web_detail = f"basins={len(basins)}; catchments={len(catchments)}; strong signals={strong_count}; bytes={web_path.stat().st_size:,}"
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         web_ok = False
         web_detail = str(error)
     module = (ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js").read_text(encoding="utf-8")
-    required_markers = ["intensity_fraction", "ssi_30d", "relativeSlope", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawBasinHighlight", "if (hoveredBasin)", "fce-hover-tooltip", "metricMeaning", "fce-signal p", "background:#172235", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
-    forbidden_markers = ["intensity_050", "Limited sample", "Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "drawHoverLabel", "overviewLayerId", 'name: "Research overview"']
+    required_markers = [
+        "intensity_fraction",
+        "ssi_30d",
+        "coverageThresholdOptions",
+        "setCoverageThreshold",
+        "Individual catchment trends",
+        "Area-supported HydroBASINS L5 patterns",
+        "drawCatchmentHighlight",
+        "drawBasinHighlight",
+        "rgba(34, 211, 238",
+        "ctx.shadowBlur",
+        "fce-hover-tooltip",
+        "background:#172235",
+        "fce-overview-nav",
+        "Project materials",
+        "data-scroll=\"resources\"",
+    ]
+    forbidden_markers = [
+        "intensity_050",
+        "Limited sample",
+        "Early–late",
+        "probability2000",
+        "probability2010",
+        "logistic probability change",
+        "#D946EF",
+        "drawHoverLabel",
+        "overviewLayerId",
+        'name: "Research overview"',
+    ]
     web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
     web_ok &= module.count("reports/assets/figure_") == 6
     record(checks, "interactive_web_explorer", web_ok, web_detail)
 
     current_text = report_md + "\n" + report_en + "\n" + module
-    obsolete = [phrase for phrase in ["旧版本", "上一版本", "previous version", "early–late", "probability2000", "probability2010"] if phrase.lower() in current_text.lower()]
+    obsolete = [
+        phrase
+        for phrase in [
+            "旧版本",
+            "上一版本",
+            "previous version",
+            "early–late",
+            "probability2000",
+            "probability2010",
+            "≥20-catchment rule",
+            "requires at least 20 contributing catchments",
+        ]
+        if phrase.lower() in current_text.lower()
+    ]
     record(checks, "current_only_narrative", not obsolete, f"obsolete phrases={obsolete}")
 
     check_daily_spot_sample(features, checks)

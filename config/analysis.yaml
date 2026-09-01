@@ -52,7 +52,8 @@ trends:
 local_analysis:
   hydrobasins_levels: [5]
   primary_level: 5
-  minimum_catchments: 20
+  default_area_coverage_threshold_percent: 10
+  area_coverage_threshold_options_percent: [10, 20, 30, 40, 50]
   primary_metrics:
     - intensity_fraction
     - ssi_1d

@@ -1,283 +1,276 @@
-# Local Evolution of Rainfall-Driven Large-Flood Generating Conditions (1982–2019)
+# Long-Term Changes in Rainfall-Driven Large-Flood Generating Conditions (1982–2019)
 
-**Complete technical report | continuous process metrics, HydroBASINS L5, and reproducible inference**
-**Generated: 2026-09-01**
-
-> Main result: the observed network does not support one spatially uniform global direction. It identifies 62 reproducible local changes in 21 HydroBASINS level-5 regions. Rainfall concentration and antecedent wetness both move in opposing directions across regions, so the scientific result is where and how generating conditions moved—not an average that cancels local signals.
+**Technical report · generated 2026-09-01**
 
 ## Technical summary
 
-- The primary sample contains **59,048 POT/Q95 large-flood events** in **2,624 long-record catchments**.
-- Regional inference is performed only for HydroBASINS L5 units containing at least **20 eligible catchments**, leaving **28 regions**.
-- The complete primary family contains 28 regions × 5 continuous metrics = **140 tests**; **80** pass Benjamini–Hochberg 5% False Discovery Rate control.
-- Requiring agreement across extreme-event samples, leave-one-catchment-out sign stability, and—where relevant—all SSI windows leaves **62 strong signals**.
-- Strong rainfall-concentration trends span **-2.54 to +2.92 percentage points per decade**. Seven-day SSI trends span **-0.011 to +0.010 SSI units per decade**.
-- SSI is reported in both absolute units and relative to the region's catchment-equal mean; eligible regions span **-2.65% to +1.55% per decade**.
+- Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
+- The primary sample contains **59,048 POT/Q95 floods in 2,624 long-record low-snow catchments**. At least one primary direct trend is estimable in **2,435 catchments**.
+- The five continuous outcomes produce **12,163 catchment–metric tests**. There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
+- Among 1,475 L5–metric tests, **106 pass complete-family FDR and 94 pass the full statistical robustness screen**. With the default **≥10% area support**, **84 strong regional signals remain in 36 L5 units**.
+- Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
 
-![Long-record catchment and primary-sample coverage](assets/figure_01_sample_coverage.png)
+![Sample coverage](assets/figure_01_sample_coverage.png)
 
-## 1. First-principles research question
+The map defines the observational domain. Europe and North America are much denser than Asia, so “global” means a globally distributed gauge sample rather than an area-weighted global land population.
 
-The study asks whether the rainfall organization and pre-event land wetness that generate large floods changed through time and space. It does not substitute flood counts, flood-peak trends, or an analyst-chosen pre/post-2000 contrast for that question.
+## 1. Scientific question
 
-## 2. Why the result is local
+The study asks whether the **conditions accompanying large rainfall-driven floods** changed through time: whether event rainfall became more concentrated or more prolonged, and whether the catchment before rainfall became wetter or drier.
 
-Network density is highly uneven: Europe and North America are dense, while only one Asian catchment passes the long-record screen. A global average is neither area-weighted nor capable of retaining opposing local movements. Multi-catchment L5 regions are therefore the primary evidence scale; individual catchments preserve local inspection detail.
+## 2. Evidence order
 
-## 3. Spatial pattern of current results
+The workflow is catchment-first:
 
-![L5 trends for the five continuous mechanism metrics](assets/figure_02_mechanism_change_maps.png)
+1. construct an extreme-event sample separately in every eligible catchment;
+2. estimate a continuous-time trend inside that catchment;
+3. retain nulls, weak estimates, and stable candidates;
+4. pool catchments whose outlets fall in the same HydroBASINS L5;
+5. use polygon-area coverage to determine whether that pooled estimate has enough spatial support for an L5 interpretation.
 
-Only the 28 regions satisfying the ≥20-catchment rule are mapped. Color encodes direction and magnitude; cyan outlines identify strong evidence. Blank areas mean that the current network cannot support the same regional inference—not that change is absent.
+## 3. Verified period
 
-## 4. Evidence counts by metric
+The common verified overlap of the flood-event catalogue, daily rainfall/runoff data, and GLASS-AVHRR soil moisture is **1982–2019**. Trends use the continuous record without a calendar breakpoint.
 
-| Continuous metric | Pass 5% BH-FDR | Strong | Strong positive | Strong negative |
-|---|---:|---:|---:|---:|
-| Rainfall concentration | 21 | 16 | 6 | 10 |
-| Antecedent SSI (1 day) | 15 | 12 | 3 | 9 |
-| Antecedent SSI (3 days) | 15 | 12 | 3 | 9 |
-| Antecedent SSI (7 days) | 14 | 10 | 4 | 6 |
-| Antecedent SSI (30 days) | 15 | 12 | 5 | 7 |
+## 4. Catchment population
 
-## 5. Largest reproducible local movements
+Catchments require long-term snow fraction below 0.10, both seasonal event catalogues, at least 30 observed event years, at least a 30-year record span, and at least 80% annual coverage. **2,839 catchments** pass this record screen.
 
-![Strong regional trends and 95% confidence intervals](assets/figure_03_strong_signal_rankings.png)
+## 5. Event selection is separate from condition description
 
-| Region | Countries | Metric | Trend / decade | 95% CI | Catchments | BH q |
+Flood peak selects the extreme-event sample. Rainfall concentration and antecedent wetness are calculated only after selection, avoiding a circular definition in which the outcome also determines inclusion.
+
+## 6. Primary population: catchment-specific POT/Q95
+
+For catchment $i$, the retained events are:
+
+$$
+\mathcal E_i^{95}=\{e:Q_{ie}\ge Q_{0.95,i}\}.
+$$
+
+Each catchment requires at least 10 selected events spanning at least 20 years. The final primary sample contains **59,048 events in 2,624 catchments**.
+
+## 7. Why annual maxima are a sensitivity population
+
+Annual maxima force one event into every year, even when that event is not particularly extreme relative to the catchment record. POT/Q95 directly targets the catchment upper tail, while annual maxima remain an important alternative definition.
+
+## 8. Extreme-event sensitivities
+
+The alternatives are POT/Q90, POT/Q97.5, 10-day-declustered POT/Q95, and annual maxima. The primary sample contains 2,194 adjacent peak pairs under 10 days; the declustered sample contains 0. Stormflow-window overlaps equal 0.
+
+## 9. Rainfall concentration
+
+$$
+C_{ie}=\frac{P_{\max,ie}}{P_{\mathrm{volume},ie}}.
+$$
+
+An increase means a larger share of event rainfall fell in the wettest day; a decrease means movement toward longer, volume-dominated rainfall. The continuous ratio is the inferential outcome; no binary intensity-dominated label is used.
+
+## 10. Antecedent wetness
+
+$$
+SSI_{ie}^{(w)}=\frac1w\sum_{k=1}^w SSI_{i,t_{0,ie}-k},
+\qquad w\in\{1,3,7,30\}.
+$$
+
+Positive slopes mean large floods occurred after increasingly wet antecedent states; negative slopes mean increasingly dry states. SSI units are normalized index units, not millimetres or flood percentages.
+
+## 11. Physical rainfall components
+
+Maximum daily rainfall, event rainfall total, and precipitation duration are fitted in raw physical units. Their secondary relative slopes are:
+
+$$
+r=100\frac{\widehat\beta}{\bar y}.
+$$
+
+No logarithmic trend model is used. These components aid interpretation of the concentration ratio without claiming causal attribution.
+
+## 12. Catchment-year annualization
+
+Multiple POT events in one catchment-year are averaged:
+
+$$
+\bar y_{it}=\frac1{n_{it}}\sum_e y_{iet}.
+$$
+
+This prevents a year with several reconstructed events from receiving extra trend weight solely because of event count.
+
+## 13. Direct catchment trend
+
+The annual sequence uses a Theil–Sen slope:
+
+$$
+\widehat\beta_i=\operatorname{median}_{t_j>t_k}
+\frac{\bar y_{it_j}-\bar y_{it_k}}{t_j-t_k}\times10,
+$$
+
+with a tie-corrected Mann–Kendall test. At least 10 event years spanning at least 20 years are required.
+
+## 14. Catchment multiple testing
+
+Each physical metric forms one Benjamini–Hochberg family across catchments. Ordering $m$ p-values, the procedure finds the largest $k$ satisfying:
+
+$$
+p_{(k)}\le\frac{k}{m}\alpha,
+\qquad \alpha=0.05.
+$$
+
+## 15. Stable local candidate
+
+A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not an FDR-confirmed shift.
+
+![Direct catchment results](assets/figure_02_mechanism_change_maps.png)
+
+Light marks retain all estimable trends; outlined marks identify stable candidates. Color encodes effect direction and magnitude, not statistical significance.
+
+## 16. Direct catchment results
+
+| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Metric-wide FDR | Negative candidates | Positive candidates |
+|---|---:|---:|---:|---:|---:|---:|
+| Rainfall concentration | 2,435 | 154 | 73 | 0 | 39 | 34 |
+| Antecedent SSI (1 day) | 2,435 | 184 | 78 | 0 | 48 | 30 |
+| Antecedent SSI (3 days) | 2,435 | 181 | 77 | 0 | 49 | 28 |
+| Antecedent SSI (7 days) | 2,433 | 164 | 81 | 0 | 48 | 33 |
+| Antecedent SSI (30 days) | 2,425 | 163 | 69 | 0 | 32 | 37 |
+
+## 17. Direct catchment conclusion
+
+There are **378 stable candidates in opposing directions and zero metric-wide FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
+
+![Catchment evidence funnel](assets/figure_03_strong_signal_rankings.png)
+
+The evidence funnel keeps unadjusted significance, sensitivity stability, and multiplicity control distinct.
+
+## 18. L5 is a second-stage spatial question
+
+L5 asks whether direct catchment changes may represent a larger hydrological pattern. It does not determine whether a catchment estimate is worth retaining and never removes the primary catchment layer.
+
+## 19. Catchment-to-L5 membership
+
+Catchment outlets are spatially joined to HydroBASINS v1.c level 5. **2,622 catchments** match; two Mauritius catchments remain unmatched in the reference geometry but retain direct results.
+
+## 20. L5 area support
+
+For L5 polygon $H_j$ and eligible catchment polygons $A_i$ assigned by their outlets:
+
+$$
+Coverage_j=
+\frac{Area\left(H_j\cap\bigcup_{i\in j}A_i\right)}{Area(H_j)}.
+$$
+
+Areas use equal-area EPSG:6933. Invalid polygons are repaired, and overlapping catchments are counted once through a geometric union.
+
+## 21. Dynamic threshold sensitivity
+
+| L5 area threshold | Spatially supported L5 | L5 with trend estimates | Catchments inside passing L5 | Global catchment share | US catchment share | Strong regional signals | L5 with strong signals |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10% | 156 | 152 | 2,139 | 81.6% | 63.6% | 84 | 36 |
+| 20% | 85 | 82 | 1,287 | 49.1% | 34.1% | 42 | 22 |
+| 30% | 50 | 48 | 660 | 25.2% | 20.1% | 28 | 16 |
+| 40% | 34 | 32 | 399 | 15.2% | 15.5% | 19 | 11 |
+| 50% | 19 | 18 | 145 | 5.5% | 7.0% | 10 | 6 |
+
+The 10% default preserves a broad exploratory regional view; 20–50% thresholds test whether conclusions persist under stricter spatial representation. The threshold is a spatial interpretation condition, not a p-value rule.
+
+![Threshold sensitivity](assets/figure_05_physical_decomposition.png)
+
+US retention falls faster because HydroBASINS L5 units are comparatively fragmented relative to the observed catchment polygons.
+
+## 22. Multi-catchment L5 estimator
+
+For an L5 with at least two contributing catchments:
+
+$$
+\bar y_{it}=\alpha_i+\beta_j x_{it}+\varepsilon_{it},
+\qquad x_{it}=\frac{year_{it}-2000}{10}.
+$$
+
+$\alpha_i$ controls stable catchment differences and $\beta_j$ is the shared per-decade change. Standard errors are clustered by catchment with a $t(G-1)$ reference.
+
+## 23. One-catchment representation
+
+If one catchment alone supports an L5 polygon at the selected threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly labelled as a single-catchment representation. High area support does not create multi-catchment corroboration.
+
+## 24. Why 2000 appears
+
+The year 2000 is only a numerical centering constant. Replacing it with 1990 or 2010 leaves the slope unchanged; no pre/post-2000 contrast or breakpoint is fitted.
+
+## 25. Complete regional family
+
+All 1,475 estimable L5 × five-primary-metric tests enter one BH family. This is intentionally more conservative than correcting each metric separately because the map invites inspection across both space and SSI windows.
+
+## 26. Five regional evidence gates
+
+The interactive regional signal must pass:
+
+1. the currently selected area-support threshold;
+2. complete regional-family 5% FDR;
+3. sign agreement across all four alternative extreme samples;
+4. sign agreement across 1/3/7/30-day SSI windows where relevant;
+5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a one-catchment representation.
+
+## 27. Regional results at the default 10% threshold
+
+| Metric | L5 tests | Complete-family FDR | Strong regional signals | Negative | Positive |
+|---|---:|---:|---:|---:|---:|
+| Rainfall concentration | 152 | 27 | 24 | 19 | 5 |
+| Antecedent SSI (1 day) | 152 | 18 | 16 | 13 | 3 |
+| Antecedent SSI (3 days) | 152 | 15 | 14 | 11 | 3 |
+| Antecedent SSI (7 days) | 152 | 18 | 16 | 12 | 4 |
+| Antecedent SSI (30 days) | 152 | 14 | 14 | 12 | 2 |
+
+![Area-supported regional patterns](assets/figure_04_mechanism_trajectories.png)
+
+Both positive and negative directions remain. The result is spatially heterogeneous regional evidence rather than one uniform global direction.
+
+## 28. Strongest regional results
+
+| L5 | Metric | Direction | Change per decade | 95% CI | Area support | Catchments |
 |---|---|---|---:|---:|---:|---:|
-| HB5-595640 | AU | Rainfall concentration | +2.92 | +1.82 to +4.02 | 44 | 3.7e-05 |
-| HB5-420340 | DE | Rainfall concentration | +2.79 | +1.96 to +3.61 | 43 | 1.18e-06 |
-| HB5-023010 | DE | Rainfall concentration | +2.70 | +1.29 to +4.10 | 30 | 0.00186 |
-| HB5-497340 | FR | Rainfall concentration | -2.54 | -3.54 to -1.55 | 26 | 0.000182 |
-| HB5-024170 | DE | Rainfall concentration | +2.50 | +1.30 to +3.69 | 32 | 0.000897 |
-| HB5-502920 | FR | Rainfall concentration | -2.10 | -3.20 to -1.01 | 22 | 0.00225 |
-| HB5-020620 | FR | Rainfall concentration | -2.09 | -2.85 to -1.34 | 39 | 2.83e-05 |
-| HB5-020590 | FR | Rainfall concentration | -2.05 | -2.75 to -1.35 | 65 | 3.9e-06 |
-| HB5-014330 | BR | Rainfall concentration | -2.03 | -2.74 to -1.32 | 22 | 7.66e-05 |
-| HB5-022150 | FR | Rainfall concentration | -1.99 | -2.74 to -1.25 | 60 | 2.07e-05 |
-| HB5-441280 | DE/FR | Rainfall concentration | -1.46 | -2.25 to -0.67 | 40 | 0.00201 |
-| HB5-021040 | FR | Rainfall concentration | -1.38 | -2.19 to -0.57 | 57 | 0.00365 |
+| HB5-762870 | Antecedent SSI (3 days) | decrease | -0.030 | -0.043 to -0.017 | 55.5% | 9 |
+| HB5-762870 | Antecedent SSI (1 day) | decrease | -0.030 | -0.042 to -0.017 | 55.5% | 9 |
+| HB5-632730 | Antecedent SSI (3 days) | decrease | -0.029 | -0.042 to -0.015 | 13.3% | 11 |
+| HB5-632730 | Antecedent SSI (1 day) | decrease | -0.029 | -0.042 to -0.015 | 13.3% | 11 |
+| HB5-048410 | Antecedent SSI (7 days) | decrease | -0.029 | -0.043 to -0.014 | 24.8% | 8 |
+| HB5-762870 | Rainfall concentration | decrease | -5.69 | -8.23 to -3.14 | 55.5% | 9 |
+| HB5-502710 | Rainfall concentration | decrease | -5.40 | -6.43 to -4.36 | 60.0% | 4 |
+| HB5-774200 | Antecedent SSI (1 day) | decrease | -0.027 | -0.042 to -0.011 | 80.4% | 11 |
+| HB5-048410 | Antecedent SSI (3 days) | decrease | -0.027 | -0.040 to -0.013 | 24.8% | 8 |
+| HB5-048620 | Antecedent SSI (3 days) | decrease | -0.026 | -0.036 to -0.016 | 45.6% | 16 |
+| HB5-632730 | Antecedent SSI (7 days) | decrease | -0.025 | -0.037 to -0.014 | 13.3% | 11 |
+| HB5-048620 | Antecedent SSI (1 day) | decrease | -0.025 | -0.036 to -0.015 | 45.6% | 16 |
 
-## 6. Meaning of the annual trajectories
+## 29. Returning regional evidence to its catchments
 
-![Continuous trajectories for representative regions](assets/figure_04_mechanism_trajectories.png)
+![Regional and contributing catchment trends](assets/figure_06_robustness_matrix.png)
 
-The annual points are not pooled event means. Their meaning is: **after placing every catchment on the same long-run mean level, how far above or below its own normal condition were the catchments contributing in that year, on average?** This reduces station-composition artifacts without inventing a calendar breakpoint.
+Grey circles are direct catchment slopes; diamonds and intervals are pooled L5 slopes and 95% confidence intervals. A pooled signal gains power from shared within-catchment movement and does not imply that every contributing catchment is independently significant.
 
-## 7. Physical reading of rainfall concentration
+## 30. Supported scientific conclusions
 
-![Raw physical components behind concentration change](assets/figure_05_physical_decomposition.png)
+1. Most estimable catchments do not show network-confirmed long-term shifts.
+2. The 378 stable candidates provide explicit targets for independent follow-up.
+3. Some local changes align into statistically clearer L5-scale directions.
+4. Stricter area support reduces the number of interpretable L5 signals while opposing regional directions persist.
 
-Wettest-day rainfall, total event rainfall, and precipitation duration are fitted in their raw units. Displayed relative values equal the raw linear slope divided by the region's catchment-equal mean. If wettest-day rain rises 2% per decade while event-total rain rises 8%, rainfall concentration falls; no logarithmic model is required for that interpretation.
+## 31. Inference boundary
 
-## 8. Robustness to large-flood definition
+These trends are not changes in flood count, flood peak, or runoff volume. They do not establish attribution to anthropogenic climate change, land use, or engineering controls. Area coverage measures observational spatial support rather than population, assets, or area-weighted global representativeness.
 
-![Direction across alternative extreme-event samples](assets/figure_06_robustness_matrix.png)
+## 32. Limitations
 
-Strong signals keep their sign in annual maxima, POT/Q90, 10-day-declustered POT/Q95, and POT/Q97.5 samples. The requirement is directional replication, not numerically identical slopes.
+Long records are sparse in Asia; rainfall concentration is daily rather than sub-daily; SSI and reconstructed rainfall uncertainty enter event metrics; neighbouring L5 units may be spatially dependent; and clustered inference remains approximate with few catchments. Direct candidates require independent data or longer records for confirmation.
 
-## 9. Data and verified period
+## 33. Next analyses
 
-The analysis reuses read-only event catalogs, daily hydroclimatic observations, and SSI features from Event_Typology. The common verified period is 1982–2019. Spatial units use [HydroBASINS v1.c](https://www.hydrosheds.org/products/hydrobasins).
+Prioritize raw-series review and independent precipitation/soil-moisture validation for stable candidates and strong L5 signals. Then test whether finer HydroBASINS levels improve spatial resolution while retaining adequate area support.
 
-## 10. Long-record eligibility
+## 34. Reproduction
 
-A catchment must provide at least 30 annual observations, span at least 30 years, and cover at least 80% of its record span. Eligibility is established before extreme-event selection.
+```powershell
+$projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
+& $projectPython src/run_pipeline.py --stage all --force
+& $projectPython src/validate_outputs.py
+```
 
-## 11. Primary large-flood population
-
-For catchment $i$, the within-catchment 95th percentile of reconstructed event peaks is
-
-$$Q_{0.95,i}=\operatorname{quantile}_{0.95}\left(Q_{i1},\ldots,Q_{in_i}\right).$$
-
-The primary sample retains $Q_{ie}\ge Q_{0.95,i}$ and requires at least 10 selected events spanning at least 20 years in each catchment.
-
-## 12. Why annual maxima are not the primary sample
-
-Annual maxima force exactly one event per year and can discard multiple independent large floods in the same year. POT/Q95 retains all within-catchment exceedances; annual maxima remain a sensitivity population.
-
-## 13. Event independence
-
-The primary sample has a minimum adjacent-peak gap of 2 days and 0 overlapping stormflow windows. A separate 10-day-declustered sample has 0 adjacent pairs under 10 days, making independence an explicit sensitivity rather than an assumption.
-
-## 14. Rainfall-driven scope
-
-Event snow-water fraction must be below 0.10. Flood-peak magnitude selects events; rainfall and SSI only describe their generating conditions. Selection and mechanism measurement are never conflated.
-
-## 15. Rainfall concentration
-
-For event $e$ in catchment $i$,
-
-$$C_{ie}=\frac{P_{\max,ie}}{P_{\mathrm{volume},ie}},\qquad 0<C_{ie}\le1.$$
-
-$P_{\max}$ is wettest-day rainfall and $P_{\mathrm{volume}}$ is total event rainfall. Higher $C$ means more concentrated rain; lower $C$ means more prolonged or distributed rain.
-
-## 16. Why intensity-dominated classes are not used
-
-A $C>0.50$ label makes 0.51 equivalent to 0.95 and creates artificial threshold jumps. It was not a meeting-defined scientific target. Inference, reports, and the web interface therefore use continuous $C$ and do not construct a binary type share.
-
-## 17. Antecedent Soil Saturation Index
-
-For $w\in\{1,3,7,30\}$ complete pre-event days,
-
-$$SSI_{w,ie}=\frac1w\sum_{d=1}^w SSI_{i,t_0-d},$$
-
-where $t_0$ is rainfall onset. The windows represent immediate to slower antecedent memory and exclude event-day rain.
-
-## 18. Why four SSI windows
-
-One day captures immediate wetness, 3 and 7 days capture short memory, and 30 days captures slower background state. They are parallel continuous measurements used to test window sensitivity.
-
-## 19. Why Dry/Moderate/Wet classes are not used
-
-Threshold classes discard within-class movement and are not needed to answer the research question. The project retains continuous SSI and does not construct Dry/Moderate/Wet labels.
-
-## 20. Why HydroBASINS L5 is the only regional scale
-
-L5 supplies the interpretable local hydrological scale used for inference. L3/L4 have no core inferential role and are not included in computation, result tables, or web data. The spatial design contains only L5 regions and eligible individual catchments.
-
-## 21. The single ≥20-catchment threshold
-
-Catchments are the clusters in regional inference. Conventional cluster-robust variance relies on many-cluster asymptotics. [Cameron and Miller](https://escholarship.org/uc/item/1jq5d0pq) emphasize that there is no universal boundary and that “few” may mean fewer than 20 to fewer than 50 clusters; $t(G-1)$ corrections can still over-reject. [Imbens and Kolesár](https://doi.org/10.1162/REST_A_00552) show that small-sample corrections can matter even with 50 or more clusters.
-
-Twenty is therefore a conservative minimum design choice for the present estimator, not a theorem that guarantees exact inference. Five clusters would provide only four nominal degrees of freedom. The project has one regional sample rule—≥20—and excludes smaller regional units.
-
-## 22. Catchment fixed-effect model
-
-For catchment $i$, event $e$, and year $t$,
-
-$$y_{iet}=\alpha_i+\beta x_{iet}+\varepsilon_{iet},\qquad x_{iet}=\frac{year_{iet}-2000}{10}.$$
-
-$\alpha_i$ is the catchment-specific baseline and $\beta$ is the average within-catchment change per decade.
-
-## 23. What fixed effects do
-
-The estimator removes each catchment's mean:
-
-$$\widetilde y_{iet}=y_{iet}-\bar y_i,\qquad \widetilde x_{iet}=x_{iet}-\bar x_i,$$
-
-$$\widehat\beta=\frac{\sum_{i,e,t}\widetilde x_{iet}\widetilde y_{iet}}{\sum_{i,e,t}\widetilde x_{iet}^2}.$$
-
-A naturally wetter catchment cannot create a regional trend merely because its baseline is high; only temporal movement relative to its own baseline contributes.
-
-## 24. Why 2000 appears in the formula
-
-It is only a numerical centering constant. Replacing 2000 with 1990 or 2010 leaves the slope unchanged. The model has no pre/post-2000 comparison or breakpoint.
-
-## 25. Cluster-robust uncertainty
-
-Residuals may be arbitrarily correlated among events within a catchment. The variance uses a finite-sample scaling and $t_{G-1}$ critical values, where $G$ is the number of contributing catchments.
-
-## 26. Unit of rainfall-concentration change
-
-Because $C$ is a 0–1 proportion, $100\widehat\beta$ is reported as percentage points of event rainfall per decade. A value of +2.12 means the wettest-day share rises by 2.12 percentage points in ten years; it is not a 2.12% change in flood count or peak flow.
-
-## 27. Absolute and relative SSI change
-
-Absolute SSI slope is primary. The supplementary relative scale is
-
-$$r_{SSI}=100\times\frac{\widehat\beta_{SSI}}{\bar y_{ref}},\qquad
-\bar y_{ref}=\frac1G\sum_{i=1}^G\bar y_i.$$
-
-For example, −0.013 SSI per decade against a 0.52 catchment-equal mean is about −2.5% per decade. Relative change aids scale perception but does not replace the absolute estimate or confidence interval.
-
-## 28. Relative Pmax, event-total, and duration trends
-
-Each component is fitted linearly in raw units and then divided by its catchment-equal mean:
-
-$$r_y=100\times\frac{\widehat\beta_y}{\bar y_{ref}}.$$
-
-No $\ln P$ model or $100(e^\beta-1)$ transformation is used.
-
-## 29. Adjusted annual trajectory
-
-With catchment-year event mean $v_{it}$, catchment long-run mean $\bar v_i$, and catchment-equal reference $v_{ref}$,
-
-$$v_{it}=\frac1{n_{it}}\sum_e y_{iet},\quad v_{ref}=\frac1G\sum_i\bar v_i,$$
-
-$$v_{it}^*=v_{it}-\bar v_i+v_{ref},\quad \bar v_t^*=\frac1{G_t}\sum_i v_{it}^*.$$
-
-It answers how far the year's participating catchments were above or below their own normal levels after all catchments are placed on the same long-run mean.
-
-## 30. Benjamini–Hochberg False Discovery Rate
-
-False Discovery Rate (FDR) is
-
-$$FDR=E\left[\frac{V}{\max(R,1)}\right],$$
-
-where $V$ is the number of false rejections and $R$ is the number of all rejections. The [Benjamini–Hochberg procedure](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x) orders $m$ p-values and finds
-
-$$k=\max\left\{\,i:p_{(i)}\le\frac{i}{m}q\,\right\},$$
-
-then rejects $H_{(1)},\ldots,H_{(k)}$. Here $m=140$ and $q=0.05$.
-
-## 31. Why unadjusted p<0.05 is insufficient
-
-If all 140 null hypotheses were true, random variation alone would still yield about
-
-$$ 140\times0.05=7.0 $$
-
-unadjusted p-values below 0.05 on average. This is not an estimate of actual false positives; it demonstrates the multiplicity problem.
-
-## 32. BH-adjusted q-values
-
-For ordered p-values,
-
-$$q_{(i)}=\min_{j\ge i}\left(\frac{m}{j}p_{(j)}\right),$$
-
-clipped at one and restored to the original order. The web inspector reports the q-value from the complete 140-test family, not a more favorable metric-specific subset.
-
-## 33. Individual-catchment trends
-
-Points use the [Theil–Sen](https://ir.cwi.nl/pub/18445) median slope,
-
-$$\widehat\beta_{TS}=\operatorname{median}_{j>i}\frac{y_j-y_i}{t_j-t_i},$$
-
-with a tie-corrected Mann–Kendall test. At least 10 selected events spanning at least 20 years are required. These points provide local context, not primary regional inference.
-
-## 34. Complete strong-evidence rule
-
-A strong primary signal must satisfy all of the following:
-
-1. at least 20 contributing catchments;
-2. 5% BH-FDR across the full 140-test primary family;
-3. matching signs in annual maxima, POT/Q90, 10-day-declustered POT/Q95, and POT/Q97.5;
-4. unchanged sign in every leave-one-catchment-out estimate;
-5. for SSI, agreement across all four windows.
-
-## 35. One sample threshold and three evidence grades
-
-All mapped and tested regions satisfy the same ≥20 rule. Grades are estimate, FDR-supported, or strong; sample size does not introduce a second evidence threshold.
-
-## 36. Supported conclusions
-
-- Generating conditions changed reproducibly in some local hydrological regions.
-- Local rainfall concentration changed by several percentage points per decade.
-- Antecedent wetness moved in both wetter and drier directions.
-- Spatial heterogeneity is a result, not noise to be averaged away.
-
-## 37. Unsupported conclusions
-
-- No spatially uniform or area-weighted global land trend is established.
-- Results do not directly describe flood frequency, peak flow, or flood volume.
-- The analysis does not causally attribute change to climate, land use, or infrastructure.
-- Blank regions do not imply zero trend; many lack eligible long records.
-
-## 38. Limitations
-
-Coverage is densest in Europe and North America and nearly absent in Asia. Rainfall reconstruction and SSI uncertainty enter event metrics. Conventional clustered inference is not finite-sample exact at 20 clusters, and adjacent regions may remain spatially dependent. Twenty is a minimum, not a sufficiency guarantee.
-
-## 39. Reproducibility map
-
-- Configuration: `config/analysis.yaml`
-- Pipeline: `src/run_pipeline.py`
-- Regional model: `src/floodcause/local_analysis.py`
-- Independent validation: `src/validate_outputs.py`
-- Primary evidence table: `outputs/tables/hydrobasin_evidence.csv`
-- Interactive data: `public/modules/flood-cause-evolution/data/flood-cause-explorer.json`
-- Interactive site: [GitHub Pages](https://grups666.github.io/Global_Flood_Cause_Evolution/)
-
-## 40. Next analytical step
-
-Add long-record catchments in Asia and other sparse regions. For retained ≥20-cluster regions, add CR2/Bell–McCaffrey or wild-cluster bootstrap sensitivity before attempting broader spatial generalization.
+The related `Event_Typology` source project is used read-only. This repository stores the method, derived evidence, figures, reports, and GitHub Pages explorer: <https://grups666.github.io/Global_Flood_Cause_Evolution/>.

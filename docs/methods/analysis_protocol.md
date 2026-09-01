@@ -2,161 +2,110 @@
 
 ## Scientific question
 
-The analysis asks whether the hydrometeorological conditions associated with
-extreme rainfall-driven floods changed through time, where those changes occur,
-and whether the direction is toward short concentrated rainfall, long
-volume-dominated rainfall, wetter antecedent conditions, or drier antecedent
-conditions.
+The analysis asks whether the conditions accompanying large rainfall-driven floods changed during 1982–2019. Two continuous dimensions are retained: rainfall organization within an event and antecedent catchment wetness. The intended result is a catchment-first map of local long-term shifts followed by a second-stage test of whether neighboring catchments form a larger HydroBASINS L5 pattern.
 
-The meeting record establishes this question, the rainfall-organization and
-antecedent-wetness dimensions, and the need for a global change-direction map.
-It does not prescribe a year split, statistical estimator, HydroBASINS level,
-or numerical classification threshold.
+The meeting establishes this scientific question and the two process dimensions. It does not prescribe a calendar split, estimator, HydroBASINS level, or numerical class threshold.
 
-## Population
+## Population and event sample
 
-- Study period: the verified common record, 1982–2019.
-- Catchments: long-term snow fraction below 0.10, both seasonal event
-  catalogues present, a matching daily record, at least 30 observed event years,
-  a first-to-last span of at least 30 years, and at least 80% annual coverage.
-- Events: reconstructed rainfall-runoff events with complete precipitation and
-  response windows and a valid observed daily flood peak.
-- Inference: the available long-record gauge sample, not an area-weighted global
-  land estimate and not snowmelt or rain-on-snow floods.
+- Catchments have long-term snow fraction below 0.10, both seasonal event catalogues, a matching daily record, at least 30 observed event years, at least a 30-year first-to-last span, and at least 80% annual coverage.
+- The primary sample is the catchment-specific upper 5% of reconstructed event flood peaks (POT/Q95).
+- A catchment enters the primary event sample with at least 10 selected events spanning at least 20 years.
+- Sensitivity samples are POT/Q90, POT/Q97.5, 10-day-declustered POT/Q95, and annual maxima.
 
-## Extreme-event selection
+Flood peak determines sample membership. Rainfall organization and antecedent wetness are calculated after selection, so condition description does not determine which events are called extreme.
 
-Event selection is kept separate from mechanism description.
+## Continuous outcomes
 
-### Primary sample: catchment-specific POT/Q95
+### Rainfall concentration
 
-For each eligible catchment, calculate the 95th percentile of reconstructed
-event peak flow over its full record and retain events at or above the
-threshold. Require at least 10 selected events and a selected-event span of at
-least 20 years. Source events are independently delineated rainfall-runoff
-windows; overlap and peak-spacing diagnostics are reported explicitly.
+For event $e$ in catchment $i$,
 
-This is the most direct operational interpretation of the meeting phrase
-“top 5%”. The phrase remains methodologically ambiguous because the meeting did
-not specify the ranked variable or percentile population; the report therefore
-describes the operational definition rather than attributing it to the
-supervisor.
+$$
+C_{ie}=\frac{P_{\max,ie}}{P_{\mathrm{volume},ie}}.
+$$
 
-### Sensitivity samples
-
-- catchment-specific POT/Q90;
-- catchment-specific POT/Q97.5;
-- POT/Q95 with a 10-day peak-separation declustering rule;
-- one annual maximum flood per catchment-year.
-
-These branches test whether mapped directions depend on event extremeness,
-declustering, or using one event per year.
-
-## Mechanism descriptors
-
-### Rainfall organization
-
-Primary continuous metric:
-
-```text
-rainfall concentration = maximum daily event rainfall / total event rainfall
-```
-
-An increase means that a larger share of event rainfall is concentrated in one
-day, consistent with movement toward short/intensity-dominated rainfall. A
-decrease means movement toward longer, volume-dominated rainfall. The metric is
-a daily-resolution organization descriptor, not a measurement of sub-daily
-rainfall intensity.
-
-No binary intensity-dominated label is constructed. Thresholding would discard
-within-category movement and was not specified by the meeting; the continuous
-ratio is the sole inferential rainfall-organization target.
+$P_{\max}$ is the wettest daily rainfall in the event window and $P_{\mathrm{volume}}$ is event rainfall total. An increasing $C$ means more rainfall was allocated to the wettest day; a decreasing $C$ means movement toward more prolonged rainfall. The fitted display slope is in percentage points of event rainfall per decade. No binary intensity-dominated label is used.
 
 ### Antecedent wetness
 
-Primary continuous metrics are mean Soil Saturation Index values over the 1,
-3, 7, and 30 complete days before event rainfall begins. All four windows are
-reported. A wetness signal is called window-consistent only when the estimated
-direction is the same at all four windows.
+For rainfall-start date $t_0$ and window $w\in\{1,3,7,30\}$,
 
-### Physical decomposition
+$$
+SSI_{ie}^{(w)}=\frac{1}{w}\sum_{k=1}^{w}SSI_{i,t_0-k}.
+$$
 
-For every extreme event, retain:
+Positive trends indicate wetter states before selected floods; negative trends indicate drier states. SSI remains continuous. The analysis does not construct Dry/Moderate/Wet categories.
 
-- maximum daily rainfall;
-- total event rainfall;
-- precipitation duration;
-- flood peak and event runoff volume;
-- antecedent SSI at all four windows.
+### Physical rainfall components
 
-Maximum daily rainfall, event rainfall, and duration are fitted directly in
-their raw physical units. For comparison, each raw linear slope is divided by
-the HydroBASINS unit's catchment-equal mean and reported as percent per decade.
-No logarithmic model is used. These variables explain why the
-rainfall-concentration ratio moved; they are not extra definitions of cause.
+Maximum daily rainfall, event rainfall total, and precipitation duration are fitted in their raw units. A secondary relative change is obtained without a logarithmic model:
 
-## Continuous-time trend estimation
+$$
+r=100\frac{\widehat\beta}{\bar y}.
+$$
 
-No arbitrary early/late period split is used.
+These components explain why rainfall concentration moved; they do not establish causal attribution.
 
-For each HydroBASINS unit and metric, fit a catchment fixed-effect linear trend:
+## First stage: direct catchment trends
 
-```text
-mechanism_metric_it = catchment_i + beta * calendar_decade_t + error_it
-```
+Multiple selected events in one catchment-year are first averaged:
 
-Uncertainty is clustered by catchment and uses a small-cluster t reference.
-The estimator answers whether the same contributing catchments moved through
-time, while controlling stable differences between catchments.
+$$
+\bar y_{it}=\frac{1}{n_{it}}\sum_e y_{iet}.
+$$
 
-- Concentration slopes are reported as percentage points of event rainfall per
-  decade.
-- SSI slopes are reported as SSI index units per decade and, secondarily, as a
-  percentage of the catchment-equal mean per decade.
-- Physical rainfall-driver slopes retain raw units and a derived relative
-  percentage scale.
+This gives every observed event year equal time weight. For each catchment and metric, a Theil–Sen slope is estimated from the annualized series and reported per decade:
 
-## Spatial analysis
+$$
+\widehat\beta_i=\operatorname{median}_{t_j>t_k}
+\left(\frac{\bar y_{it_j}-\bar y_{it_k}}{t_j-t_k}\right)\times10.
+$$
 
-HydroBASINS level 5 is the only regional inference grain. A level-5 estimate
-requires at least 20 contributing catchments; smaller regional units are
-excluded. This is the sole regional sample-size threshold. It is a conservative
-design choice for conventional catchment-clustered inference, not a theorem of
-finite-sample sufficiency: published guidance notes that the boundary for
-“few” clusters is context-dependent and can extend from fewer than 20 to fewer
-than 50 clusters.
+A tie-corrected Mann–Kendall test evaluates monotonic trend. At least 10 distinct event years spanning at least 20 years are required.
 
-All level-5 tests for the five continuous primary metrics enter one declared
-Benjamini–Hochberg family. Colour represents effect direction and magnitude;
-it is never used alone as a significance claim.
+Benjamini–Hochberg FDR is applied separately across catchments for each physical metric. If ordered p-values are $p_{(1)}\le\cdots\le p_{(m)}$, the largest $k$ satisfying
 
-## Evidence grades
+$$
+p_{(k)}\le\frac{k}{m}\alpha,\qquad\alpha=0.05
+$$
 
-A basin–metric estimate is labelled strong evidence only when:
+defines the rejected set.
 
-1. it passes the complete level-5 primary-family 5% FDR;
-2. its direction agrees across annual maxima, POT/Q90, POT/Q95 with 10-day
-   declustering, and POT/Q97.5 whenever those estimates are available;
-3. its sign is unchanged when each contributing catchment is removed in turn;
-4. for antecedent wetness, all four SSI windows have the same direction.
+A stable local candidate requires unadjusted $p<0.05$, sign agreement under POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require the four wetness windows to agree. Candidate status is exploratory; it never substitutes for FDR.
 
-## Catchment layer
+## Second stage: area-supported L5 patterns
 
-Individual-catchment trends use Theil–Sen slopes and tie-corrected
-Mann–Kendall tests on the primary POT/Q95 sample. A point is displayed only if
-the catchment passes the long-record screen, has at least 10 selected events,
-and those events span at least 20 years. Catchment-level FDR is applied by
-metric. These points provide local context; the main inferential scale remains
-the multi-catchment hydrological unit.
+Each primary-sample catchment is assigned to HydroBASINS v1.c level 5 by its outlet. For L5 polygon $H_j$ and assigned catchment polygons $A_i$, observed area support is
+
+$$
+Coverage_j=\frac{Area\left(H_j\cap\bigcup_{i\in j}A_i\right)}{Area(H_j)}.
+$$
+
+Areas are calculated in equal-area EPSG:6933. Invalid polygons are repaired and overlap is counted once through a geometric union. The web explorer offers one regional-support rule with selectable values 10%, 20%, 30%, 40%, and 50%; 10% is the default. This threshold changes L5 interpretation only and never removes direct catchment results.
+
+For at least two contributing catchments, annualized values are fitted with a catchment fixed effect:
+
+$$
+\bar y_{it}=\alpha_i+\beta_j\frac{year_{it}-2000}{10}+\varepsilon_{it}.
+$$
+
+$\alpha_i$ removes stable level differences and $\beta_j$ estimates a shared within-catchment change per decade. Standard errors are clustered by catchment with a $t(G-1)$ reference. The number 2000 is only a centering constant and is not a breakpoint.
+
+If one catchment alone reaches the selected area threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly marked as a single-catchment representation. It is not described as multi-catchment corroboration.
+
+All estimable L5 × five-primary-metric tests form one complete Benjamini–Hochberg family. A strong regional pattern must pass:
+
+1. the selected area-support threshold;
+2. complete regional-family 5% FDR;
+3. sign agreement across the four alternative extreme-event samples;
+4. sign agreement across SSI windows where applicable; and
+5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a single-catchment representation.
 
 ## Interpretation limits
 
-- Results describe temporal association and changing composition of generating
-  conditions, not causal attribution to anthropogenic climate change.
-- Rainfall concentration is resolved daily and cannot identify hourly
-  convective intensity.
-- HydroBASINS pooling does not eliminate residual spatial dependence.
-- A mechanism trend is not a trend in flood count, flood peak, or flood volume;
-  those response variables are reported separately.
-- Null results are retained. The analysis does not require significant change
-  to satisfy the research question.
+- Results describe temporal association in flood-generating conditions, not changes in flood count, flood peak, or runoff volume.
+- They do not attribute trends to anthropogenic climate change, land use, or engineering controls.
+- Rainfall concentration has daily rather than sub-daily resolution.
+- Area support measures observed polygon coverage, not population, assets, or area-weighted global representativeness.
+- Null and weak results are retained; the research question does not require a universal or globally averaged direction.

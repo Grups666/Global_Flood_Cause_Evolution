@@ -43,40 +43,65 @@ def theil_sen_per_decade(year: np.ndarray, values: np.ndarray) -> dict[str, floa
     }
 
 
-def fit_continuous_trends(sample: pd.DataFrame, variables: list[str], alpha: float) -> pd.DataFrame:
+def fit_continuous_trends(
+    sample: pd.DataFrame,
+    variables: list[str],
+    alpha: float,
+    minimum_years: int = 10,
+    minimum_span_years: int = 20,
+) -> pd.DataFrame:
+    """Estimate one non-parametric trend per catchment and continuous metric.
+
+    Multiple selected floods can occur in one calendar year.  The event values
+    are therefore averaged within catchment-year before fitting so a year with
+    several reconstructed events cannot receive more trend weight solely for
+    that reason.  ``n_observations`` retains the underlying event count while
+    ``n_years`` records the number of annual values used by Theil-Sen and
+    Mann-Kendall.
+    """
     rows: list[dict[str, Any]] = []
     for variable in variables:
         for gcin, frame in sample.groupby("GCIN", sort=False):
             subset = frame[["peak_year", variable]].dropna().sort_values("peak_year")
-            if len(subset) < 10:
+            annual = subset.groupby("peak_year", as_index=False).agg(
+                value=(variable, "mean"),
+                events=(variable, "size"),
+            )
+            if len(annual) < minimum_years:
                 continue
-            year_span = int(subset["peak_year"].max() - subset["peak_year"].min() + 1)
-            if year_span < 20:
+            year_span = int(annual["peak_year"].max() - annual["peak_year"].min() + 1)
+            if year_span < minimum_span_years:
                 continue
             estimate = theil_sen_per_decade(
-                subset["peak_year"].to_numpy(float), subset[variable].to_numpy(float)
+                annual["peak_year"].to_numpy(float), annual["value"].to_numpy(float)
             )
             rows.append({
                 "GCIN": int(gcin),
                 "variable": variable,
                 "n_observations": len(subset),
-                "n_years": int(subset["peak_year"].nunique()),
-                "first_year": int(subset["peak_year"].min()),
-                "last_year": int(subset["peak_year"].max()),
+                "n_years": int(len(annual)),
+                "first_year": int(annual["peak_year"].min()),
+                "last_year": int(annual["peak_year"].max()),
                 "year_span": year_span,
-                "mean_level": float(subset[variable].mean()),
+                "mean_level": float(annual["value"].mean()),
                 **estimate,
             })
     result = pd.DataFrame(rows)
     if result.empty:
         return result
-    result["mk_q"] = result.groupby("variable", group_keys=False)["mk_p"].apply(benjamini_hochberg)
+    result["metric_q"] = result.groupby("variable", group_keys=False)["mk_p"].apply(
+        benjamini_hochberg
+    )
+    result["family_q"] = benjamini_hochberg(result["mk_p"])
+    # Compatibility alias used by existing audit and presentation code.
+    result["mk_q"] = result["metric_q"]
     result["direction"] = np.select(
         [result["sen_slope_per_decade"] > 0, result["sen_slope_per_decade"] < 0],
         ["increase", "decrease"],
         default="stable",
     )
-    result["fdr_significant"] = result["mk_q"] < alpha
+    result["fdr_significant"] = result["metric_q"] < alpha
+    result["family_fdr_significant"] = result["family_q"] < alpha
     result["display_slope_per_decade"] = result["sen_slope_per_decade"]
     result["display_ci_low_per_decade"] = result["sen_ci_low_per_decade"]
     result["display_ci_high_per_decade"] = result["sen_ci_high_per_decade"]
