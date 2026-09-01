@@ -6,8 +6,8 @@
 
 - Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
 - The primary sample contains **59,048 POT/Q95 floods in 2,624 long-record low-snow catchments**. At least one primary direct trend is estimable in **2,435 catchments**.
-- The five continuous outcomes produce **12,163 catchment–metric tests** (the complete grid is 2,435 × 5 = 12,175; the 7-day and 30-day SSI outcomes lack 2 and 10 combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
-- Among 1,475 L5–metric tests, **106 pass complete-family FDR and 94 pass the full statistical robustness screen**. With the default **≥10% area support**, **84 strong regional signals remain in 36 L5 units**.
+- The five continuous outcomes produce **12,163 catchment–metric tests** (the complete grid is 2,435 × 5 = 12,175; the 7-day and 30-day SSI outcomes lack 2 and 10 combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **378 directionally stable candidates**, but **no direct catchment signal passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
+- Among 1,475 L5–metric tests, **106 pass complete-family BH-FDR and 94 pass the full statistical robustness screen**. With the default **≥10% area support**, **84 strong regional signals remain in 36 L5 units**.
 - Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
 
 ![Sample coverage](assets/figure_01_sample_coverage.png)
@@ -58,7 +58,7 @@ Annual maxima force one event into every year, even when that event is not parti
 
 ## 8. Extreme-event sensitivities
 
-The alternatives are POT/Q90, POT/Q97.5, 10-day-declustered POT/Q95, and annual maxima. The primary sample contains 2,194 adjacent peak pairs under 10 days; the declustered sample contains 0. Stormflow-window overlaps equal 0.
+The four alternatives change one setting at a time: POT/Q90 and POT/Q97.5 change only the extreme threshold, 10-day-declustered POT/Q95 changes only event separation, and annual maxima change the event-selection rule. Q95 is not uniquely in need of declustering; the Q95 branch isolates declustering sensitivity around the primary sample, and the present experiment does not fully cross threshold and declustering choices. The primary sample contains 2,194 adjacent peak pairs under 10 days; the declustered sample contains 0. Primary-sample stormflow-window overlaps equal 0.
 
 ## 9. Rainfall concentration
 
@@ -118,20 +118,28 @@ with a tie-corrected Mann–Kendall test. At least 10 event years spanning at le
 
 **Example.** If one pair of annual values rises from 0.40 in 1990 to 0.52 in 2010, that pair gives $(0.52-0.40)/(2010-1990)\times10=0.06$ per decade, or +6 concentration percentage points per decade. Theil–Sen calculates this slope for every year-pair and takes the median, so one unusual year has limited leverage.
 
-## 14. Catchment multiple testing
+## 14. Why direct catchment results still require network-wide multiplicity control
 
-Each physical metric forms one Benjamini–Hochberg family across catchments. Ordering $m$ p-values, the procedure finds the largest $k$ satisfying:
+Every catchment–metric pair first receives its own Mann–Kendall p value. A p value could be interpreted directly if the study had prespecified only one catchment. This study instead scans about 2,435 catchments and asks whether any location shows a trend. Even when no catchment has a real trend, thousands of simultaneous tests will generate some $p<0.05$ values by chance.
+
+Each physical metric therefore uses the **Benjamini–Hochberg false discovery rate procedure (BH-FDR)** across all estimable catchments. The family is not “the five metrics inside one catchment.” It is “one metric across the full catchment network”: rainfall concentration, 1-day SSI, and 3-day SSI each contain 2,435 tests; 7-day SSI contains 2,433; and 30-day SSI contains 2,425.
+
+Ordering the $m$ p values for one metric, BH-FDR finds the largest $k$ satisfying:
 
 $$
 p_{(k)}\le\frac{k}{m}\alpha,
 \qquad \alpha=0.05.
 $$
 
-**Example.** With 1,000 catchments for one metric, the fifth ordered p value is compared with $(5/1000)\times0.05=0.00025$. A result is labelled FDR-supported only if the ordered p values are sufficiently small. This network-wide correction does not change any catchment slope; it limits chance discoveries created by thousands of simultaneous tests.
+BH-FDR controls the expected proportion of false discoveries among the catchments labelled as discoveries. It does not alter a catchment slope; it determines whether a location can be called confirmed after searching the network.
+
+**Observed example.** Rainfall concentration has 2,435 direct catchment tests. If every null hypothesis were true, using $p<0.05$ alone would still produce about $2435\times0.05=121.75$ chance results on average; 154 unadjusted $p<0.05$ results are observed. The first BH-FDR cutoff is $0.05/2435=0.0000205$, while the smallest observed p value is 0.000367, so none passes 5% BH-FDR. The other four metrics also have zero BH-FDR discoveries.
+
+Zero discoveries do not make BH-FDR unnecessary. They mean that the current records cannot promote any direct catchment trend to a network-confirmed discovery after a global search. Raw slopes, p values, and the 378 directionally stable sensitivity candidates remain available for follow-up; candidates and BH-FDR discoveries represent different evidence grades.
 
 ## 15. Stable local candidate
 
-A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not an FDR-confirmed shift.
+A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not a BH-FDR-confirmed shift.
 
 ![Direct catchment results](assets/figure_02_mechanism_change_maps.png)
 
@@ -139,7 +147,7 @@ Light marks retain all estimable trends; outlined marks identify stable candidat
 
 ## 16. Direct catchment results
 
-| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Metric-wide FDR | Negative candidates | Positive candidates |
+| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Across-catchment BH-FDR | Negative candidates | Positive candidates |
 |---|---:|---:|---:|---:|---:|---:|
 | Rainfall concentration | 2,435 | 154 | 73 | 0 | 39 | 34 |
 | Antecedent SSI (1 day) | 2,435 | 184 | 78 | 0 | 48 | 30 |
@@ -149,7 +157,7 @@ Light marks retain all estimable trends; outlined marks identify stable candidat
 
 ## 17. Direct catchment conclusion
 
-There are **378 stable candidates in opposing directions and zero metric-wide FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
+There are **378 stable candidates in opposing directions and zero across-catchment BH-FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
 
 ![Catchment evidence funnel](assets/figure_03_strong_signal_rankings.png)
 
@@ -224,14 +232,14 @@ All 1,475 estimable L5 × five-primary-metric tests enter one BH family. This is
 The interactive regional signal must pass:
 
 1. the currently selected area-support threshold;
-2. complete regional-family 5% FDR;
+2. complete regional-family 5% BH-FDR;
 3. sign agreement across all four alternative extreme samples;
 4. sign agreement across 1/3/7/30-day SSI windows where relevant;
 5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a one-catchment representation.
 
 ## 27. Regional results at the default 10% threshold
 
-| Metric | L5 tests | Complete-family FDR | Strong regional signals | Negative | Positive |
+| Metric | L5 tests | Complete-family BH-FDR | Strong regional signals | Negative | Positive |
 |---|---:|---:|---:|---:|---:|
 | Rainfall concentration | 152 | 27 | 24 | 19 | 5 |
 | Antecedent SSI (1 day) | 152 | 18 | 16 | 13 | 3 |

@@ -9,9 +9,9 @@ The primary POT/Q95 sample contains **59,048 events in 2,624 long-record, low-sn
 
 ## Main result
 
-Direct trends are estimable for at least one main metric in **2,435 catchments**. Across **12,163 catchment–metric tests**, **378 stable candidates** survive event-definition, declustering, annual-maximum, and leave-one-year checks, but none passes metric-wide 5% FDR. The strict direct result is therefore that most catchments do not show network-confirmed long-term shifts, while a smaller set remains useful for targeted follow-up.
+Direct trends are estimable for at least one main metric in **2,435 catchments**. Across **12,163 catchment–metric tests**, **378 stable candidates** survive event-definition, declustering, annual-maximum, and leave-one-year checks, but none passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control. The strict direct result is therefore that most catchments do not show network-confirmed long-term shifts, while a smaller set remains useful for targeted follow-up.
 
-HydroBASINS L5 is a second-stage regional lens. With the default **10% observed polygon-area support**, **84 strong regional signals in 36 L5 units** pass complete-family FDR plus event-sample, SSI-window, and leave-one-out checks. The web explorer allows 10%, 20%, 30%, 40%, and 50% area-support thresholds; this control changes regional interpretation without removing individual catchment results.
+HydroBASINS L5 is a second-stage regional lens. With the default **10% observed polygon-area support**, **84 strong regional signals in 36 L5 units** pass complete-family BH-FDR plus event-sample, SSI-window, and leave-one-out checks. The web explorer allows 10%, 20%, 30%, 40%, and 50% area-support thresholds; this control changes regional interpretation without removing individual catchment results.
 
 - [Interactive GitHub Pages explorer](https://grups666.github.io/Global_Flood_Cause_Evolution/)
 - [Chinese technical report](reports/global_flood_cause_evolution.md)

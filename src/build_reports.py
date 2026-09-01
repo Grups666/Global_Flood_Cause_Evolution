@@ -112,9 +112,9 @@ def _local_table(s: dict[str, Any], language: str) -> str:
     labels = LABELS_ZH if language == "zh" else LABELS_EN
     frame = s["catchments"]
     if language == "zh":
-        rows = ["| 指标 | 可估计流域 | 未校正 p<0.05 | 稳定候选 | 变量内FDR | 候选负向 | 候选正向 |\n|---|---:|---:|---:|---:|---:|---:|"]
+        rows = ["| 指标 | 可估计流域 | 未校正 p<0.05 | 稳定候选 | 跨流域BH-FDR | 候选负向 | 候选正向 |\n|---|---:|---:|---:|---:|---:|---:|"]
     else:
-        rows = ["| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Metric-wide FDR | Negative candidates | Positive candidates |\n|---|---:|---:|---:|---:|---:|---:|"]
+        rows = ["| Metric | Estimable catchments | Unadjusted p<0.05 | Stable candidates | Across-catchment BH-FDR | Negative candidates | Positive candidates |\n|---|---:|---:|---:|---:|---:|---:|"]
     for metric in PRIMARY_METRICS:
         part = frame[frame["variable"].eq(metric)]
         candidate = part[part["potential_local_shift"]]
@@ -131,9 +131,9 @@ def _regional_table(s: dict[str, Any], language: str) -> str:
     labels = LABELS_ZH if language == "zh" else LABELS_EN
     frame = s["default_regions"]
     if language == "zh":
-        rows = ["| 指标 | L5检验 | 完整区域族FDR | 强区域信号 | 负向 | 正向 |\n|---|---:|---:|---:|---:|---:|"]
+        rows = ["| 指标 | L5检验 | 完整区域族BH-FDR | 强区域信号 | 负向 | 正向 |\n|---|---:|---:|---:|---:|---:|"]
     else:
-        rows = ["| Metric | L5 tests | Complete-family FDR | Strong regional signals | Negative | Positive |\n|---|---:|---:|---:|---:|---:|"]
+        rows = ["| Metric | L5 tests | Complete-family BH-FDR | Strong regional signals | Negative | Positive |\n|---|---:|---:|---:|---:|---:|"]
     for metric in PRIMARY_METRICS:
         part = frame[frame["metric"].eq(metric)]
         strong = part[part["strong_evidence"]]
@@ -185,8 +185,8 @@ def build_chinese(s: dict[str, Any]) -> str:
 
 - 研究首先在单个流域内判断大洪水生成条件是否发生持续变化，再检验这些局地信号是否在 HydroBASINS L5 内形成更大尺度的一致模式。
 - 主样本包含 **{a['sample_counts']['pot_q95']['events']:,} 场** POT/Q95 大洪水和 **{a['sample_counts']['pot_q95']['catchments']:,} 个**长记录低雪流域；其中 **{c['GCIN'].nunique():,} 个流域**具有足够的所选事件年份，可估计至少一个主指标的单流域趋势。
-- 五个连续主指标形成 **{len(c):,} 个流域—指标检验**（完整组合为 {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}；SSI 7日和30日因有效事件年份或时间跨度不足分别缺少 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} 项和 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} 项，缺失项不记为零）。共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，但 **没有单流域信号通过变量内5% FDR**。因此目前的严格结论是：多数流域没有可由该观测网络稳定确认的长期生成条件变化；候选位置用于后续复核，而不是确证清单。
-- 区域层在全部 {l['primary_family_tests']:,} 个 L5—指标检验中有 **{l['primary_family_fdr_signals']} 个**通过完整区域族 FDR，**{l['strong_evidence_signals']} 个**同时通过事件样本、SSI时间窗和留一检验。默认 **≥{threshold}%** 面积支持后，保留 **{default['strong_signals']} 个强区域信号，分布于 {default['strong_regions']} 个 L5**。
+- 五个连续主指标形成 **{len(c):,} 个流域—指标检验**（完整组合为 {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}；SSI 7日和30日因有效事件年份或时间跨度不足分别缺少 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} 项和 {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} 项，缺失项不记为零）。共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，但 **没有单流域信号通过5% Benjamini–Hochberg 假发现率控制（Benjamini–Hochberg false discovery rate，BH-FDR）**。因此目前的严格结论是：多数流域没有可由该观测网络稳定确认的长期生成条件变化；候选位置用于后续复核，而不是确证清单。
+- 区域层在全部 {l['primary_family_tests']:,} 个 L5—指标检验中有 **{l['primary_family_fdr_signals']} 个**通过完整区域族 BH-FDR，**{l['strong_evidence_signals']} 个**同时通过事件样本、SSI时间窗和留一检验。默认 **≥{threshold}%** 面积支持后，保留 **{default['strong_signals']} 个强区域信号，分布于 {default['strong_regions']} 个 L5**。
 - 面积阈值只限制区域解释，不删除单流域结果。网页允许在 10%、20%、30%、40% 和 50% 之间动态切换。
 
 ![样本覆盖](assets/figure_01_sample_coverage.png)
@@ -237,7 +237,7 @@ $$
 
 ## 8. 极端样本敏感性
 
-四个替代样本为 POT/Q90、POT/Q97.5、10日去簇 POT/Q95 和年最大洪水。主样本中有 {int(d.loc['pot_q95','pairs_under_10_days']):,} 对相邻洪峰间隔小于10日；去簇样本将该数量降为 {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}。事件风暴径流窗口重叠数为 {int(d.loc['pot_q95','stormflow_window_overlaps'])}。
+四个替代样本采用“一次只改变一个设定”的设计：POT/Q90 和 POT/Q97.5 只改变极端阈值，10日去簇 POT/Q95 只改变事件间隔规则，年最大洪水改变事件选择方法。因此，10日去簇并不是只有Q95才需要，而是以Q95主样本单独检验去簇敏感性；当前实验没有把阈值和去簇规则完全交叉。主样本中有 {int(d.loc['pot_q95','pairs_under_10_days']):,} 对相邻洪峰间隔小于10日，去簇样本将该数量降为 {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}；主样本事件风暴径流窗口重叠数为 {int(d.loc['pot_q95','stormflow_window_overlaps'])}。
 
 ## 9. 降雨集中度
 
@@ -301,22 +301,28 @@ $$
 
 **例子。** 若某一对年度值从1990年的0.40升至2010年的0.52，这一对年份给出的斜率为 $(0.52-0.40)/(2010-1990)\times10=0.06$/十年，即集中度每十年增加6个百分点。Theil–Sen 不只用首末两点，而是计算所有年份对的斜率并取中位数，因此不容易被某一个异常年份牵动。
 
-## 14. 单流域多重检验
+## 14. 为什么单流域结果仍需跨流域多重检验
 
-每个物理指标分别形成一个跨流域的 Benjamini–Hochberg 检验族。将 $m$ 个 p 值排序为 $p_{{(1)}}\le\cdots\le p_{{(m)}}$，寻找最大的 $k$ 满足：
+每个“流域 × 指标”先独立得到一个 Mann–Kendall p 值。若研究预先只指定一个流域，当然可以直接解释该流域的 p 值；但本研究同时扫描全球约2,435个流域，并从地图中寻找任何出现趋势的位置。即使所有流域实际上都没有趋势，大量同时检验也会随机产生一些 $p<0.05$ 的结果。
+
+因此，每个物理指标分别在全部可估计流域之间使用 **Benjamini–Hochberg 假发现率控制（Benjamini–Hochberg false discovery rate procedure，简称 BH-FDR）**。这里的检验族不是“一个流域内的5个指标”，而是“同一指标在所有流域上的 p 值”：降雨集中度、SSI 1日和SSI 3日各有2,435个检验，SSI 7日有2,433个，SSI 30日有2,425个。
+
+将同一指标的 $m$ 个 p 值排序为 $p_{{(1)}}\le\cdots\le p_{{(m)}}$，寻找最大的 $k$ 满足：
 
 $$
 p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
 \qquad \alpha=0.05.
 $$
 
-该步骤控制同一指标地图中被拒绝原假设集合的预期错误发现比例。
+BH-FDR控制的是被判为“发现”的流域中预期假发现所占的比例；它不改变单流域斜率，只改变能否将该位置称为经过网络范围多重检验确认的发现。
 
-**例子。** 若同一指标检验1,000个流域，第5小的 p 值对应阈值 $(5/1000)\times0.05=0.00025$。只有当排序后的 p 值足够小，才会被标为通过跨流域 FDR。它不改变任何单流域斜率，只避免在上千次同时检验中把随机小 p 值误当成可靠发现。
+**本项目的真实例子。** 降雨集中度共有2,435个单流域检验。若全部原假设都成立，仅按 $p<0.05$ 平均也会偶然得到约 $2435\times0.05=121.75$ 个结果；实际有154个未经校正的 $p<0.05$。BH-FDR的第一个门槛为 $0.05/2435=0.0000205$，而最小 p 值为0.000367，仍不够小，所以没有单流域通过5% BH-FDR。其余四个指标同样为0。
+
+“零个通过”不是BH-FDR没有必要，而是结果表明：当前记录不足以把任何单流域提升为在全球搜索后仍得到确认的发现。报告仍保留原始斜率、p值和378个跨敏感性检验方向稳定的候选，供后续复核；候选与BH-FDR确认结果承担不同的证据角色。
 
 ## 15. 单流域稳定候选
 
-“稳定候选”同时要求主样本未校正 $p<0.05$，POT/Q90 与 POT/Q97.5 方向一致，10日去簇方向一致，年最大样本方向一致，留一年后方向不变；SSI 还需四个时间窗方向一致。候选是有针对性的后续研究对象，不等于通过 FDR 的严格信号。
+“稳定候选”同时要求主样本未校正 $p<0.05$，POT/Q90 与 POT/Q97.5 方向一致，10日去簇方向一致，年最大样本方向一致，留一年后方向不变；SSI 还需四个时间窗方向一致。候选是有针对性的后续研究对象，不等于通过 BH-FDR 的严格信号。
 
 ![单流域空间结果](assets/figure_02_mechanism_change_maps.png)
 
@@ -328,11 +334,11 @@ $$
 
 ## 17. 单流域主要结论
 
-共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，同时包含增加和减少方向；**变量内 FDR 通过数为0**。因此本研究不支持“全球大多数流域都存在长期生成条件变化”，而支持“多数流域缺少严格长期证据，少数位置值得进一步核验”。
+共有 **{int(c['potential_local_shift'].sum()):,} 个稳定候选**，同时包含增加和减少方向；**跨流域 BH-FDR 通过数为0**。因此本研究不支持“全球大多数流域都存在长期生成条件变化”，而支持“多数流域缺少严格长期证据，少数位置值得进一步核验”。
 
 ![单流域证据漏斗](assets/figure_03_strong_signal_rankings.png)
 
-该图将未校正显著、稳定候选和 FDR 证据分开，避免把稳健性和多重检验混为同一概念。
+该图将未校正显著、稳定候选和 BH-FDR 证据分开，避免把稳健性和多重检验混为同一概念。
 
 ## 18. L5 是第二层空间问题
 
@@ -390,14 +396,14 @@ $\alpha_i$ 控制不同流域长期水平差异，$\beta_j$ 表示该 L5 内共�
 
 ## 25. 完整区域检验族
 
-全部 {l['primary_family_tests']:,} 个“可估计 L5 × 五个主指标”共同进入一个 BH FDR 检验族。完整族比按指标分别校正更保守，目的是避免从多个空间单元和多个湿润度时间窗中挑选偶然显著结果。
+全部 {l['primary_family_tests']:,} 个“可估计 L5 × 五个主指标”共同进入一个 BH-FDR 检验族。完整族比按指标分别校正更保守，目的是避免从多个空间单元和多个湿润度时间窗中挑选偶然显著结果。
 
 ## 26. 五个区域证据门
 
 网页中的强区域信号同时满足：
 
 1. 当前所选 L5 面积支持率；
-2. 完整区域族 5% FDR；
+2. 完整区域族 5% BH-FDR；
 3. 四个替代极端事件样本方向一致；
 4. SSI 的1/3/7/30日时间窗方向一致（降雨集中度该项自动满足）；
 5. 多流域 L5 留一流域后方向不变；单流域代表则使用留一年检验。
@@ -466,8 +472,8 @@ def build_english(s: dict[str, Any]) -> str:
 
 - Evidence is constructed in two stages: direct trends are estimated for every eligible catchment, and HydroBASINS L5 is then used to test whether nearby catchments form a larger coherent pattern.
 - The primary sample contains **{a['sample_counts']['pot_q95']['events']:,} POT/Q95 floods in {a['sample_counts']['pot_q95']['catchments']:,} long-record low-snow catchments**. At least one primary direct trend is estimable in **{c['GCIN'].nunique():,} catchments**.
-- The five continuous outcomes produce **{len(c):,} catchment–metric tests** (the complete grid is {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}; the 7-day and 30-day SSI outcomes lack {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} and {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **{int(c['potential_local_shift'].sum()):,} directionally stable candidates**, but **no direct catchment signal passes metric-wide 5% FDR**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
-- Among {l['primary_family_tests']:,} L5–metric tests, **{l['primary_family_fdr_signals']} pass complete-family FDR and {l['strong_evidence_signals']} pass the full statistical robustness screen**. With the default **≥{threshold}% area support**, **{default['strong_signals']} strong regional signals remain in {default['strong_regions']} L5 units**.
+- The five continuous outcomes produce **{len(c):,} catchment–metric tests** (the complete grid is {c['GCIN'].nunique():,} × 5 = {c['GCIN'].nunique() * 5:,}; the 7-day and 30-day SSI outcomes lack {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_7d'), 'GCIN'].nunique())} and {c['GCIN'].nunique() - int(c.loc[c['variable'].eq('ssi_30d'), 'GCIN'].nunique())} combinations, respectively, because valid event years or time span are insufficient, and missing combinations are not coded as zero). There are **{int(c['potential_local_shift'].sum()):,} directionally stable candidates**, but **no direct catchment signal passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control**. The strict result is therefore that most catchments do not show a network-confirmed long-term shift; candidates identify locations for targeted follow-up.
+- Among {l['primary_family_tests']:,} L5–metric tests, **{l['primary_family_fdr_signals']} pass complete-family BH-FDR and {l['strong_evidence_signals']} pass the full statistical robustness screen**. With the default **≥{threshold}% area support**, **{default['strong_signals']} strong regional signals remain in {default['strong_regions']} L5 units**.
 - Area support constrains only the regional interpretation. The explorer switches dynamically among 10%, 20%, 30%, 40%, and 50%, while all estimable catchment results remain available.
 
 ![Sample coverage](assets/figure_01_sample_coverage.png)
@@ -518,7 +524,7 @@ Annual maxima force one event into every year, even when that event is not parti
 
 ## 8. Extreme-event sensitivities
 
-The alternatives are POT/Q90, POT/Q97.5, 10-day-declustered POT/Q95, and annual maxima. The primary sample contains {int(d.loc['pot_q95','pairs_under_10_days']):,} adjacent peak pairs under 10 days; the declustered sample contains {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}. Stormflow-window overlaps equal {int(d.loc['pot_q95','stormflow_window_overlaps'])}.
+The four alternatives change one setting at a time: POT/Q90 and POT/Q97.5 change only the extreme threshold, 10-day-declustered POT/Q95 changes only event separation, and annual maxima change the event-selection rule. Q95 is not uniquely in need of declustering; the Q95 branch isolates declustering sensitivity around the primary sample, and the present experiment does not fully cross threshold and declustering choices. The primary sample contains {int(d.loc['pot_q95','pairs_under_10_days']):,} adjacent peak pairs under 10 days; the declustered sample contains {int(d.loc['pot_q95_gap10','pairs_under_10_days'])}. Primary-sample stormflow-window overlaps equal {int(d.loc['pot_q95','stormflow_window_overlaps'])}.
 
 ## 9. Rainfall concentration
 
@@ -578,20 +584,28 @@ with a tie-corrected Mann–Kendall test. At least 10 event years spanning at le
 
 **Example.** If one pair of annual values rises from 0.40 in 1990 to 0.52 in 2010, that pair gives $(0.52-0.40)/(2010-1990)\times10=0.06$ per decade, or +6 concentration percentage points per decade. Theil–Sen calculates this slope for every year-pair and takes the median, so one unusual year has limited leverage.
 
-## 14. Catchment multiple testing
+## 14. Why direct catchment results still require network-wide multiplicity control
 
-Each physical metric forms one Benjamini–Hochberg family across catchments. Ordering $m$ p-values, the procedure finds the largest $k$ satisfying:
+Every catchment–metric pair first receives its own Mann–Kendall p value. A p value could be interpreted directly if the study had prespecified only one catchment. This study instead scans about 2,435 catchments and asks whether any location shows a trend. Even when no catchment has a real trend, thousands of simultaneous tests will generate some $p<0.05$ values by chance.
+
+Each physical metric therefore uses the **Benjamini–Hochberg false discovery rate procedure (BH-FDR)** across all estimable catchments. The family is not “the five metrics inside one catchment.” It is “one metric across the full catchment network”: rainfall concentration, 1-day SSI, and 3-day SSI each contain 2,435 tests; 7-day SSI contains 2,433; and 30-day SSI contains 2,425.
+
+Ordering the $m$ p values for one metric, BH-FDR finds the largest $k$ satisfying:
 
 $$
 p_{{(k)}}\le\frac{{k}}{{m}}\alpha,
 \qquad \alpha=0.05.
 $$
 
-**Example.** With 1,000 catchments for one metric, the fifth ordered p value is compared with $(5/1000)\times0.05=0.00025$. A result is labelled FDR-supported only if the ordered p values are sufficiently small. This network-wide correction does not change any catchment slope; it limits chance discoveries created by thousands of simultaneous tests.
+BH-FDR controls the expected proportion of false discoveries among the catchments labelled as discoveries. It does not alter a catchment slope; it determines whether a location can be called confirmed after searching the network.
+
+**Observed example.** Rainfall concentration has 2,435 direct catchment tests. If every null hypothesis were true, using $p<0.05$ alone would still produce about $2435\times0.05=121.75$ chance results on average; 154 unadjusted $p<0.05$ results are observed. The first BH-FDR cutoff is $0.05/2435=0.0000205$, while the smallest observed p value is 0.000367, so none passes 5% BH-FDR. The other four metrics also have zero BH-FDR discoveries.
+
+Zero discoveries do not make BH-FDR unnecessary. They mean that the current records cannot promote any direct catchment trend to a network-confirmed discovery after a global search. Raw slopes, p values, and the 378 directionally stable sensitivity candidates remain available for follow-up; candidates and BH-FDR discoveries represent different evidence grades.
 
 ## 15. Stable local candidate
 
-A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not an FDR-confirmed shift.
+A candidate requires unadjusted $p<0.05$, sign agreement at POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require all four windows to agree. This is an exploratory evidence grade, not a BH-FDR-confirmed shift.
 
 ![Direct catchment results](assets/figure_02_mechanism_change_maps.png)
 
@@ -603,7 +617,7 @@ Light marks retain all estimable trends; outlined marks identify stable candidat
 
 ## 17. Direct catchment conclusion
 
-There are **{int(c['potential_local_shift'].sum()):,} stable candidates in opposing directions and zero metric-wide FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
+There are **{int(c['potential_local_shift'].sum()):,} stable candidates in opposing directions and zero across-catchment BH-FDR discoveries**. The evidence therefore supports sparse candidate locations within a predominantly non-confirmed network, not ubiquitous long-term change.
 
 ![Catchment evidence funnel](assets/figure_03_strong_signal_rankings.png)
 
@@ -672,7 +686,7 @@ All {l['primary_family_tests']:,} estimable L5 × five-primary-metric tests ente
 The interactive regional signal must pass:
 
 1. the currently selected area-support threshold;
-2. complete regional-family 5% FDR;
+2. complete regional-family 5% BH-FDR;
 3. sign agreement across all four alternative extreme samples;
 4. sign agreement across 1/3/7/30-day SSI windows where relevant;
 5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a one-catchment representation.

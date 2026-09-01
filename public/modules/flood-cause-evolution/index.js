@@ -298,7 +298,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       : "SSI units / decade";
     const evidence = layerId === this.basinLayerId
       ? `${this.gateCount(metric, feature)}/5 gates · ${Number(feature.coveragePct).toFixed(1)}% area support`
-      : `${metric.gateCount}/5 evidence checks · ${this.integer(metric.years)} event years`;
+      : `${this.catchmentGateDefinitions(metric).filter((gate) => gate.pass).length}/${this.catchmentGateDefinitions(metric).length} local checks · ${this.integer(metric.years)} event years`;
     this.hoverTooltip.innerHTML = `<strong>${this.escape(title)}</strong><span>${this.escape(evidence)}</span><span>${this.escape(this.direction(metric.slope))}</span><b>${this.signed(metric.slope, outcome.digits)} <small>${unit}</small></b>`;
     this.hoverTooltip.classList.add("visible");
 
@@ -584,7 +584,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       ${this.signal(metric, `${this.metric === "intensity_fraction" ? "Rainfall concentration" : "Antecedent wetness"} change per decade`)}
       <div class="fce-grid">
         ${this.fact("95% CI", `${this.signed(metric.ci?.[0], outcome.digits)} to ${this.signed(metric.ci?.[1], outcome.digits)}`)}
-        ${this.fact("Across-catchment FDR q", this.prob(metric.q))}
+        ${this.fact("Across-catchment BH-FDR q", this.prob(metric.q))}
         ${this.fact("Unadjusted p", this.prob(metric.p))}
         ${this.fact("Selected events", this.integer(metric.observations))}
         ${this.fact("Observed event years", this.integer(metric.years))}
@@ -594,7 +594,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ${this.fact("HydroBASINS L5", feature.hydrobasinId || "Unmatched")}
         ${this.fact("Catchment area", feature.areaKm2 ? `${this.integer(feature.areaKm2)} km²` : "—")}
       </div>
-      <div class="fce-status ${metric.strong ? "pass" : (metric.potential ? "candidate" : "neutral")}">${metric.strong ? "Local shift confirmed after across-catchment FDR" : (metric.potential ? "Robust local candidate · across-catchment FDR not passed" : "No stable local candidate detected")}</div>
+      <div class="fce-status ${metric.strong ? "pass" : (metric.potential ? "candidate" : "neutral")}">${metric.strong ? "Network-confirmed local shift" : (metric.potential ? "Robust local candidate · exploratory" : "No robust local candidate detected")}</div>
       ${this.catchmentGates(metric)}
       ${this.sensitivity(metric, outcome)}
       <p class="fce-note">Displayed catchments have enough selected event years and time span for an annualized trend. The L5 area threshold never removes this single-catchment result.</p>`);
@@ -665,7 +665,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   gateDefinitions(metric, basin) {
     return [
       { name: `Area support ≥${this.coverageThreshold}%`, pass: this.basinPassesCoverage(basin), detail: `Eligible catchment polygons cover ${this.num(basin?.coveragePct, 1)}% of this L5 unit.` },
-      { name: "Complete-family FDR", pass: !!metric.fdrSupported, detail: `Passes 5% Benjamini–Hochberg FDR across ${this.data.meta.primaryFamilyTests.toLocaleString()} primary L5 region–metric tests.` },
+      { name: "Complete-family BH-FDR", pass: !!metric.fdrSupported, detail: `Passes the 5% Benjamini–Hochberg false discovery rate (BH-FDR) procedure across ${this.data.meta.primaryFamilyTests.toLocaleString()} primary L5 region–metric tests.` },
       { name: "Extreme-sample direction", pass: !!metric.sampleStable, detail: "Keeps its direction across all four large-flood event samples." },
       { name: "Window direction", pass: !!metric.windowStable, detail: "Rainfall concentration is not window-dependent; SSI agrees across all four antecedent windows." },
       { name: "Leave-one-out stability", pass: !!metric.jackknifeStable, detail: metric.estimatorType === "single_catchment_proxy" ? "Keeps its direction when each observed event year is removed in turn." : "Keeps its direction when each contributing catchment is removed in turn." }
@@ -677,14 +677,23 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   catchmentGates(metric) {
+    const gates = this.catchmentGateDefinitions(metric);
+    const networkResult = metric.fdrSupported ? "passed" : "not passed";
+    return `<div class="fce-block fce-evidence-block"><div class="fce-subhead"><b>Local evidence checks</b><span>${gates.filter((gate) => gate.pass).length}/${gates.length} passed</span></div><div class="fce-gates">${gates.map((gate, index) => `<span class="${gate.pass ? "pass" : "fail"}" title="${this.escape(gate.detail)}"><i>${index + 1}</i>${gate.pass ? "✓" : "·"} ${this.escape(gate.name)}</span>`).join("")}</div><p class="fce-note"><b>Network context:</b> across-catchment Benjamini–Hochberg false discovery rate (BH-FDR) ${networkResult} (q=${this.prob(metric.q)}). This does not change the local slope; it determines whether the location remains confirmed after scanning all catchments.</p></div>`;
+  }
+
+  catchmentGateDefinitions(metric) {
     const gates = [
-      { name: "Across-catchment FDR", pass: !!metric.fdrSupported, detail: "Controls the 5% false discovery rate across all catchments tested for this same metric; this is a network-level multiplicity check, not a test inside this catchment." },
+      { name: "Unadjusted p < 0.05", pass: Number(metric.p) < 0.05, detail: "The catchment's own Mann–Kendall test has an unadjusted p value below 0.05." },
       { name: "Q90 / Q97.5 direction", pass: !!metric.thresholdStable, detail: "The trend direction is retained with lower and higher extreme-event thresholds." },
       { name: "10-day declustering", pass: !!metric.declusterStable, detail: "The trend direction is retained after requiring a longer separation between selected floods." },
       { name: "Annual-maximum direction", pass: !!metric.annualMaximumStable, detail: "The trend direction is retained when one maximum flood is selected per year." },
       { name: "Leave-one-year-out", pass: !!metric.leaveOneYearStable, detail: "The trend direction is retained when each observed event year is removed in turn." }
     ];
-    return `<div class="fce-block fce-evidence-block"><div class="fce-subhead"><b>Evidence screen</b><span>${gates.filter((item) => item.pass).length}/5 passed</span></div><div class="fce-gates">${gates.map((gate, index) => `<span class="${gate.pass ? "pass" : "fail"}" title="${this.escape(gate.detail)}"><i>${index + 1}</i>${gate.pass ? "✓" : "·"} ${this.escape(gate.name)}</span>`).join("")}</div><p class="fce-note">Across-catchment FDR controls multiple testing across the network for this metric; it is not a within-catchment test.${this.metric.startsWith("ssi_") ? ` SSI 1/3/7/30-day directions are <b>${metric.windowStable ? "consistent" : "mixed"}</b>.` : ""}</p></div>`;
+    if (this.metric.startsWith("ssi_")) {
+      gates.push({ name: "SSI-window direction", pass: !!metric.windowStable, detail: "The direction agrees across the 1-, 3-, 7-, and 30-day antecedent-wetness windows." });
+    }
+    return gates;
   }
 
   fact(label, value) {
@@ -723,7 +732,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         title: "Strict local evidence is sparse",
         image: "reports/assets/figure_03_strong_signal_rankings.png",
         alt: "Evidence funnel and opposing directions among catchment-level trend candidates",
-        text: `Across ${meta.catchmentPrimaryTests.toLocaleString()} catchment–metric tests, ${meta.catchmentFdrSignals} pass metric-wide 5% FDR. Stable unadjusted candidates are retained as hypotheses, not promoted to confirmed local changes.`
+        text: `Across ${meta.catchmentPrimaryTests.toLocaleString()} catchment–metric tests, ${meta.catchmentFdrSignals} pass metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control. Stable unadjusted candidates are retained as hypotheses, not promoted to confirmed local changes.`
       },
       {
         id: "trajectories",
@@ -763,7 +772,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         ${this.kpi(mapSummary.strongBasins, `supported L5 patterns at ≥${this.coverageThreshold}%`)}
       </div>
       <section class="fce-overview-section" id="research-question"><span class="fce-section-index">Research question</span><h3>Most catchments do not show strict long-term evidence; a smaller set forms testable local and regional patterns</h3>
-        <p class="fce-section-lead"><b>Main answer.</b> None of the ${meta.catchmentPrimaryTests.toLocaleString()} direct catchment–metric tests passes metric-wide 5% FDR after annualizing selected events. ${meta.catchmentPotentialSignals.toLocaleString()} trends nevertheless retain their direction across the declared sensitivity checks and remain visible as candidates. Regional pooling identifies stronger L5 patterns where nearby catchments move coherently.</p>
+        <p class="fce-section-lead"><b>Main answer.</b> None of the ${meta.catchmentPrimaryTests.toLocaleString()} direct catchment–metric tests passes metric-wise 5% Benjamini–Hochberg false discovery rate (BH-FDR) control after annualizing selected events. ${meta.catchmentPotentialSignals.toLocaleString()} trends nevertheless retain their direction across the declared sensitivity checks and remain visible as candidates. Regional pooling identifies stronger L5 patterns where nearby catchments move coherently.</p>
         <div class="fce-reading">
         <div><b>Rainfall concentration</b><span>Pmax/Pvolume is the fraction of total event rainfall that fell on the rainiest single day. Positive change means a larger one-day share; negative change means a smaller one-day share.</span></div>
         <div><b>Antecedent wetness</b><span>SSI summarizes soil wetness before rainfall starts. The 1-, 3-, 7- and 30-day windows show whether a result depends on the chosen memory window.</span></div>
@@ -780,14 +789,14 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-method-grid">
           <div><b>1 · Select large floods</b><span>The primary population is catchment-specific POT/Q95. Flood-peak magnitude selects events; it does not assign their generating condition.</span></div>
           <div><b>2 · Preserve continuous descriptors</b><span>Rainfall organization and four antecedent-wetness windows remain continuous before any summary or evidence grade is applied.</span></div>
-          <div><b>3 · Test every catchment first</b><span>Selected events are averaged within catchment-year, followed by Theil–Sen and Mann–Kendall trends over ${meta.period}. Null and non-FDR results remain on the map.</span></div>
-          <div><b>4 · Look for larger-scale alignment</b><span>L5 estimates pool within-catchment annual change. Complete-family FDR, four extreme-event populations, SSI-window agreement, leave-one-out stability, and the selected polygon-area support form the regional screen.</span></div>
+          <div><b>3 · Test every catchment first</b><span>Selected events are averaged within catchment-year, followed by Theil–Sen and Mann–Kendall trends over ${meta.period}. Null and non-BH-FDR results remain on the map.</span></div>
+          <div><b>4 · Look for larger-scale alignment</b><span>L5 estimates pool within-catchment annual change. Complete-family BH-FDR, four extreme-event populations, SSI-window agreement, leave-one-out stability, and the selected polygon-area support form the regional screen.</span></div>
         </div>
       </section>
       <section class="fce-overview-section" id="statistics"><span class="fce-section-index">Statistical meaning</span><h3>Statistical evidence and spatial support answer different questions</h3>
         <div class="fce-method-grid">
-          <div><b>Catchment evidence</b><span>${meta.catchmentPrimaryTests.toLocaleString()} primary tests are corrected within physical metric. Stable p&lt;0.05 candidates are exploratory when FDR is not passed.</span></div>
-          <div><b>${meta.primaryFamilyTests.toLocaleString()} regional tests</b><span>All candidate L5 regions × five continuous metrics form one Benjamini–Hochberg family. ${meta.fdrSupportedSignals} pass 5% False Discovery Rate control before the dynamic area filter is applied.</span></div>
+          <div><b>Catchment evidence</b><span>${meta.catchmentPrimaryTests.toLocaleString()} primary tests are corrected across catchments within each physical metric. Stable p&lt;0.05 candidates are exploratory when BH-FDR is not passed.</span></div>
+          <div><b>${meta.primaryFamilyTests.toLocaleString()} regional tests</b><span>All candidate L5 regions × five continuous metrics form one Benjamini–Hochberg family. ${meta.fdrSupportedSignals} pass 5% BH-FDR control before the dynamic area filter is applied.</span></div>
           <div><b>Area support ≥${this.coverageThreshold}%</b><span>The catchment-polygon union covers at least this share of the L5 polygon. Changing it alters regional interpretation only; catchment trends remain available.</span></div>
           <div><b>Within-catchment annual change</b><span>Every model compares catchment-year values with the same catchment's long-run level. The year 2000 is only a centering constant and is not a breakpoint.</span></div>
           <div><b>Absolute + relative scale</b><span>SSI remains in raw index units and also shows slope ÷ catchment-equal mean. Rainfall components use raw linear slopes converted to the same relative scale; no logarithmic model is used.</span></div>

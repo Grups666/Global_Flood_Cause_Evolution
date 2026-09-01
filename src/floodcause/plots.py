@@ -193,7 +193,7 @@ def figure_mechanism_change_maps(config: dict[str, Any]) -> None:
     legend.text(0.13, 0.42, "Other estimable catchment", va="center", fontsize=8.5, transform=legend.transAxes)
     legend.text(
         0.03, 0.20,
-        "Candidate means p < 0.05 plus agreement across\nevent-threshold, declustering, annual-maximum,\nleave-one-year-out, and SSI-window checks.\nIt is not an FDR-confirmed signal.",
+        "Candidate means p < 0.05 plus agreement across\nevent-threshold, declustering, annual-maximum,\nleave-one-year-out, and SSI-window checks.\nIt is not a BH-FDR-confirmed signal.",
         fontsize=8, color=MUTED, linespacing=1.5, transform=legend.transAxes,
     )
 
@@ -242,7 +242,7 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
     axes[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.11), ncol=2)
     axes[0].text(
         0.98, 0.97,
-        f"FDR-supported: {int(summary['fdr'].sum())}",
+        f"BH-FDR supported: {int(summary['fdr'].sum())}",
         transform=axes[0].transAxes, ha="right", va="top", fontsize=9, weight="bold", color=BLUE,
     )
 
@@ -267,11 +267,11 @@ def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
     _header(
         fig,
         "Most catchments do not show strict network-wide trend evidence",
-        "Stable candidates are useful locations for follow-up, but none passes metric-wide 5% FDR",
+        "Stable candidates are useful locations for follow-up, but none passes metric-wise 5% BH-FDR",
     )
     _footer(
         fig,
-        f"Primary family contains {len(evidence):,} estimable catchment–metric trends. Stability never substitutes for multiple-testing control; both are reported separately.",
+        f"Primary family contains {len(evidence):,} estimable catchment–metric trends. BH-FDR = Benjamini–Hochberg false discovery rate. Stability and multiplicity control are reported separately.",
     )
     _save(fig, config["paths"]["figures"] / "figure_03_strong_signal_rankings", int(config["plotting"]["dpi"]))
 
@@ -318,7 +318,7 @@ def figure_mechanism_trajectories(config: dict[str, Any]) -> None:
     legend.text(0.02, 0.96, "Second-stage regional lens", fontsize=11, weight="bold", transform=legend.transAxes)
     legend.text(
         0.03, 0.62,
-        f"Shown L5 units have ≥{threshold}% polygon-area support.\nColors are pooled within-catchment annual slopes.\nCyan boundaries pass regional FDR, alternative\nevent samples, SSI-window, and leave-one-out checks.",
+        f"Shown L5 units have ≥{threshold}% polygon-area support.\nColors are pooled within-catchment annual slopes.\nCyan boundaries pass regional BH-FDR, alternative\nevent samples, SSI-window, and leave-one-out checks.",
         fontsize=8.5, color=MUTED, linespacing=1.55, transform=legend.transAxes,
     )
     legend.add_patch(plt.Rectangle((0.03, 0.29), 0.12, 0.07, facecolor="#D78A68", edgecolor=CYAN, linewidth=1.5, transform=legend.transAxes))

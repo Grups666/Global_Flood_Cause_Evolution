@@ -18,7 +18,7 @@
 | `catchment_trend_eligibility` | PASS | catchments=2,435; tests=12,163 |
 | `catchment_fdr_and_stability` | PASS | metric q max error=6.18e-14; family q error=1.33e-15; stable candidates=378; FDR signals=0 |
 | `figure_assets` | PASS | 6 report PNGs synchronized; 6 publication SVGs generated |
-| `self_contained_html_report` | PASS | bytes=5,222,550; embedded PNGs=6 |
+| `self_contained_html_report` | PASS | bytes=5,232,213; embedded PNGs=6 |
 | `published_research_materials` | PASS | self-contained report and 6 overview figures synchronized to public/ |
 | `interactive_web_explorer` | PASS | basins=295; catchments=2435; strong signals=94; bytes=12,396,453 |
 | `current_only_narrative` | PASS | obsolete phrases=[] |

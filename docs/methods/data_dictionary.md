@@ -47,7 +47,7 @@ File: `data/derived/event_features.parquet`
 | `catchment_sensitivity_trends.csv` | sample × catchment × metric | alternative-sample direct trends |
 | `hydrobasin_catchment_membership.csv` | catchment | L5 membership from outlet |
 | `hydrobasin_mechanism_trends.csv` | sample × L5 × metric | fixed-effect or single-catchment estimate and uncertainty |
-| `hydrobasin_evidence.csv` | L5 × metric | complete-family FDR, sample/window/leave-one-out checks, evidence grade |
+| `hydrobasin_evidence.csv` | L5 × metric | complete-family Benjamini–Hochberg false discovery rate (BH-FDR), sample/window/leave-one-out checks, evidence grade |
 | `hydrobasin_trajectories.csv` | L5 × metric × year | adjusted annual trajectory and fitted trend |
 | `spatial_support/l5_spatial_support_audit.csv` | L5 | polygon areas, observed union, coverage, largest contributing catchment |
 | `spatial_support/l5_spatial_support_threshold_sensitivity.csv` | scope × threshold | retained L5 and catchment counts at 10–50% support |

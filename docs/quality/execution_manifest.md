@@ -16,7 +16,7 @@
 | Direct-trend catchments | 2,435 |
 | Catchment–metric tests | 12,163 |
 | Stable direct candidates | 378 |
-| Metric-wide FDR direct signals | 0 |
+| Metric-wise BH-FDR direct signals | 0 |
 
 ## Regional inference
 
@@ -24,7 +24,7 @@
 |---|---:|
 | Candidate L5 with estimable trends | 295 |
 | Complete regional-family tests | 1,475 |
-| Complete-family 5% FDR signals | 106 |
+| Complete-family 5% BH-FDR signals | 106 |
 | Full robustness-screen signals before area support | 94 in 43 L5 |
 | Full signals at default ≥10% area support | 84 in 36 L5 |
 

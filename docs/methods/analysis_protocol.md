@@ -64,7 +64,7 @@ $$
 
 A tie-corrected Mann–Kendall test evaluates monotonic trend. At least 10 distinct event years spanning at least 20 years are required.
 
-Benjamini–Hochberg FDR is applied separately across catchments for each physical metric. If ordered p-values are $p_{(1)}\le\cdots\le p_{(m)}$, the largest $k$ satisfying
+The Benjamini–Hochberg false discovery rate procedure (BH-FDR) is applied separately across catchments for each physical metric. This is needed because the analysis searches the full catchment network for locations with a trend; it is not a correction of the five metrics within one prespecified catchment. If ordered p-values are $p_{(1)}\le\cdots\le p_{(m)}$, the largest $k$ satisfying
 
 $$
 p_{(k)}\le\frac{k}{m}\alpha,\qquad\alpha=0.05
@@ -72,7 +72,7 @@ $$
 
 defines the rejected set.
 
-A stable local candidate requires unadjusted $p<0.05$, sign agreement under POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require the four wetness windows to agree. Candidate status is exploratory; it never substitutes for FDR.
+A stable local candidate requires unadjusted $p<0.05$, sign agreement under POT/Q90 and POT/Q97.5, agreement after 10-day declustering, agreement under annual maxima, and leave-one-event-year-out sign stability. SSI candidates also require the four wetness windows to agree. Candidate status is exploratory; it never substitutes for BH-FDR.
 
 ## Second stage: area-supported L5 patterns
 
@@ -97,7 +97,7 @@ If one catchment alone reaches the selected area threshold, the L5 panel inherit
 All estimable L5 × five-primary-metric tests form one complete Benjamini–Hochberg family. A strong regional pattern must pass:
 
 1. the selected area-support threshold;
-2. complete regional-family 5% FDR;
+2. complete regional-family 5% BH-FDR;
 3. sign agreement across the four alternative extreme-event samples;
 4. sign agreement across SSI windows where applicable; and
 5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a single-catchment representation.
