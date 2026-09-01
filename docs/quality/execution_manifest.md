@@ -1,6 +1,6 @@
 # Execution manifest
 
-**Execution date:** 2026-08-18
+**Execution date:** 2026-09-01
 
 **Study period:** 1982–2019
 
@@ -23,15 +23,15 @@
 
 | Output | Count |
 |---|---:|
-| Eligible HydroBASINS L5 units | 98 |
-| Complete primary-family tests | 490 |
-| Tests passing 5% FDR | 160 |
-| Strong basin–metric signals | 63 |
-| Basins containing a strong signal | 23 |
+| Eligible HydroBASINS L5 units (≥20 catchments) | 28 |
+| Complete primary-family tests | 140 |
+| Tests passing 5% BH-FDR | 80 |
+| Strong basin–metric signals | 62 |
+| Basins containing a strong signal | 21 |
 
 ## Generated artifacts
 
 - Six PNG/SVG figure pairs.
-- Markdown technical report and self-contained HTML report.
-- Interactive JSON with 98 polygons and 2,624 catchment points.
+- Chinese and English Markdown technical reports plus a self-contained HTML report.
+- Interactive JSON with 28 polygons and 2,624 eligible catchment points.
 - Machine-readable validation receipt at `outputs/logs/validation.json`.

@@ -95,7 +95,6 @@ def _fit_local_trends(
     levels: list[int],
     metrics: list[str],
     minimum_catchments: int,
-    minimum_observations: int,
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     id_columns = [f"hybas_id_l{level}" for level in levels]
@@ -115,10 +114,7 @@ def _fit_local_trends(
                     estimate = _fixed_effect_trend(basin, metric)
                     if estimate is None:
                         continue
-                    if (
-                        estimate["catchments"] < minimum_catchments
-                        or estimate["observations"] < minimum_observations
-                    ):
+                    if estimate["catchments"] < minimum_catchments:
                         continue
                     rows.append(
                         {
@@ -157,25 +153,8 @@ def _add_multiple_testing(
     return result
 
 
-def _parent_lookup(
-    membership: pd.DataFrame, child_level: int, parent_level: int
-) -> pd.DataFrame:
-    child = f"hybas_id_l{child_level}"
-    parent = f"hybas_id_l{parent_level}"
-    frame = membership.dropna(subset=[child, parent])[[child, parent, "GCIN"]]
-    counts = (
-        frame.groupby([child, parent])["GCIN"].nunique().rename("overlap").reset_index()
-    )
-    return (
-        counts.sort_values([child, "overlap"], ascending=[True, False])
-        .drop_duplicates(child)
-        .rename(columns={child: "HYBAS_ID", parent: f"parent_l{parent_level}_id"})
-    )
-
-
 def _robustness_table(
     trends: pd.DataFrame,
-    membership: pd.DataFrame,
     config: dict[str, Any],
 ) -> pd.DataFrame:
     settings = config["local_analysis"]
@@ -219,25 +198,6 @@ def _robustness_table(
     )
     base.loc[~base["metric"].isin(wet_metrics), "wetness_window_stable"] = True
 
-    for parent_level in [
-        level for level in settings["hydrobasins_levels"] if level < primary_level
-    ]:
-        lookup = _parent_lookup(membership, primary_level, int(parent_level))
-        parent = trends[
-            trends["sample"].eq(primary_sample)
-            & trends["level"].eq(int(parent_level))
-        ][["HYBAS_ID", "metric", "slope_per_decade"]].rename(
-            columns={
-                "HYBAS_ID": f"parent_l{parent_level}_id",
-                "slope_per_decade": f"parent_l{parent_level}_slope",
-            }
-        )
-        base = base.merge(lookup.drop(columns="overlap"), on="HYBAS_ID", how="left")
-        base = base.merge(parent, on=[f"parent_l{parent_level}_id", "metric"], how="left")
-        base[f"same_direction_l{parent_level}"] = (
-            np.sign(base["slope_per_decade"])
-            == np.sign(base[f"parent_l{parent_level}_slope"])
-        ) & base[f"parent_l{parent_level}_slope"].notna()
     return base
 
 
@@ -254,10 +214,6 @@ def _jackknife_signs(
     )
     candidates = evidence[
         evidence["primary_family_fdr_supported"].fillna(False)
-        & (
-            evidence["catchments"]
-            >= int(config["local_analysis"]["strong_evidence_minimum_catchments"])
-        )
     ][["HYBAS_ID", "metric", "slope_per_decade"]]
     rows: list[dict[str, Any]] = []
     for candidate in candidates.itertuples(index=False):
@@ -265,7 +221,7 @@ def _jackknife_signs(
         estimates: list[float] = []
         for gcin in basin["GCIN"].unique():
             estimate = _fixed_effect_trend(
-                basin[basin["GCIN"].ne(gcin)], candidate.metric
+                basin[basin["GCIN"].ne(gcin)], candidate.metric, minimum_clusters=2
             )
             if estimate is not None:
                 estimates.append(float(estimate["slope_per_decade"]))
@@ -291,26 +247,19 @@ def _add_evidence_grade(
 ) -> pd.DataFrame:
     result = evidence.merge(jackknife, on=["HYBAS_ID", "metric"], how="left")
     primary_metrics = set(config["local_analysis"]["primary_metrics"])
-    strong_minimum = int(
-        config["local_analysis"]["strong_evidence_minimum_catchments"]
-    )
     result["strong_evidence"] = (
         result["metric"].isin(primary_metrics)
         & result["primary_family_fdr_supported"].fillna(False)
         & result["sample_direction_stable"].fillna(False)
         & result["wetness_window_stable"].fillna(False)
         & result["jackknife_sign_stable"].fillna(False)
-        & result["catchments"].ge(strong_minimum)
     )
-    result["limited_sample"] = result["catchments"].lt(strong_minimum)
     result["evidence_grade"] = np.select(
         [
             result["strong_evidence"],
-            result["primary_family_fdr_supported"].fillna(False)
-            & result["limited_sample"],
             result["primary_family_fdr_supported"].fillna(False),
         ],
-        ["strong", "limited-sample", "fdr-supported"],
+        ["strong", "fdr-supported"],
         default="estimate",
     )
     return result
@@ -344,7 +293,7 @@ def _basin_trajectories(
             catchment_year["adjusted"] = catchment_year["value"] - catchment_mean + reference
             year_center = float(catchment_year["peak_year"].mean())
             slope = float(estimates.loc[(int(basin_id), metric), "slope_per_decade"])
-            raw_slope = slope / 100.0 if metric in {"intensity_fraction", "intensity_050"} else slope
+            raw_slope = slope / 100.0 if metric == "intensity_fraction" else slope
             annual = catchment_year.groupby("peak_year").agg(
                 adjusted_mean=("adjusted", "mean"),
                 catchments=("GCIN", "nunique"),
@@ -437,7 +386,6 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         levels,
         metrics,
         int(settings["minimum_catchments"]),
-        int(settings["minimum_observations"]),
     )
     trends = _add_multiple_testing(
         trends,
@@ -449,7 +397,7 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
     trends = trends.merge(
         labels, on=["level", "HYBAS_ID"], how="left", validate="many_to_one"
     )
-    evidence = _robustness_table(trends, membership, config)
+    evidence = _robustness_table(trends, config)
     jackknife = _jackknife_signs(primary, membership, evidence, config)
     evidence = _add_evidence_grade(evidence, jackknife, config)
     trajectories = _basin_trajectories(
@@ -489,7 +437,6 @@ def run_local_analysis(config: dict[str, Any], force: bool = False) -> dict[str,
         "primary_sample": str(config["event_samples"]["primary"]),
         "primary_level": primary_level,
         "minimum_catchments": int(settings["minimum_catchments"]),
-        "minimum_observations": int(settings["minimum_observations"]),
         "matched_catchments": int(membership[f"hybas_id_l{primary_level}"].notna().sum()),
         "eligible_primary_basins": int(primary_l5["HYBAS_ID"].nunique()),
         "primary_family_tests": int(

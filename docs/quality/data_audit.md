@@ -24,4 +24,4 @@
 
 ## Geography
 
-Official HydroBASINS v1.c levels 3–5 are used without modifying the source archives. All 24 regional archives are checked against recorded byte sizes and SHA-256 values during validation.
+Official HydroBASINS v1.c level 5 is used without modifying the source archives. All 8 continental level-5 archives are checked against recorded byte sizes and SHA-256 values during validation.

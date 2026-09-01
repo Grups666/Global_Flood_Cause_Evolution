@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import html
+import json
 import re
 import shutil
 from pathlib import Path
@@ -49,6 +50,9 @@ def build_html_report(
     source: Path = SOURCE, destination: Path = DESTINATION
 ) -> dict[str, object]:
     markdown_source = source.read_text(encoding="utf-8")
+    analysis_summary = json.loads((ROOT / "outputs" / "logs" / "analysis_summary.json").read_text(encoding="utf-8"))
+    local_summary = json.loads((ROOT / "outputs" / "logs" / "local_analysis_summary.json").read_text(encoding="utf-8"))
+    primary = analysis_summary["sample_counts"]["pot_q95"]
     expected_images = len(re.findall(r"!\[[^\]]*\]\([^)]+\)", markdown_source))
     markdown_source = _embed_images(markdown_source, source.parent)
     markdown_source = _neutralize_local_links(markdown_source)
@@ -97,8 +101,8 @@ def build_html_report(
   <div class="mobile-bar"><strong>Global Flood Cause Evolution</strong><button onclick="window.print()">打印 / PDF</button></div>
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图表大图" aria-hidden="true"><button class="lightbox-close" aria-label="关闭大图">×</button><figure><img alt=""><figcaption></figcaption></figure></div>
   <div class="shell">
-    <aside><div class="brand"><strong>Research report</strong><span>完整实验 · 2026-08-18</span></div><nav class="toc" aria-label="目录">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside>
-    <article><div class="facts"><div class="fact"><b>59,048</b><span>POT/Q95 极端事件</span></div><div class="fact"><b>2,624</b><span>合格长期观测流域</span></div><div class="fact"><b>23</b><span>具有强证据的水文区</span></div><div class="fact"><b>1982–2019</b><span>验证后的共同研究时段</span></div></div>{article}</article>
+    <aside><div class="brand"><strong>Research report</strong><span>完整实验 · 2026-09-01</span></div><nav class="toc" aria-label="目录">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside>
+    <article><div class="facts"><div class="fact"><b>{primary['events']:,}</b><span>POT/Q95 极端事件</span></div><div class="fact"><b>{primary['catchments']:,}</b><span>合格长期观测流域</span></div><div class="fact"><b>{local_summary['strong_evidence_basins']}</b><span>具有强证据的水文区</span></div><div class="fact"><b>{local_summary['strong_evidence_signals']}</b><span>强证据机制信号</span></div></div>{article}</article>
   </div>
   <script>
     const progress=document.getElementById('progress'); const links=[...document.querySelectorAll('.toc a')]; const sections=links.map(a=>document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);

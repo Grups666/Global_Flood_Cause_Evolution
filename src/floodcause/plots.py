@@ -193,7 +193,7 @@ def figure_mechanism_change_maps(config: dict[str, Any]) -> None:
     )
     _footer(
         fig,
-        "Colour shows effect direction and magnitude; cyan outlines require complete-family FDR, ≥20 catchments, event-sample agreement, leave-one-catchment-out stability, and—where relevant—agreement across all SSI windows.",
+        "All mapped regions contain at least 20 contributing catchments. Cyan outlines require complete-family FDR, event-sample agreement, leave-one-catchment-out stability, and—where relevant—agreement across all SSI windows.",
     )
     _save(fig, config["paths"]["figures"] / "figure_02_mechanism_change_maps", int(config["plotting"]["dpi"]))
 
@@ -279,20 +279,20 @@ def figure_physical_decomposition(config: dict[str, Any]) -> None:
     strong = strong.reindex(strong["slope_per_decade"].abs().sort_values(ascending=False).index).head(12)
     drivers = evidence[
         evidence["HYBAS_ID"].isin(strong["HYBAS_ID"])
-        & evidence["metric"].isin(["log_p_max", "log_p_volume", "log_precip_duration"])
-    ].pivot(index="HYBAS_ID", columns="metric", values="slope_per_decade")
+        & evidence["metric"].isin(["p_max_daily_mm", "p_volume_daily_mm", "precip_duration_days"])
+    ].pivot(index="HYBAS_ID", columns="metric", values="relative_slope_percent_per_decade")
     plot = strong.set_index("HYBAS_ID").join(drivers).sort_values("slope_per_decade")
     y = np.arange(len(plot))
     fig, ax = plt.subplots(figsize=(12.5, 7.1))
     fig.subplots_adjust(left=0.23, right=0.93, bottom=0.13, top=0.80)
-    ax.hlines(y, plot["log_p_max"], plot["log_p_volume"], color="#A8B4BE", linewidth=1.2)
-    ax.scatter(plot["log_p_max"], y, color=ORANGE, s=42, label="Maximum daily rainfall")
-    ax.scatter(plot["log_p_volume"], y, color=BLUE, s=42, label="Total event rainfall")
-    ax.scatter(plot["log_precip_duration"], y, color="#6B7D3E", marker="D", s=28, label="Precipitation duration")
+    ax.hlines(y, plot["p_max_daily_mm"], plot["p_volume_daily_mm"], color="#A8B4BE", linewidth=1.2)
+    ax.scatter(plot["p_max_daily_mm"], y, color=ORANGE, s=42, label="Maximum daily rainfall")
+    ax.scatter(plot["p_volume_daily_mm"], y, color=BLUE, s=42, label="Total event rainfall")
+    ax.scatter(plot["precip_duration_days"], y, color="#6B7D3E", marker="D", s=28, label="Precipitation duration")
     ax.axvline(0, color=INK, linewidth=0.8)
     labels = plot["basin_code"] + " · " + plot["dominant_countries"]
     ax.set_yticks(y, labels, fontsize=8)
-    ax.set_xlabel("Approximate within-catchment change (% per decade)")
+    ax.set_xlabel("Linear trend relative to the catchment-equal mean (% per decade)")
     ax.grid(axis="x", color=GRID, linewidth=0.6)
     ax.set_axisbelow(True)
     ax.spines[["top", "right", "left"]].set_visible(False)
@@ -312,7 +312,7 @@ def figure_physical_decomposition(config: dict[str, Any]) -> None:
         "Rainfall components behind concentration shifts",
         "Strong rainfall-organization regions ranked by the continuous concentration trend",
     )
-    _footer(fig, "A concentration decline is physically consistent when total event rainfall grows faster than maximum daily rainfall, or when maximum daily rainfall declines more strongly; duration provides complementary context.")
+    _footer(fig, "Relative changes are raw linear slopes divided by each region's catchment-equal mean; no logarithmic model is used. A concentration decline is consistent with event totals increasing faster than wettest-day rainfall.")
     _save(fig, config["paths"]["figures"] / "figure_05_physical_decomposition", int(config["plotting"]["dpi"]))
 
 
@@ -345,7 +345,8 @@ def figure_robustness_matrix(config: dict[str, Any]) -> None:
     ax.tick_params(length=0)
     for y, row in selected.iterrows():
         for x in range(len(columns)):
-            ax.text(x, y, "↑" if matrix[y, x] > 0 else "↓", ha="center", va="center", color="white" if abs(matrix[y, x]) else INK, fontsize=10, weight="bold")
+            symbol = "↑" if matrix[y, x] > 0 else "↓" if matrix[y, x] < 0 else "·"
+            ax.text(x, y, symbol, ha="center", va="center", color="white" if abs(matrix[y, x]) else INK, fontsize=10, weight="bold")
     for spine in ax.spines.values():
         spine.set_visible(False)
     _header(
@@ -353,7 +354,7 @@ def figure_robustness_matrix(config: dict[str, Any]) -> None:
         "Strong directions persist across extreme-event definitions",
         "Arrows show the sign of each continuous-time estimate; rows are the largest strong rainfall and seven-day wetness signals",
     )
-    _footer(fig, "Strong evidence additionally requires complete-family FDR, at least 20 contributing catchments, leave-one-catchment-out sign stability, and all-window agreement for SSI.")
+    _footer(fig, "Every tested region has at least 20 contributing catchments. Strong evidence additionally requires complete-family FDR, leave-one-catchment-out sign stability, alternative-sample agreement, and all-window agreement for SSI.")
     _save(fig, config["paths"]["figures"] / "figure_06_robustness_matrix", int(config["plotting"]["dpi"]))
 
 

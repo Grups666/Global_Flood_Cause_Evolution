@@ -20,7 +20,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Global Flood Cause Evolution pipeline.")
     parser.add_argument(
         "--stage",
-        choices=["audit", "features", "analysis", "local", "figures", "html", "web", "all"],
+        choices=["audit", "features", "analysis", "local", "figures", "reports", "html", "web", "all"],
         default="all",
     )
     parser.add_argument("--config", default=str(PROJECT_ROOT / "config" / "analysis.yaml"))
@@ -41,6 +41,10 @@ def main() -> None:
     if args.stage in {"figures", "all"}:
         build_all_figures(config)
         receipt["figures"] = {"status": "complete", "directory": str(config["paths"]["figures"])}
+    if args.stage in {"reports", "all"}:
+        from build_reports import build_reports
+
+        receipt["reports"] = build_reports()
     if args.stage in {"html", "all"}:
         from build_html_report import build_html_report
 

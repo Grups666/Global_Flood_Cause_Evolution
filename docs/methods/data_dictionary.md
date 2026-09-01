@@ -7,7 +7,7 @@
 | `events_dormant.csv`, `events_growing.csv` | Reconstructed rainfall–runoff event windows | `GCIN`, precipitation and response dates, source volumes, snow contribution |
 | `daily_data/observations/*.csv` | Daily event reconstruction | `date`, `water_input_mm`, `streamflow_mm`, `soil_saturation_index` |
 | seasonal metadata files | Catchment screen and coordinates | `GCIN`, country, longitude, latitude, snow fraction |
-| HydroBASINS level 3–5 archives | Nested hydrological regions | `HYBAS_ID`, area, polygon geometry |
+| HydroBASINS level-5 archives | Local hydrological regions | `HYBAS_ID`, area, polygon geometry |
 
 ## Derived event features
 
@@ -46,10 +46,10 @@ File: `data/derived/event_features.parquet`
 | `global_regional_trends.csv` | Sample × region × metric | Continuous within-catchment slopes and confidence intervals |
 | `global_regional_trajectories.csv` | Region × metric × year | Adjusted annual means for the primary sample |
 | `catchment_mechanism_trends.csv` | Catchment × metric | Theil–Sen trends, Mann–Kendall tests, and FDR |
-| `hydrobasin_catchment_membership.csv` | Catchment | Level-3/4/5 HydroBASINS membership |
+| `hydrobasin_catchment_membership.csv` | Catchment | Level-5 HydroBASINS membership |
 | `hydrobasin_sample_summary.csv` | HydroBASINS unit | Assigned catchments, countries, and map centers |
-| `hydrobasin_mechanism_trends.csv` | Sample × level × basin × metric | Multi-catchment fixed-effect estimates |
-| `hydrobasin_evidence.csv` | Level-5 basin × metric | FDR, sample, window, scale, jackknife, and evidence grades |
+| `hydrobasin_mechanism_trends.csv` | Sample × L5 basin × metric | Multi-catchment fixed-effect estimates, raw slopes, and catchment-equal relative slopes |
+| `hydrobasin_evidence.csv` | Level-5 basin × metric | Complete-family FDR, alternative-sample, SSI-window, jackknife, and evidence grades |
 | `hydrobasin_trajectories.csv` | Basin × metric × year | Adjusted annual trajectory and fitted trend |
 | `hydrobasin_mechanism_summary.csv` | Level-5 basin | Plain-language rainfall and wetness directions |
 

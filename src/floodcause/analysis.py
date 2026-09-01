@@ -22,46 +22,12 @@ SAMPLE_FILES = {
 }
 
 
-def _wetness_class(values: pd.Series, thresholds: list[float]) -> pd.Categorical:
-    low, high = thresholds
-    return pd.cut(
-        values,
-        bins=[-np.inf, low, high, np.inf],
-        labels=["Dry", "Moderate", "Wet"],
-        right=True,
-    )
-
-
 def add_mechanism_metrics(frame: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
-    """Add continuous mechanism drivers and secondary interpretation labels."""
+    """Add only continuous, physically interpretable mechanism variables."""
     result = frame.copy()
-    classification = config["classification"]
-    threshold = float(classification["intensity_fraction_threshold"])
-    threshold_high = float(classification["intensity_fraction_sensitivity_threshold"])
-    cv_threshold = float(classification["intensity_cv_threshold"])
-
     result["precip_duration_days"] = (
         result["end_precip_date"] - result["start_precip_date"]
     ).dt.days + 1
-    result["log_p_max"] = np.log(result["p_max_daily_mm"].clip(lower=1e-6))
-    result["log_p_volume"] = np.log(result["p_volume_daily_mm"].clip(lower=1e-6))
-    result["log_precip_duration"] = np.log(result["precip_duration_days"].clip(lower=1))
-    result["intensity_050"] = (result["intensity_fraction"] > threshold).astype("Int64")
-    result["intensity_075"] = (result["intensity_fraction"] > threshold_high).astype("Int64")
-    result["intensity_joint_050_cv1"] = (
-        (result["intensity_fraction"] > threshold)
-        & (result["precipitation_cv"] > cv_threshold)
-    ).astype("Int64")
-    result["rainfall_organization"] = np.where(
-        result["intensity_050"].eq(1), "Intensity-dominated", "Volume-dominated"
-    )
-
-    for window in classification["ssi_windows_days"]:
-        wetness = _wetness_class(
-            result[f"ssi_{window}d"], classification["ssi_thresholds"]
-        )
-        result[f"wetness_{window}d"] = wetness
-        result[f"wet_{window}d"] = (wetness == "Wet").astype("Int64")
     return result
 
 
@@ -170,20 +136,24 @@ def _select_annual_maximum(
 
 
 def _metric_scale(metric: str) -> tuple[float, str]:
-    if metric in {"intensity_fraction", "intensity_050", "intensity_075"}:
+    if metric == "intensity_fraction":
         return 100.0, "percentage points per decade"
     if metric.startswith("ssi_"):
         return 1.0, "SSI units per decade"
-    if metric.startswith("log_"):
-        return 1.0, "log units per decade"
+    if metric in {"p_max_daily_mm", "p_volume_daily_mm"}:
+        return 1.0, "mm per decade"
+    if metric == "precip_duration_days":
+        return 1.0, "days per decade"
     return 1.0, "units per decade"
 
 
-def _fixed_effect_trend(frame: pd.DataFrame, metric: str) -> dict[str, Any] | None:
+def _fixed_effect_trend(
+    frame: pd.DataFrame, metric: str, minimum_clusters: int = 2
+) -> dict[str, Any] | None:
     data = frame[["GCIN", "peak_year", metric]].dropna().copy()
     clusters = int(data["GCIN"].nunique())
     observations = len(data)
-    if clusters < 5 or observations <= clusters + 1:
+    if clusters < minimum_clusters or observations <= clusters + 1:
         return None
     data["x"] = (data["peak_year"].astype(float) - 2000.0) / 10.0
     data["y"] = data[metric].astype(float)
@@ -210,18 +180,26 @@ def _fixed_effect_trend(frame: pd.DataFrame, metric: str) -> dict[str, Any] | No
     slope = beta * scale
     low = (beta - t_critical * standard_error) * scale
     high = (beta + t_critical * standard_error) * scale
-    if metric.startswith("log_"):
-        slope = 100.0 * np.expm1(beta)
-        low = 100.0 * np.expm1(beta - t_critical * standard_error)
-        high = 100.0 * np.expm1(beta + t_critical * standard_error)
-        unit = "approximate percent per decade"
+    reference_raw = float(data.groupby("GCIN")["y"].mean().mean())
+    relative = 100.0 * beta / reference_raw if reference_raw != 0 else np.nan
+    relative_low = (
+        100.0 * (beta - t_critical * standard_error) / reference_raw
+        if reference_raw != 0 else np.nan
+    )
+    relative_high = (
+        100.0 * (beta + t_critical * standard_error) / reference_raw
+        if reference_raw != 0 else np.nan
+    )
     return {
         "observations": observations,
         "catchments": clusters,
-        "mean_level": float(data["y"].mean() * scale),
+        "mean_level": float(reference_raw * scale),
         "slope_per_decade": float(slope),
         "ci_low": float(low),
         "ci_high": float(high),
+        "relative_slope_percent_per_decade": float(relative),
+        "relative_ci_low_percent_per_decade": float(relative_low),
+        "relative_ci_high_percent_per_decade": float(relative_high),
         "p_value": p_value,
         "slope_unit": unit,
     }
@@ -335,8 +313,7 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     coverage.to_csv(tables / "record_eligibility.csv", index=False)
     metrics = [
         *config["trends"]["continuous_primary_metrics"],
-        *config["trends"]["interpretive_metrics"],
-        *config["trends"]["physical_driver_metrics"],
+            *config["trends"]["physical_driver_metrics"],
     ]
     panel = _global_regional_trends(samples, metrics)
     panel.to_csv(tables / "global_regional_trends.csv", index=False)
@@ -344,7 +321,6 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
         samples["pot_q95"],
         [
             *config["trends"]["continuous_primary_metrics"],
-            *config["trends"]["interpretive_metrics"],
         ],
     )
     trajectories.to_csv(tables / "global_regional_trajectories.csv", index=False)

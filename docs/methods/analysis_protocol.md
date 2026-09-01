@@ -68,10 +68,9 @@ decrease means movement toward longer, volume-dominated rainfall. The metric is
 a daily-resolution organization descriptor, not a measurement of sub-daily
 rainfall intensity.
 
-For plain-language interpretation, events with a concentration ratio above
-0.50 are labelled intensity-dominated and the rest volume-dominated. The 0.50
-rule is literature-derived, not a meeting instruction. The continuous ratio is
-the inferential target; thresholded shares are secondary.
+No binary intensity-dominated label is constructed. Thresholding would discard
+within-category movement and was not specified by the meeting; the continuous
+ratio is the sole inferential rainfall-organization target.
 
 ### Antecedent wetness
 
@@ -90,10 +89,11 @@ For every extreme event, retain:
 - flood peak and event runoff volume;
 - antecedent SSI at all four windows.
 
-Within-catchment trends in log maximum daily rainfall, log event rainfall, and
-log duration are converted to approximate percent change per decade. They are
-used to explain why the rainfall-concentration ratio moved; they are not added
-as extra definitions of flood cause.
+Maximum daily rainfall, event rainfall, and duration are fitted directly in
+their raw physical units. For comparison, each raw linear slope is divided by
+the HydroBASINS unit's catchment-equal mean and reported as percent per decade.
+No logarithmic model is used. These variables explain why the
+rainfall-concentration ratio moved; they are not extra definitions of cause.
 
 ## Continuous-time trend estimation
 
@@ -111,18 +111,20 @@ time, while controlling stable differences between catchments.
 
 - Concentration slopes are reported as percentage points of event rainfall per
   decade.
-- SSI slopes are reported as SSI index units per decade.
-- Binary interpretation slopes are reported as percentage points of selected
-  extreme events per decade.
-- Log-driver slopes are reported as approximate percent change per decade.
+- SSI slopes are reported as SSI index units per decade and, secondarily, as a
+  percentage of the catchment-equal mean per decade.
+- Physical rainfall-driver slopes retain raw units and a derived relative
+  percentage scale.
 
 ## Spatial analysis
 
-HydroBASINS levels 3, 4, and 5 are estimated; level 5 is the interactive map
-grain and levels 3–4 provide nested spatial context. A level-5 estimate requires
-at least 5 catchments and 100 nonmissing event observations. Units with 5–19
-catchments remain exploratory; strong regional evidence requires at least 20
-catchments.
+HydroBASINS level 5 is the only regional inference grain. A level-5 estimate
+requires at least 20 contributing catchments; smaller regional units are
+excluded. This is the sole regional sample-size threshold. It is a conservative
+design choice for conventional catchment-clustered inference, not a theorem of
+finite-sample sufficiency: published guidance notes that the boundary for
+“few” clusters is context-dependent and can extend from fewer than 20 to fewer
+than 50 clusters.
 
 All level-5 tests for the five continuous primary metrics enter one declared
 Benjamini–Hochberg family. Colour represents effect direction and magnitude;
@@ -133,14 +135,10 @@ it is never used alone as a significance claim.
 A basin–metric estimate is labelled strong evidence only when:
 
 1. it passes the complete level-5 primary-family 5% FDR;
-2. at least 20 catchments contribute;
-3. its direction agrees across annual maxima, POT/Q90, POT/Q95 with 10-day
+2. its direction agrees across annual maxima, POT/Q90, POT/Q95 with 10-day
    declustering, and POT/Q97.5 whenever those estimates are available;
-4. its sign is unchanged when each contributing catchment is removed in turn;
-5. for antecedent wetness, all four SSI windows have the same direction.
-
-Nested-scale agreement is displayed as context rather than required, because a
-genuinely local change can disappear when averaged into a larger basin.
+3. its sign is unchanged when each contributing catchment is removed in turn;
+4. for antecedent wetness, all four SSI windows have the same direction.
 
 ## Catchment layer
 

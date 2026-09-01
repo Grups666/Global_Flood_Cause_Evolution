@@ -35,17 +35,6 @@ OUTCOMES = {
         "high": "toward short / concentrated rainfall",
         "digits": 2,
     },
-    "intensity_050": {
-        "group": "Rainfall organization",
-        "short": "Intensity-type share",
-        "label": "Share of extreme events classified as intensity-dominated",
-        "definition": "Selected extreme events for which more than half of event rainfall fell in the wettest day. This thresholded view is interpretive; rainfall concentration is the primary continuous metric.",
-        "unit": "percentage points per decade",
-        "limit": 8.0,
-        "low": "fewer intensity-dominated events",
-        "high": "more intensity-dominated events",
-        "digits": 2,
-    },
     "ssi_1d": {
         "group": "Antecedent wetness",
         "short": "SSI · 1 day",
@@ -94,9 +83,9 @@ OUTCOMES = {
 
 
 DRIVERS = {
-    "log_p_max": "Maximum daily rainfall",
-    "log_p_volume": "Total event rainfall",
-    "log_precip_duration": "Precipitation duration",
+    "p_max_daily_mm": "Maximum daily rainfall",
+    "p_volume_daily_mm": "Total event rainfall",
+    "precip_duration_days": "Precipitation duration",
 }
 
 
@@ -126,7 +115,7 @@ def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
     metric = str(row.metric)
     digits = int(OUTCOMES[metric]["digits"])
     series = trajectory[trajectory["metric"].eq(metric)].sort_values("year")
-    trajectory_scale = 100.0 if metric in {"intensity_fraction", "intensity_050"} else 1.0
+    trajectory_scale = 100.0 if metric == "intensity_fraction" else 1.0
     q_value = row.primary_family_q if pd.notna(row.primary_family_q) else row.metric_q
     payload = {
         "slope": _native(row.slope_per_decade, digits + 1),
@@ -134,12 +123,16 @@ def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
         "p": _native(row.p_value, 6),
         "q": _native(q_value, 6),
         "mean": _native(row.mean_level, digits + 1),
+        "relativeSlope": _native(row.relative_slope_percent_per_decade, 2),
+        "relativeCi": [
+            _native(row.relative_ci_low_percent_per_decade, 2),
+            _native(row.relative_ci_high_percent_per_decade, 2),
+        ],
         "unit": row.slope_unit,
         "catchments": int(row.catchments),
         "observations": int(row.observations),
         "grade": str(row.evidence_grade),
         "strong": bool(row.strong_evidence),
-        "limited": bool(row.limited_sample),
         "sampleStable": bool(row.sample_direction_stable),
         "windowStable": bool(row.wetness_window_stable),
         "jackknifeStable": bool(row.jackknife_sign_stable) if pd.notna(row.jackknife_sign_stable) else False,
@@ -167,7 +160,7 @@ def _metric_payload(row: pd.Series, trajectory: pd.DataFrame) -> dict[str, Any]:
 def _catchment_metric(row: pd.Series) -> dict[str, Any]:
     metric = str(row.variable)
     digits = int(OUTCOMES[metric]["digits"])
-    mean_scale = 100.0 if metric in {"intensity_fraction", "intensity_050"} else 1.0
+    mean_scale = 100.0 if metric == "intensity_fraction" else 1.0
     return {
         "slope": _native(row.display_slope_per_decade, digits + 1),
         "ci": [
@@ -177,6 +170,7 @@ def _catchment_metric(row: pd.Series) -> dict[str, Any]:
         "q": _native(row.mk_q, 6),
         "tau": _native(row.mk_tau, 4),
         "mean": _native(row.mean_level * mean_scale, digits + 1),
+        "relativeSlope": _native(row.relative_slope_percent_per_decade, 2),
         "unit": str(row.display_unit),
         "observations": int(row.n_observations),
         "years": int(row.n_years),
@@ -218,9 +212,14 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             driver = driver_rows.iloc[0]
             drivers[metric] = {
                 "label": DRIVERS[metric],
-                "slope": _native(driver.slope_per_decade, 2),
-                "ci": [_native(driver.ci_low, 2), _native(driver.ci_high, 2)],
-                "unit": driver.slope_unit,
+                "slope": _native(driver.relative_slope_percent_per_decade, 2),
+                "ci": [
+                    _native(driver.relative_ci_low_percent_per_decade, 2),
+                    _native(driver.relative_ci_high_percent_per_decade, 2),
+                ],
+                "absoluteSlope": _native(driver.slope_per_decade, 2),
+                "absoluteUnit": driver.slope_unit,
+                "unit": "percent of the catchment-equal mean per decade",
             }
         summary = summaries.loc[basin_id] if basin_id in summaries.index else None
         geom = geometry.loc[basin_id].geometry
@@ -270,7 +269,8 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             }
         )
 
-    strong = evidence[evidence["strong_evidence"] & evidence["metric"].isin(OUTCOMES)]
+    primary_family = evidence[evidence["metric"].isin(OUTCOMES)]
+    strong = primary_family[primary_family["strong_evidence"]]
     ranking = []
     for item in strong.itertuples(index=False):
         limit = float(OUTCOMES[item.metric]["limit"])
@@ -296,9 +296,13 @@ def build_web_data(destination: Path = DESTINATION) -> dict[str, Any]:
             "eligibleHydrobasins": len(basins),
             "strongEvidenceSignals": int(strong.shape[0]),
             "strongEvidenceBasins": int(strong["HYBAS_ID"].nunique()),
-            "minimumCatchments": 5,
-            "strongMinimumCatchments": 20,
-            "minimumObservations": 100,
+            "primaryFamilyTests": int(primary_family.shape[0]),
+            "fdrSupportedSignals": int(primary_family["primary_family_fdr_supported"].sum()),
+            "strongByMetric": {
+                metric: int(count)
+                for metric, count in strong.groupby("metric").size().items()
+            },
+            "minimumCatchments": 20,
             "outcomes": OUTCOMES,
             "driverLabels": DRIVERS,
             "ranking": ranking,

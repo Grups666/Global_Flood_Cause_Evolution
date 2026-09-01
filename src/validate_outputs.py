@@ -133,7 +133,7 @@ def write_validation_report(result: dict[str, object]) -> None:
         "",
         f"**Status:** {str(result['status']).upper()}",
         f"**Checks:** {result['checks_passed']} / {result['checks_total']} passed",
-        "**Execution date:** 2026-08-18",
+        "**Execution date:** 2026-09-01",
         "",
         "| Check | Status | Evidence |",
         "|---|---:|---|",
@@ -180,17 +180,23 @@ def main() -> None:
     family = evidence[(evidence["sample"].eq("pot_q95")) & (evidence["level"].eq(5)) & evidence["metric"].isin(PRIMARY_METRICS)].copy()
     expected_q = independent_bh(family["p_value"].to_numpy(float))
     q_error = float(np.nanmax(np.abs(expected_q - family["primary_family_q"].to_numpy(float))))
-    record(checks, "complete_primary_fdr", len(family) == 490 and q_error < 1e-12, f"tests={len(family)}; FDR-supported={int(family.primary_family_fdr_supported.sum())}; max error={q_error:.3g}")
+    expected_tests = family["HYBAS_ID"].nunique() * len(PRIMARY_METRICS)
+    record(checks, "complete_primary_fdr", len(family) == expected_tests == 140 and q_error < 1e-12, f"tests={len(family)}; FDR-supported={int(family.primary_family_fdr_supported.sum())}; max error={q_error:.3g}")
+
+    regional_floor = (
+        family["catchments"].ge(CONFIG["local_analysis"]["minimum_catchments"]).all()
+        and int(family["catchments"].min()) == 20
+    )
+    record(checks, "single_regional_sample_threshold", regional_floor, f"minimum catchments={int(family.catchments.min())}; regions={family.HYBAS_ID.nunique()}")
 
     recomputed_strong = (
         family["primary_family_fdr_supported"].fillna(False)
-        & family["catchments"].ge(CONFIG["local_analysis"]["strong_evidence_minimum_catchments"])
         & family["sample_direction_stable"].fillna(False)
         & family["jackknife_sign_stable"].fillna(False)
         & family["wetness_window_stable"].fillna(False)
     )
     strong_match = recomputed_strong.equals(family["strong_evidence"].fillna(False))
-    record(checks, "strong_evidence_gates", strong_match and int(recomputed_strong.sum()) == 63, f"signals={int(recomputed_strong.sum())}; basins={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}")
+    record(checks, "strong_evidence_gates", strong_match and int(recomputed_strong.sum()) == 62, f"signals={int(recomputed_strong.sum())}; basins={family.loc[recomputed_strong, 'HYBAS_ID'].nunique()}")
 
     trajectories = pd.read_csv(TABLES / "hydrobasin_trajectories.csv")
     trajectory_ok = trajectories["year"].between(1982, 2019).all() and set(PRIMARY_METRICS).issubset(set(trajectories.metric))
@@ -220,8 +226,10 @@ def main() -> None:
     record(checks, "figure_assets", not figure_failures, "6 report PNGs synchronized; 6 publication SVGs generated" if not figure_failures else "; ".join(figure_failures))
 
     report_md = (ROOT / "reports" / "global_flood_cause_evolution.md").read_text(encoding="utf-8")
+    report_en = (ROOT / "reports" / "global_flood_cause_evolution_en.md").read_text(encoding="utf-8")
     report_html = (ROOT / "reports" / "global_flood_cause_evolution.html").read_text(encoding="utf-8")
-    html_ok = report_html.count("data:image/png;base64,") == 6 and 'id="lightbox"' in report_html and "openFigure(image)" in report_html and "59,048" in report_html and "23" in report_html
+    html_ok = report_html.count("data:image/png;base64,") == 6 and 'id="lightbox"' in report_html and "openFigure(image)" in report_html and "59,048" in report_html and "21" in report_html
+    html_ok &= "140" in report_html and "62" in report_html
     record(checks, "self_contained_html_report", html_ok, f"bytes={len(report_html.encode('utf-8')):,}; embedded PNGs={report_html.count('data:image/png;base64,')}")
 
     public_report = PUBLIC_REPORTS / "global_flood_cause_evolution.html"
@@ -241,8 +249,12 @@ def main() -> None:
         basins = web["basins"]
         catchments = web["catchments"]
         strong_count = sum(metric.get("strong", False) for basin in basins for key, metric in basin["metrics"].items() if key in PRIMARY_METRICS)
-        web_ok = len(basins) == 98 and len(catchments) == 2624 and strong_count == 63
-        web_ok &= all(len(item.get("metrics", {})) >= 5 for item in catchments)
+        web_ok = len(basins) == 28 and len(catchments) == 2624 and strong_count == 62
+        web_ok &= all(
+            1 <= len(item.get("metrics", {})) <= len(PRIMARY_METRICS)
+            and set(item.get("metrics", {})).issubset(PRIMARY_METRICS)
+            for item in catchments
+        )
         web_ok &= all(metric["observations"] >= 10 and metric["span"] >= 20 for item in catchments for metric in item["metrics"].values())
         web_ok &= all(item["geometry"]["type"] in {"Polygon", "MultiPolygon"} for item in basins)
         web_detail = f"basins={len(basins)}; catchments={len(catchments)}; strong signals={strong_count}; bytes={web_path.stat().st_size:,}"
@@ -250,13 +262,13 @@ def main() -> None:
         web_ok = False
         web_detail = str(error)
     module = (ROOT / "public" / "modules" / "flood-cause-evolution" / "index.js").read_text(encoding="utf-8")
-    required_markers = ["intensity_fraction", "ssi_30d", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawBasinHighlight", "if (hoveredBasin)", "fce-hover-tooltip", "metricMeaning", "fce-signal p", "background:#172235", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
-    forbidden_markers = ["Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "drawHoverLabel", "overviewLayerId", 'name: "Research overview"']
+    required_markers = ["intensity_fraction", "ssi_30d", "relativeSlope", "Continuous-time trajectory", "Rainfall-process decomposition", "rgba(34, 211, 238", "ctx.shadowBlur", "drawBasinHighlight", "if (hoveredBasin)", "fce-hover-tooltip", "metricMeaning", "fce-signal p", "background:#172235", "fce-overview-nav", "Project materials", "data-scroll=\"resources\""]
+    forbidden_markers = ["intensity_050", "Limited sample", "Early–late", "probability2000", "probability2010", "logistic probability change", "#D946EF", "#ffffff\";\n          ctx.lineWidth", "drawHoverLabel", "overviewLayerId", 'name: "Research overview"']
     web_ok &= all(marker in module for marker in required_markers) and not any(marker in module for marker in forbidden_markers)
     web_ok &= module.count("reports/assets/figure_") == 6
     record(checks, "interactive_web_explorer", web_ok, web_detail)
 
-    current_text = report_md + "\n" + module
+    current_text = report_md + "\n" + report_en + "\n" + module
     obsolete = [phrase for phrase in ["旧版本", "上一版本", "previous version", "early–late", "probability2000", "probability2010"] if phrase.lower() in current_text.lower()]
     record(checks, "current_only_narrative", not obsolete, f"obsolete phrases={obsolete}")
 
@@ -282,7 +294,7 @@ def main() -> None:
             valid = False
         if not valid:
             bad_archives.append(str(row.file))
-    record(checks, "hydrobasins_reference_integrity", len(manifest) == 24 and not bad_archives, f"archives={len(manifest)}; failures={bad_archives}")
+    record(checks, "hydrobasins_reference_integrity", len(manifest) == 8 and not bad_archives, f"archives={len(manifest)}; failures={bad_archives}")
 
     result: dict[str, object] = {
         "status": "pass" if all(bool(item["passed"]) for item in checks) else "fail",

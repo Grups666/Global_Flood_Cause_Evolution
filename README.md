@@ -9,9 +9,10 @@ The primary sample is the catchment-specific upper 5% of reconstructed flood pea
 
 ## Main result
 
-The evidence is local and directionally opposed, not one spatially uniform global trend. Among 98 eligible HydroBASINS level-5 units, 63 basin–metric signals in 23 units satisfy the full evidence screen. Strong rainfall-concentration trends range from −2.56 to +2.92 percentage points of event rainfall per decade.
+The evidence is local and directionally opposed, not one spatially uniform global trend. Among 28 HydroBASINS level-5 units meeting the single ≥20-catchment rule, 62 basin–metric signals in 21 units satisfy the full evidence screen. Strong rainfall-concentration trends range from −2.54 to +2.92 percentage points of event rainfall per decade.
 
 - [Technical report](reports/global_flood_cause_evolution.md)
+- [English technical report](reports/global_flood_cause_evolution_en.md)
 - [Self-contained browser report](reports/global_flood_cause_evolution.html)
 - [Interactive GitHub Pages explorer](https://grups666.github.io/Global_Flood_Cause_Evolution/)
 - [Analysis protocol](docs/methods/analysis_protocol.md)

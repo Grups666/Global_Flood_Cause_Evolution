@@ -163,22 +163,23 @@ def fit_continuous_trends(sample: pd.DataFrame, variables: list[str], alpha: flo
     result["display_ci_low_per_decade"] = result["sen_ci_low_per_decade"]
     result["display_ci_high_per_decade"] = result["sen_ci_high_per_decade"]
     result["display_unit"] = "units per decade"
-    percentage_points = result["variable"].isin(
-        ["intensity_fraction", "intensity_050", "intensity_075"]
-    )
+    percentage_points = result["variable"].eq("intensity_fraction")
     result.loc[percentage_points, "display_slope_per_decade"] *= 100.0
     result.loc[percentage_points, "display_ci_low_per_decade"] *= 100.0
     result.loc[percentage_points, "display_ci_high_per_decade"] *= 100.0
     result.loc[percentage_points, "display_unit"] = "percentage points per decade"
-    log_metrics = result["variable"].str.startswith("log_")
-    result.loc[log_metrics, "display_slope_per_decade"] = (
-        100.0 * np.expm1(result.loc[log_metrics, "sen_slope_per_decade"])
+    reference = result["mean_level"].replace(0, np.nan)
+    result["relative_slope_percent_per_decade"] = (
+        100.0 * result["sen_slope_per_decade"] / reference
     )
-    result.loc[log_metrics, "display_ci_low_per_decade"] = (
-        100.0 * np.expm1(result.loc[log_metrics, "sen_ci_low_per_decade"])
+    result["relative_ci_low_percent_per_decade"] = (
+        100.0 * result["sen_ci_low_per_decade"] / reference
     )
-    result.loc[log_metrics, "display_ci_high_per_decade"] = (
-        100.0 * np.expm1(result.loc[log_metrics, "sen_ci_high_per_decade"])
+    result["relative_ci_high_percent_per_decade"] = (
+        100.0 * result["sen_ci_high_per_decade"] / reference
     )
-    result.loc[log_metrics, "display_unit"] = "approximate percent per decade"
+    rain = result["variable"].isin(["p_max_daily_mm", "p_volume_daily_mm"])
+    duration = result["variable"].eq("precip_duration_days")
+    result.loc[rain, "display_unit"] = "mm per decade"
+    result.loc[duration, "display_unit"] = "days per decade"
     return result

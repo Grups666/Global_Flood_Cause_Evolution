@@ -32,16 +32,10 @@ event_samples:
     - pot_q975
 
 classification:
-  intensity_fraction_threshold: 0.50
-  intensity_fraction_sensitivity_threshold: 0.75
-  intensity_cv_threshold: 1.00
-  ssi_thresholds: [0.39, 0.56]
   ssi_windows_days: [1, 3, 7, 30]
   primary_ssi_window_days: 1
 
 trends:
-  minimum_occurrences: 5
-  minimum_nonoccurrences: 5
   alpha: 0.05
   fdr_method: "benjamini_hochberg"
   continuous_primary_metrics:
@@ -50,19 +44,15 @@ trends:
     - ssi_3d
     - ssi_7d
     - ssi_30d
-  interpretive_metrics:
-    - intensity_050
   physical_driver_metrics:
-    - log_p_max
-    - log_p_volume
-    - log_precip_duration
+    - p_max_daily_mm
+    - p_volume_daily_mm
+    - precip_duration_days
 
 local_analysis:
-  hydrobasins_levels: [3, 4, 5]
+  hydrobasins_levels: [5]
   primary_level: 5
-  minimum_catchments: 5
-  minimum_observations: 100
-  strong_evidence_minimum_catchments: 20
+  minimum_catchments: 20
   primary_metrics:
     - intensity_fraction
     - ssi_1d
@@ -71,15 +61,14 @@ local_analysis:
     - ssi_30d
   displayed_metrics:
     - intensity_fraction
-    - intensity_050
     - ssi_1d
     - ssi_3d
     - ssi_7d
     - ssi_30d
   driver_metrics:
-    - log_p_max
-    - log_p_volume
-    - log_precip_duration
+    - p_max_daily_mm
+    - p_volume_daily_mm
+    - precip_duration_days
 
 plotting:
   dpi: 300

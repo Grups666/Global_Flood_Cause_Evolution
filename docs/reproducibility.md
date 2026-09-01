@@ -19,6 +19,7 @@ $projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scri
 & $projectPython src/run_pipeline.py --stage analysis --force
 & $projectPython src/run_pipeline.py --stage local --force
 & $projectPython src/run_pipeline.py --stage figures --force
+& $projectPython src/run_pipeline.py --stage reports --force
 & $projectPython src/run_pipeline.py --stage html --force
 & $projectPython src/run_pipeline.py --stage web --force
 & $projectPython src/validate_outputs.py
@@ -38,7 +39,7 @@ Derived Parquet files are written to `data/derived/`. Generated tables, figures,
 
 ## Reference geography
 
-Map context uses Natural Earth 1:110m admin-0 boundaries. Hydrological-region analysis uses official HydroBASINS v1.c levels 3, 4, and 5. Reference archive checksums are recorded in `outputs/logs/hydrobasins_reference_sha256.csv`.
+Map context uses Natural Earth 1:110m admin-0 boundaries. Hydrological-region analysis uses official HydroBASINS v1.c level 5 only. Reference archive checksums are recorded in `outputs/logs/hydrobasins_reference_sha256.csv`.
 
 ## Reading remotely
 

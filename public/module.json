@@ -2,17 +2,17 @@
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
   "description": "Continuous changes in rainfall organization and antecedent wetness during large rainfall-driven floods, 1982–2019.",
-  "version": "2.1.2",
+  "version": "3.0.0",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js?release=hover-outline-top-pass",
+  "entry": "./modules/flood-cause-evolution/index.js?release=continuous-l5-20260901",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=hover-outline-top-pass",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=continuous-l5-20260901",
   "datasets": [
     {
       "id": "flood-cause-explorer",
       "name": "Flood-generating-condition trajectories",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=hover-outline-top-pass",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=continuous-l5-20260901",
       "format": "json"
     }
   ],
