@@ -17,7 +17,6 @@ from .local_analysis import load_hydrobasins
 BLUE = "#315F7D"
 ORANGE = "#D66A3D"
 GOLD = "#D6A52C"
-OLIVE = "#6B7D3E"
 CYAN = "#12CFE3"
 INK = "#243142"
 MUTED = "#667587"
@@ -63,13 +62,6 @@ def _style() -> None:
 def _header(fig: plt.Figure, title: str, subtitle: str) -> None:
     fig.text(0.055, 0.968, title, ha="left", va="top", fontsize=17, weight="bold")
     fig.text(0.055, 0.925, subtitle, ha="left", va="top", fontsize=9.5, color=MUTED)
-    for x, y, color in [
-        (0.944, 0.956, BLUE),
-        (0.957, 0.969, GOLD),
-        (0.970, 0.956, ORANGE),
-        (0.957, 0.942, OLIVE),
-    ]:
-        fig.add_artist(plt.Circle((x, y), 0.007, transform=fig.transFigure, color=color))
 
 
 def _footer(fig: plt.Figure, text: str) -> None:
