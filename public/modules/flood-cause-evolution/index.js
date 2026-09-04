@@ -19,7 +19,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       if (payload.layer?.id !== this.layerId) return;
       this.selected = this.catchments.find((item) => String(item.id) === String(payload.feature?.id)) || payload.feature;
       this.showInspector(this.selected);
-      this.app.draw?.();
+      this.redraw();
     };
     this.handleKey = (event) => { if (event.key === "Escape") this.closeOverview(); };
   }
@@ -38,7 +38,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     document.addEventListener("pointermove", this.handlePointer, { passive: true });
     document.addEventListener("keydown", this.handleKey);
     this.app.resize?.();
-    this.app.draw?.();
+    this.redraw();
   }
 
   onUnload() {
@@ -81,6 +81,13 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   outcome() { return this.data.meta.outcomes[this.outcomeKey]; }
+
+  redraw() {
+    this.app.draw?.();
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => this.app.draw?.());
+    });
+  }
 
   render(ctx, viewport) {
     this.viewport = viewport;
@@ -177,7 +184,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.selected = null;
     this.updateToolbar();
     this.updateLegend();
-    this.app.draw?.();
+    this.redraw();
   }
 
   setOutcome(outcome) {
@@ -186,7 +193,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.updateToolbar();
     this.updateLegend();
     if (this.selected && this.metric(this.selected)) this.showInspector(this.selected);
-    this.app.draw?.();
+    this.redraw();
   }
 
   setMechanism(mechanism) {
@@ -195,14 +202,14 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.selected = null;
     this.updateToolbar();
     this.updateLegend();
-    this.app.draw?.();
+    this.redraw();
   }
 
   setEvidence(view) {
     this.evidenceView = view;
     this.updateToolbar();
     this.updateLegend();
-    this.app.draw?.();
+    this.redraw();
   }
 
   ensureToolbar() {
