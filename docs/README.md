@@ -2,10 +2,11 @@
 
 ## Scientific basis
 
-1. [Meeting-derived scope](meeting_notes/2026-08-08_scope.md)
-2. [Literature review](background/literature_review.md)
-3. [Analysis protocol](methods/analysis_protocol.md)
-4. [Data dictionary](methods/data_dictionary.md)
+1. [Initial scope](meeting_notes/2026-08-08_scope.md)
+2. [Research discussion, 2026-09-02](meeting_notes/2026-09-02_research_discussion.md)
+3. [Literature review](background/literature_review.md)
+4. [Analysis protocol](methods/analysis_protocol.md)
+5. [Data dictionary](methods/data_dictionary.md)
 
 ## Reproduction and quality
 

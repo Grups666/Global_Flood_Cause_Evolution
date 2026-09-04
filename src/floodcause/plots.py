@@ -11,67 +11,77 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
-from .local_analysis import load_hydrobasins
+from .analysis import MECHANISMS
+from .statistics import binomial_probability_trend
 
 
-BLUE = "#315F7D"
-ORANGE = "#D66A3D"
-GOLD = "#D6A52C"
-CYAN = "#12CFE3"
-INK = "#243142"
-MUTED = "#667587"
-PALE = "#EEF2F4"
-GRID = "#D8E0E6"
-NEUTRAL = "#F3EFE6"
-CMAP = LinearSegmentedColormap.from_list("condition_shift", [BLUE, NEUTRAL, ORANGE])
-PRIMARY_METRICS = ["intensity_fraction", "ssi_1d", "ssi_3d", "ssi_7d", "ssi_30d"]
-METRIC_LABELS = {
-    "intensity_fraction": "Rainfall concentration",
-    "ssi_1d": "SSI · 1 day",
-    "ssi_3d": "SSI · 3 days",
-    "ssi_7d": "SSI · 7 days",
-    "ssi_30d": "SSI · 30 days",
+BLUE = "#2F6688"
+ORANGE = "#D96B3F"
+GOLD = "#D9A928"
+CYAN = "#19C9DE"
+INK = "#233143"
+MUTED = "#66778A"
+GRID = "#D9E1E7"
+LAND = "#F4F7F8"
+NEUTRAL = "#ECEBE6"
+CMAP = LinearSegmentedColormap.from_list("process_shift", [BLUE, NEUTRAL, ORANGE])
+
+MECHANISM_LABELS = {
+    "Dry-Intensity": "Dry + intensity",
+    "Dry-Volume": "Dry + volume",
+    "Moderate-Intensity": "Moderate + intensity",
+    "Moderate-Volume": "Moderate + volume",
+    "Wet-Intensity": "Wet + intensity",
+    "Wet-Volume": "Wet + volume",
 }
-METRIC_LIMITS = {
-    "intensity_fraction": 3.0,
-    "ssi_1d": 0.015,
-    "ssi_3d": 0.015,
-    "ssi_7d": 0.015,
-    "ssi_30d": 0.015,
+MECHANISM_COLORS = {
+    "Dry-Intensity": "#D96B3F",
+    "Dry-Volume": "#E6AA76",
+    "Moderate-Intensity": "#D9A928",
+    "Moderate-Volume": "#A8A36A",
+    "Wet-Intensity": "#4C8EA6",
+    "Wet-Volume": "#2F6688",
+}
+OUTCOME_LABELS = {
+    "direct_runoff_volume": "Direct stormflow volume",
+    "flood_peak": "Daily flood peak",
+    "exceedance_frequency": "Q95-event frequency",
+    "mechanism_frequency": "Process frequency",
+    "mechanism_share": "Process share",
+    "rainfall_concentration": "Rainfall concentration",
+    "antecedent_wetness": "Antecedent wetness",
 }
 
 
 def _style() -> None:
-    mpl.rcParams.update(
-        {
-            "font.family": "DejaVu Sans",
-            "font.size": 9.5,
-            "axes.titlesize": 11,
-            "axes.titleweight": "bold",
-            "axes.labelcolor": INK,
-            "text.color": INK,
-            "xtick.color": MUTED,
-            "ytick.color": MUTED,
-            "axes.edgecolor": GRID,
-            "figure.facecolor": "white",
-            "axes.facecolor": "white",
-        }
-    )
+    mpl.rcParams.update({
+        "font.family": "DejaVu Sans",
+        "font.size": 10,
+        "axes.titlesize": 11.5,
+        "axes.titleweight": "bold",
+        "axes.labelcolor": INK,
+        "text.color": INK,
+        "xtick.color": MUTED,
+        "ytick.color": MUTED,
+        "axes.edgecolor": GRID,
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+    })
 
 
 def _header(fig: plt.Figure, title: str, subtitle: str) -> None:
-    fig.text(0.055, 0.968, title, ha="left", va="top", fontsize=17, weight="bold")
-    fig.text(0.055, 0.925, subtitle, ha="left", va="top", fontsize=9.5, color=MUTED)
+    fig.text(0.055, 0.972, title, ha="left", va="top", fontsize=17, weight="bold")
+    fig.text(0.055, 0.928, subtitle, ha="left", va="top", fontsize=9.5, color=MUTED)
 
 
 def _footer(fig: plt.Figure, text: str) -> None:
-    fig.text(0.055, 0.023, text, ha="left", va="bottom", fontsize=7.5, color=MUTED)
+    fig.text(0.055, 0.024, text, ha="left", va="bottom", fontsize=7.5, color=MUTED)
 
 
-def _save(fig: plt.Figure, base: Path, dpi: int) -> None:
-    base.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(base.with_suffix(".png"), dpi=dpi, bbox_inches="tight", facecolor="white")
-    fig.savefig(base.with_suffix(".svg"), bbox_inches="tight", facecolor="white")
+def _save(fig: plt.Figure, destination: Path, dpi: int) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destination.with_suffix(".png"), dpi=dpi, bbox_inches="tight", facecolor="white")
+    fig.savefig(destination.with_suffix(".svg"), bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -80,389 +90,228 @@ def _world(config: dict[str, Any]) -> gpd.GeoDataFrame:
 
 
 def _base_map(ax: plt.Axes, world: gpd.GeoDataFrame) -> None:
-    world.plot(ax=ax, color="#F7F9FA", edgecolor="#C9D3DA", linewidth=0.32)
+    world.plot(ax=ax, color=LAND, edgecolor="#C9D4DB", linewidth=0.35)
     ax.set_xlim(-180, 180)
     ax.set_ylim(-60, 85)
     ax.set_axis_off()
 
 
-def _spatial_support(config: dict[str, Any]) -> pd.DataFrame:
-    return pd.read_csv(
-        config["paths"]["tables"] / "spatial_support" / "l5_spatial_support_audit.csv"
-    ).rename(columns={"hybas_id_l5": "HYBAS_ID"})
+def _limit(values: pd.Series) -> float:
+    finite = pd.to_numeric(values, errors="coerce").dropna().abs()
+    if finite.empty:
+        return 1.0
+    value = float(finite.quantile(0.95))
+    return value if value > 0 else 1.0
 
 
-def figure_sample_coverage(config: dict[str, Any]) -> None:
+def _map_estimates(
+    ax: plt.Axes,
+    world: gpd.GeoDataFrame,
+    frame: pd.DataFrame,
+    title: str,
+    limit: float | None = None,
+) -> mpl.cm.ScalarMappable:
+    _base_map(ax, world)
+    values = pd.to_numeric(frame["display_slope_per_decade"], errors="coerce")
+    limit = limit or _limit(values)
+    norm = TwoSlopeNorm(vmin=-limit, vcenter=0, vmax=limit)
+    unsupported = frame[~frame["supported_shift"].fillna(False)]
+    supported = frame[frame["supported_shift"].fillna(False)]
+    if len(unsupported):
+        ax.scatter(
+            unsupported["longitude"], unsupported["latitude"],
+            c=unsupported["display_slope_per_decade"], cmap=CMAP, norm=norm,
+            s=10, alpha=0.28, linewidths=0, rasterized=True,
+        )
+    if len(supported):
+        ax.scatter(
+            supported["longitude"], supported["latitude"],
+            c=supported["display_slope_per_decade"], cmap=CMAP, norm=norm,
+            s=27, alpha=0.98, linewidths=0, zorder=5,
+        )
+    ax.set_title(f"{title}\n{len(supported):,} supported of {len(frame):,} estimates", loc="left")
+    return mpl.cm.ScalarMappable(norm=norm, cmap=CMAP)
+
+
+def figure_sample_and_process_coverage(config: dict[str, Any]) -> None:
     sample = pd.read_parquet(config["paths"]["derived_data"] / "primary_extreme_events.parquet")
     catchments = sample[["GCIN", "continent", "longitude", "latitude"]].drop_duplicates("GCIN")
-    counts = catchments.groupby("continent")["GCIN"].nunique().sort_values()
-    diagnostics = pd.read_csv(config["paths"]["tables"] / "extreme_sample_diagnostics.csv")
-    primary = diagnostics[diagnostics["sample"].eq("pot_q95")].iloc[0]
+    composition = pd.read_csv(config["paths"]["tables"] / "mechanism_composition.csv")
     world = _world(config)
 
-    fig = plt.figure(figsize=(13.5, 7.4))
-    grid = fig.add_gridspec(
-        1, 2, width_ratios=[3.8, 1.2], left=0.055, right=0.96,
-        bottom=0.10, top=0.83, wspace=0.08,
-    )
+    fig = plt.figure(figsize=(13.5, 7.2))
+    grid = fig.add_gridspec(1, 2, width_ratios=[3.25, 1.35], left=0.055, right=0.96,
+                            bottom=0.11, top=0.84, wspace=0.10)
     ax = fig.add_subplot(grid[0, 0])
     _base_map(ax, world)
-    ax.scatter(
-        catchments["longitude"], catchments["latitude"], s=4.1,
-        color=BLUE, alpha=0.72, linewidths=0, rasterized=True,
-    )
-    ax.text(
-        -174, -53,
-        f"{len(sample):,} selected events\n{catchments['GCIN'].nunique():,} primary-sample catchments",
-        fontsize=8.5, color=INK, va="bottom",
-    )
+    ax.scatter(catchments["longitude"], catchments["latitude"], s=5.8,
+               color=BLUE, alpha=0.72, linewidths=0, rasterized=True)
+    ax.text(-174, -53, f"{len(sample):,} Q95 events\n{len(catchments):,} gauged catchments",
+            fontsize=9, va="bottom")
 
     bars = fig.add_subplot(grid[0, 1])
-    bars.barh(counts.index, counts.values, color=BLUE, height=0.62)
-    for y, value in enumerate(counts.values):
-        bars.text(value + counts.max() * 0.025, y, f"{value:,}", va="center", fontsize=8.5, weight="bold")
-    bars.set_title("Primary sample by continent", loc="left", pad=12)
-    bars.set_xlabel("Catchments")
-    bars.set_xlim(0, counts.max() * 1.24)
+    composition["label"] = composition["mechanism"].map(MECHANISM_LABELS)
+    composition = composition.sort_values("events")
+    bars.barh(composition["label"], composition["events"],
+              color=[MECHANISM_COLORS[x] for x in composition["mechanism"]], height=0.62)
+    for y, row in enumerate(composition.itertuples(index=False)):
+        bars.text(row.events + composition["events"].max() * 0.025, y,
+                  f"{row.events:,}  ({row.share_percent:.1f}%)", va="center", fontsize=8.5)
+    bars.set_title("Large-flood process composition", loc="left")
+    bars.set_xlabel("Selected events")
+    bars.grid(axis="x", color=GRID, linewidth=0.6)
     bars.spines[["top", "right", "left"]].set_visible(False)
     bars.tick_params(axis="y", length=0)
-    bars.grid(axis="x", color=GRID, linewidth=0.6)
-    bars.set_axisbelow(True)
 
-    _header(
-        fig,
-        "Coverage of the catchment-first extreme-flood analysis",
-        "Catchment-specific POT/Q95 events · 1982–2019 · long-record, low-snow rainfall-driven sample",
-    )
-    _footer(
-        fig,
-        f"Source network is not area-uniform. The selected POT/Q95 events contain {int(primary.stormflow_window_overlaps)} overlapping stormflow windows.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_01_sample_coverage", int(config["plotting"]["dpi"]))
+    _header(fig, "The primary sample is global; its process mixture is not",
+            "Catchment-specific Q95 of direct stormflow volume · rainfall-driven low-snow events · 1982–2019")
+    _footer(fig, "Points are observed catchments, not an area-complete global sample. Process = antecedent state × rainfall temporal organization.")
+    _save(fig, config["paths"]["figures"] / "figure_01_sample_and_process_coverage", config["plotting"]["dpi"])
 
 
-def _catchment_map_panel(
-    ax: plt.Axes,
-    world: gpd.GeoDataFrame,
-    evidence: pd.DataFrame,
-    metric: str,
-) -> None:
-    _base_map(ax, world)
-    data = evidence[evidence["variable"].eq(metric)].copy()
-    limit = METRIC_LIMITS[metric]
-    norm = TwoSlopeNorm(vmin=-limit, vcenter=0, vmax=limit)
-    ax.scatter(
-        data["longitude"], data["latitude"], c=data["display_slope_per_decade"],
-        cmap=CMAP, norm=norm, s=6.5, alpha=0.46, linewidths=0, rasterized=True,
-    )
-    robust = data[data["robust_local_trend"]]
-    if not robust.empty:
-        ax.scatter(
-            robust["longitude"], robust["latitude"],
-            c=robust["display_slope_per_decade"], cmap=CMAP, norm=norm,
-            s=24, alpha=0.98, linewidths=0,
-            rasterized=True,
-        )
-    ax.set_title(
-        f"{METRIC_LABELS[metric]} · {len(robust)} robust individual trends",
-        loc="left", pad=5,
-    )
-
-
-def figure_mechanism_change_maps(config: dict[str, Any]) -> None:
-    evidence = pd.read_csv(config["paths"]["tables"] / "catchment_mechanism_trends.csv")
+def figure_overall_flood_changes(config: dict[str, Any]) -> None:
+    table = pd.read_csv(config["paths"]["tables"] / "catchment_overall_trends.csv")
     world = _world(config)
-    fig, axes = plt.subplots(2, 3, figsize=(15, 8.8))
-    fig.subplots_adjust(left=0.045, right=0.965, bottom=0.09, top=0.84, wspace=0.025, hspace=0.12)
-    for ax, metric in zip(axes.flat[:5], PRIMARY_METRICS):
-        _catchment_map_panel(ax, world, evidence, metric)
-
-    legend = axes.flat[5]
-    legend.set_axis_off()
-    legend.text(0.02, 0.90, "How to read the catchment layer", fontsize=11, weight="bold", transform=legend.transAxes)
-    gradient = np.linspace(-1, 1, 256).reshape(1, -1)
-    inset = legend.inset_axes([0.03, 0.71, 0.78, 0.08])
-    inset.imshow(gradient, aspect="auto", cmap=CMAP, extent=[-1, 1, 0, 1])
-    inset.set_xticks([-1, 0, 1], ["negative", "near zero", "positive"], fontsize=8)
-    inset.set_yticks([])
-    for spine in inset.spines.values():
-        spine.set_visible(False)
-    legend.scatter([0.07], [0.53], s=28, color=ORANGE, linewidths=0, transform=legend.transAxes)
-    legend.text(0.13, 0.53, "Robust individual trend", va="center", fontsize=8.5, transform=legend.transAxes)
-    legend.scatter([0.07], [0.42], s=12, color=BLUE, alpha=0.45, linewidths=0, transform=legend.transAxes)
-    legend.text(0.13, 0.42, "Other estimable catchment", va="center", fontsize=8.5, transform=legend.transAxes)
-    legend.text(
-        0.03, 0.20,
-        "A robust individual trend has p < 0.05, keeps its\ndirection under Q90, Q97.5 and annual-maximum\nevent samples, and passes leave-one-year-out.\nSSI trends also agree across all four windows.",
-        fontsize=8, color=MUTED, linespacing=1.5, transform=legend.transAxes,
-    )
-
-    _header(
-        fig,
-        "Direct catchment trends in flood-generating conditions",
-        "Annualized Theil–Sen slopes; all estimable catchments remain visible and robust individual trends are emphasized",
-    )
-    _footer(
-        fig,
-        "Rainfall concentration is in percentage points per decade; SSI is in index units per decade. Color is effect direction and magnitude, not a significance claim.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_02_mechanism_change_maps", int(config["plotting"]["dpi"]))
+    outcomes = ["direct_runoff_volume", "flood_peak", "exceedance_frequency"]
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.4))
+    mappables = []
+    for ax, outcome in zip(axes, outcomes):
+        frame = table[table["outcome"].eq(outcome)]
+        mappables.append(_map_estimates(ax, world, frame, OUTCOME_LABELS[outcome]))
+    for ax, mapping, outcome in zip(axes, mappables, outcomes):
+        cbar = fig.colorbar(mapping, ax=ax, orientation="horizontal", fraction=0.045, pad=0.035)
+        unit = table.loc[table["outcome"].eq(outcome), "display_unit"].dropna()
+        cbar.set_label(unit.iloc[0] if len(unit) else "change per decade", fontsize=8)
+        cbar.ax.tick_params(labelsize=7)
+    fig.subplots_adjust(left=0.04, right=0.985, top=0.80, bottom=0.12, wspace=0.08)
+    _header(fig, "What happened to the selected large floods themselves?",
+            "Pale points are estimable trends; larger saturated points pass the complete direction-stability screen")
+    _footer(fig, "Q95 is defined from full-record event direct stormflow volume. A decade is 10 years.")
+    _save(fig, config["paths"]["figures"] / "figure_02_overall_flood_changes", config["plotting"]["dpi"])
 
 
-def figure_strong_signal_rankings(config: dict[str, Any]) -> None:
-    evidence = pd.read_csv(config["paths"]["tables"] / "catchment_mechanism_trends.csv")
-    evidence = evidence[evidence["variable"].isin(PRIMARY_METRICS)].copy()
-    summary = evidence.groupby("variable").agg(
-        tests=("GCIN", "size"),
-        p_below_005=("mk_p", lambda values: int((values < 0.05).sum())),
-        robust=("robust_local_trend", "sum"),
-    ).reindex(PRIMARY_METRICS)
-    robust = evidence[evidence["robust_local_trend"]].copy()
-    directions = robust.assign(direction=np.where(robust["display_slope_per_decade"] >= 0, "positive", "negative")).pivot_table(
-        index="variable", columns="direction", values="GCIN", aggfunc="size", fill_value=0
-    ).reindex(PRIMARY_METRICS).fillna(0)
-
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 7.2))
-    fig.subplots_adjust(left=0.13, right=0.95, bottom=0.20, top=0.80, wspace=0.34)
-    labels = [METRIC_LABELS[metric] for metric in PRIMARY_METRICS]
-    y = np.arange(len(labels))
-    axes[0].barh(y + 0.18, summary["p_below_005"], height=0.32, color="#AAB8C2", label="p < 0.05")
-    axes[0].barh(y - 0.18, summary["robust"], height=0.32, color=GOLD, label="Robust individual trend")
-    for index, row in enumerate(summary.itertuples()):
-        axes[0].text(row.p_below_005 + 5, index + 0.18, f"{int(row.p_below_005)}", va="center", fontsize=8)
-        axes[0].text(row.robust + 5, index - 0.18, f"{int(row.robust)}", va="center", fontsize=8, weight="bold")
-    axes[0].set_yticks(y, labels)
-    axes[0].invert_yaxis()
-    axes[0].set_xlabel("Catchment–metric estimates")
-    axes[0].set_title("Individual-trend evidence screen", loc="left")
-    axes[0].grid(axis="x", color=GRID, linewidth=0.6)
-    axes[0].spines[["top", "right", "left"]].set_visible(False)
-    axes[0].tick_params(axis="y", length=0)
-    axes[0].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.11), ncol=2)
-    negative = directions.get("negative", pd.Series(0, index=PRIMARY_METRICS)).to_numpy(float)
-    positive = directions.get("positive", pd.Series(0, index=PRIMARY_METRICS)).to_numpy(float)
-    axes[1].barh(y, -negative, color=BLUE, height=0.56, label="Negative direction")
-    axes[1].barh(y, positive, color=ORANGE, height=0.56, label="Positive direction")
-    axes[1].axvline(0, color=INK, linewidth=0.8)
-    for index, value in enumerate(negative):
-        axes[1].text(-value - 2, index, f"{int(value)}", ha="right", va="center", fontsize=8, color=INK)
-    for index, value in enumerate(positive):
-        axes[1].text(value + 2, index, f"{int(value)}", ha="left", va="center", fontsize=8, color=INK)
-    axes[1].set_yticks(y, labels)
-    axes[1].invert_yaxis()
-    axes[1].set_xlabel("Robust individual trends by direction")
-    axes[1].set_title("Opposing local directions are retained", loc="left")
-    axes[1].grid(axis="x", color=GRID, linewidth=0.6)
-    axes[1].spines[["top", "right", "left"]].set_visible(False)
-    axes[1].tick_params(axis="y", length=0)
-    axes[1].legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.11), ncol=2)
-
-    _header(
-        fig,
-        "Robust individual trends are sparse and directionally mixed",
-        "Each catchment is assessed directly; p < 0.05 trends are retained when their directions survive the declared robustness checks",
-    )
-    _footer(
-        fig,
-        f"The analysis contains {len(evidence):,} estimable catchment–metric trends. Counts describe individual catchments and are not an area-weighted global trend.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_03_strong_signal_rankings", int(config["plotting"]["dpi"]))
-
-
-def _regional_map_panel(
-    ax: plt.Axes,
-    world: gpd.GeoDataFrame,
-    basins: gpd.GeoDataFrame,
-    evidence: pd.DataFrame,
-    metric: str,
-) -> None:
-    _base_map(ax, world)
-    data = evidence[evidence["metric"].eq(metric)]
-    layer = basins.merge(data, on="HYBAS_ID", how="inner")
-    norm = TwoSlopeNorm(vmin=-METRIC_LIMITS[metric], vcenter=0, vmax=METRIC_LIMITS[metric])
-    layer.plot(
-        ax=ax, column="slope_per_decade", cmap=CMAP, norm=norm,
-        edgecolor="#354553", linewidth=0.28, alpha=0.80,
-    )
-    strong = layer[layer["strong_evidence"]]
-    if not strong.empty:
-        strong.boundary.plot(ax=ax, color=CYAN, linewidth=1.25, alpha=1)
-    ax.set_title(f"{METRIC_LABELS[metric]} · {len(strong)} supported", loc="left", pad=5)
-
-
-def figure_mechanism_trajectories(config: dict[str, Any]) -> None:
-    threshold = int(config["local_analysis"]["default_area_coverage_threshold_percent"])
-    evidence = pd.read_csv(config["paths"]["tables"] / "hydrobasin_evidence.csv")
-    support = _spatial_support(config)[["HYBAS_ID", "coverage_pct"]]
-    evidence = evidence.merge(support, on="HYBAS_ID", how="left")
-    evidence = evidence[
-        evidence["metric"].isin(PRIMARY_METRICS) & evidence["coverage_pct"].ge(threshold)
-    ]
-    basin_ids = set(evidence["HYBAS_ID"].astype(int))
-    basins = load_hydrobasins(config["paths"]["hydrobasins"], 5).to_crs("EPSG:4326")
-    basins = basins[basins["HYBAS_ID"].isin(basin_ids)]
-    world = _world(config)
-    fig, axes = plt.subplots(2, 3, figsize=(15, 8.8))
-    fig.subplots_adjust(left=0.045, right=0.965, bottom=0.09, top=0.84, wspace=0.025, hspace=0.12)
-    for ax, metric in zip(axes.flat[:5], PRIMARY_METRICS):
-        _regional_map_panel(ax, world, basins, evidence, metric)
-    legend = axes.flat[5]
-    legend.set_axis_off()
-    legend.text(0.02, 0.96, "Second-stage regional lens", fontsize=11, weight="bold", transform=legend.transAxes)
-    legend.text(
-        0.03, 0.62,
-        f"Shown L5 units have ≥{threshold}% polygon-area support.\nColors are pooled within-catchment annual slopes.\nCyan boundaries pass regional BH-FDR, alternative\nevent samples, SSI-window, and leave-one-out checks.",
-        fontsize=8.5, color=MUTED, linespacing=1.55, transform=legend.transAxes,
-    )
-    legend.add_patch(plt.Rectangle((0.03, 0.29), 0.12, 0.07, facecolor="#D78A68", edgecolor=CYAN, linewidth=1.5, transform=legend.transAxes))
-    legend.text(0.18, 0.315, "Supported regional pattern", fontsize=8.5, transform=legend.transAxes)
-    legend.add_patch(plt.Rectangle((0.03, 0.16), 0.12, 0.07, facecolor="#DDE3E6", edgecolor="#354553", linewidth=0.5, transform=legend.transAxes))
-    legend.text(0.18, 0.185, "Area-supported regional context", fontsize=8.5, transform=legend.transAxes)
-
-    _header(
-        fig,
-        "Area-supported HydroBASINS L5 patterns",
-        f"Default ≥{threshold}% observed polygon coverage · catchment-year fixed effects · complete regional evidence screen",
-    )
-    _footer(
-        fig,
-        "The area threshold determines whether an L5 interpretation is shown. It does not remove, recolor, or change the underlying single-catchment estimates.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_04_mechanism_trajectories", int(config["plotting"]["dpi"]))
-
-
-def figure_physical_decomposition(config: dict[str, Any]) -> None:
+def _six_process_maps(config: dict[str, Any], outcome: str, filename: str, title: str) -> None:
     table = pd.read_csv(
-        config["paths"]["tables"] / "spatial_support" / "l5_spatial_support_threshold_sensitivity.csv"
+        config["paths"]["tables"] / "catchment_mechanism_trends.csv",
+        low_memory=False,
     )
-    table = table[
-        table["scope"].isin(["Global", "United States"])
-        & table["metric"].eq("coverage_fraction")
+    table = table[table["outcome"].eq(outcome)]
+    world = _world(config)
+    limit = _limit(table["display_slope_per_decade"])
+    fig, axes = plt.subplots(2, 3, figsize=(14.5, 7.8))
+    mapping = None
+    for ax, mechanism in zip(axes.ravel(), MECHANISMS):
+        frame = table[table["mechanism"].eq(mechanism)]
+        mapping = _map_estimates(ax, world, frame, MECHANISM_LABELS[mechanism], limit)
+    fig.subplots_adjust(left=0.04, right=0.97, top=0.83, bottom=0.10, hspace=0.18, wspace=0.05)
+    if mapping is not None:
+        cbar = fig.colorbar(mapping, ax=axes.ravel().tolist(), orientation="horizontal",
+                            fraction=0.028, pad=0.035, aspect=48)
+        unit = table["display_unit"].dropna()
+        cbar.set_label(unit.iloc[0] if len(unit) else "change per decade", fontsize=8.5)
+    _header(fig, title,
+            "Each panel follows one flood-generating process within each gauged catchment; opposing local directions are retained")
+    _footer(fig, "A process is estimated with ≥5 selected events. Supported points pass p<0.05, alternative-sample, classification-threshold and leave-one-year checks.")
+    _save(fig, config["paths"]["figures"] / filename, config["plotting"]["dpi"])
+
+
+def figure_process_frequency(config: dict[str, Any]) -> None:
+    _six_process_maps(
+        config, "mechanism_frequency", "figure_03_process_frequency_changes",
+        "Where did particular large-flood processes become more or less frequent?",
+    )
+
+
+def figure_process_share(config: dict[str, Any]) -> None:
+    _six_process_maps(
+        config, "mechanism_share", "figure_04_process_share_changes",
+        "How did the composition of the local upper tail change?",
+    )
+
+
+def figure_process_response_rankings(config: dict[str, Any]) -> None:
+    table = pd.read_csv(
+        config["paths"]["tables"] / "catchment_mechanism_trends.csv",
+        low_memory=False,
+    )
+    outcomes = ["direct_runoff_volume", "flood_peak"]
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 7.2))
+    for ax, outcome in zip(axes, outcomes):
+        frame = table[table["outcome"].eq(outcome) & table["supported_shift"].fillna(False)].copy()
+        frame["magnitude"] = frame["display_slope_per_decade"].abs()
+        frame = frame.nlargest(14, "magnitude").sort_values("display_slope_per_decade")
+        labels = [f"GCIN {int(row.GCIN)} · {MECHANISM_LABELS[row.mechanism]}" for row in frame.itertuples()]
+        colors = np.where(frame["display_slope_per_decade"].ge(0), ORANGE, BLUE)
+        ax.barh(labels, frame["display_slope_per_decade"], color=colors, height=0.64)
+        ax.axvline(0, color=INK, linewidth=0.8)
+        ax.grid(axis="x", color=GRID, linewidth=0.6)
+        ax.spines[["top", "right", "left"]].set_visible(False)
+        ax.tick_params(axis="y", length=0, labelsize=7.5)
+        unit = frame["display_unit"].dropna()
+        ax.set_xlabel(unit.iloc[0] if len(unit) else "change per decade")
+        ax.set_title(OUTCOME_LABELS[outcome], loc="left")
+    fig.subplots_adjust(left=0.15, right=0.98, top=0.82, bottom=0.12, wspace=0.44)
+    _header(fig, "The strongest reproducible changes in process-specific flood response",
+            "Ranked by absolute trend magnitude; ranking is descriptive, not a cross-catchment causal comparison")
+    _footer(fig, "Direct stormflow volume and daily flood peak answer what happened to floods generated by each process.")
+    _save(fig, config["paths"]["figures"] / "figure_05_process_response_rankings", config["plotting"]["dpi"])
+
+
+def figure_example_trajectories(config: dict[str, Any]) -> None:
+    table = pd.read_csv(
+        config["paths"]["tables"] / "catchment_mechanism_trends.csv",
+        low_memory=False,
+    )
+    candidates = table[
+        table["outcome"].eq("mechanism_share") & table["supported_shift"].fillna(False)
     ].copy()
-    colors = {"Global": BLUE, "United States": ORANGE}
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 6.7))
-    fig.subplots_adjust(left=0.08, right=0.95, bottom=0.15, top=0.78, wspace=0.27)
-    for scope, frame in table.groupby("scope"):
-        frame = frame.sort_values("threshold_pct")
-        axes[0].plot(frame["threshold_pct"], frame["passing_l5"], color=colors[scope], marker="o", linewidth=2.4, label=scope)
-        axes[1].plot(frame["threshold_pct"], frame["passing_catchment_share_pct"], color=colors[scope], marker="o", linewidth=2.4, label=scope)
-        for x, y in zip(frame["threshold_pct"], frame["passing_l5"]):
-            axes[0].text(x, y + 4, f"{int(y)}", ha="center", va="bottom", fontsize=8, color=colors[scope])
-        for x, y in zip(frame["threshold_pct"], frame["passing_catchment_share_pct"]):
-            axes[1].text(x, y + 2.2, f"{y:.0f}%", ha="center", va="bottom", fontsize=8, color=colors[scope])
-    axes[0].set_title("L5 regions meeting the selected support", loc="left")
-    axes[0].set_ylabel("Passing HydroBASINS L5 units")
-    axes[1].set_title("Catchments located in passing L5 regions", loc="left")
-    axes[1].set_ylabel("Share of matched catchments (%)")
-    for ax in axes:
-        ax.set_xlabel("Minimum observed L5 area coverage (%)")
-        ax.set_xticks([10, 20, 30, 40, 50])
+    candidates["magnitude"] = candidates["display_slope_per_decade"].abs()
+    examples = candidates.nlargest(3, "magnitude")
+    sample = pd.read_parquet(config["paths"]["derived_data"] / "primary_extreme_events.parquet")
+    fig, axes = plt.subplots(1, max(1, len(examples)), figsize=(13.5, 4.8), squeeze=False)
+    for ax, row in zip(axes.ravel(), examples.itertuples(index=False)):
+        catchment = sample[sample["GCIN"].eq(row.GCIN)]
+        totals = catchment.groupby("peak_year").size().rename("total")
+        yes = catchment[catchment["mechanism"].eq(row.mechanism)].groupby("peak_year").size().rename("success")
+        annual = pd.concat([totals, yes], axis=1).fillna(0).reset_index()
+        estimate = binomial_probability_trend(
+            annual["peak_year"].to_numpy(float), annual["success"].to_numpy(float), annual["total"].to_numpy(float)
+        )
+        share = 100 * annual["success"] / annual["total"]
+        ax.scatter(annual["peak_year"], share, s=24, color=MECHANISM_COLORS[row.mechanism], alpha=0.75)
+        if estimate:
+            years = np.linspace(annual["peak_year"].min(), annual["peak_year"].max(), 100)
+            beta = estimate["raw_slope_per_decade"]
+            p0 = estimate["fitted_first"] / 100
+            x0 = (annual["peak_year"].min() - 2000) / 10
+            intercept = np.log(p0 / max(1e-9, 1 - p0)) - beta * x0
+            fitted = 100 / (1 + np.exp(-(intercept + beta * ((years - 2000) / 10))))
+            ax.plot(years, fitted, color=INK, linewidth=2)
+        ax.set_ylim(-3, 103)
+        ax.set_title(f"GCIN {int(row.GCIN)} · {MECHANISM_LABELS[row.mechanism]}\n{row.display_slope_per_decade:+.2f} pp / 10 years", loc="left")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Share of selected floods (%)")
         ax.grid(color=GRID, linewidth=0.6)
         ax.spines[["top", "right"]].set_visible(False)
-        ax.legend(frameon=False, loc="upper right")
-    axes[1].set_ylim(0, 100)
-
-    _header(
-        fig,
-        "Regional coverage is an explicit, adjustable sensitivity",
-        "10–50% thresholds trade broad spatial inclusion for stricter L5 representation; single-catchment trends are unaffected",
-    )
-    _footer(
-        fig,
-        "Coverage = area of the L5 polygon intersected by the union of eligible catchment polygons assigned through their outlets ÷ total L5 polygon area.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_05_physical_decomposition", int(config["plotting"]["dpi"]))
-
-
-def _coherence_panel(
-    ax: plt.Axes,
-    evidence: pd.DataFrame,
-    catchments: pd.DataFrame,
-    membership: pd.DataFrame,
-    metric: str,
-    limit_rows: int = 7,
-) -> None:
-    selected = evidence[
-        evidence["metric"].eq(metric) & evidence["strong_evidence"]
-    ].copy()
-    selected = selected.reindex(selected["slope_per_decade"].abs().sort_values(ascending=False).index).head(limit_rows)
-    selected = selected.sort_values("slope_per_decade")
-    for y, row in enumerate(selected.itertuples(index=False)):
-        ids = membership.loc[membership["hybas_id_l5"].eq(row.HYBAS_ID), "GCIN"]
-        local = catchments[
-            catchments["GCIN"].isin(ids) & catchments["variable"].eq(metric)
-        ]
-        ax.scatter(
-            local["display_slope_per_decade"], np.full(len(local), y),
-            s=18, facecolor="#D5DEE3", edgecolor="#8696A2", linewidth=0.45,
-            alpha=0.88, zorder=2,
-        )
-        ax.hlines(y, row.ci_low, row.ci_high, color="#4A5B69", linewidth=1.3, zorder=3)
-        ax.scatter(
-            row.slope_per_decade, y, marker="D", s=42,
-            color=ORANGE if row.slope_per_decade > 0 else BLUE,
-            edgecolor="white", linewidth=0.7, zorder=4,
-        )
-    ax.axvline(0, color=INK, linewidth=0.8)
-    labels = [f"{row.basin_code} · {row.coverage_pct:.0f}%" for row in selected.itertuples(index=False)]
-    ax.set_yticks(np.arange(len(selected)), labels, fontsize=8)
-    ax.set_title(METRIC_LABELS[metric], loc="left")
-    ax.set_xlabel("Percentage points / decade" if metric == "intensity_fraction" else "SSI units / decade")
-    ax.grid(axis="x", color=GRID, linewidth=0.6)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.tick_params(axis="y", length=0)
-
-
-def figure_robustness_matrix(config: dict[str, Any]) -> None:
-    threshold = int(config["local_analysis"]["default_area_coverage_threshold_percent"])
-    evidence = pd.read_csv(config["paths"]["tables"] / "hydrobasin_evidence.csv")
-    support = _spatial_support(config)[["HYBAS_ID", "coverage_pct"]]
-    evidence = evidence.merge(support, on="HYBAS_ID", how="left")
-    evidence = evidence[evidence["coverage_pct"].ge(threshold)]
-    catchments = pd.read_csv(config["paths"]["tables"] / "catchment_mechanism_trends.csv")
-    membership = pd.read_csv(config["paths"]["tables"] / "hydrobasin_catchment_membership.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 7.5))
-    fig.subplots_adjust(left=0.17, right=0.96, bottom=0.19, top=0.79, wspace=0.42)
-    _coherence_panel(axes[0], evidence, catchments, membership, "intensity_fraction")
-    _coherence_panel(axes[1], evidence, catchments, membership, "ssi_7d")
-    axes[0].scatter([], [], s=18, facecolor="#D5DEE3", edgecolor="#8696A2", label="Individual catchment trend")
-    axes[0].scatter([], [], marker="D", s=42, color=ORANGE, edgecolor="white", label="Pooled L5 estimate")
-    fig.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 0.075), ncol=2)
-    _header(
-        fig,
-        "Regional patterns remain traceable to their contributing catchments",
-        f"Strongest L5 signals at ≥{threshold}% area support · grey circles are direct catchment slopes · diamonds and lines are pooled estimates and 95% CIs",
-    )
-    _footer(
-        fig,
-        "Labels report L5 code and observed area support. A regional estimate summarizes a shared within-catchment direction; it does not imply that every contributing catchment is individually significant.",
-    )
-    _save(fig, config["paths"]["figures"] / "figure_06_robustness_matrix", int(config["plotting"]["dpi"]))
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.78, bottom=0.16, wspace=0.25)
+    _header(fig, "Examples of process composition emerging through time",
+            "Dots are observed annual shares; curves are bias-reduced binomial fits used for the percentage-point effect")
+    _footer(fig, "Examples are selected by supported absolute process-share trend and are not presented as globally representative.")
+    _save(fig, config["paths"]["figures"] / "figure_06_example_process_trajectories", config["plotting"]["dpi"])
 
 
 def build_all_figures(config: dict[str, Any]) -> None:
     _style()
-    figure_sample_coverage(config)
-    figure_mechanism_change_maps(config)
-    figure_strong_signal_rankings(config)
-    figure_mechanism_trajectories(config)
-    figure_physical_decomposition(config)
-    figure_robustness_matrix(config)
+    figure_sample_and_process_coverage(config)
+    figure_overall_flood_changes(config)
+    figure_process_frequency(config)
+    figure_process_share(config)
+    figure_process_response_rankings(config)
+    figure_example_trajectories(config)
 
     destination = config["paths"]["report_assets"]
     destination.mkdir(parents=True, exist_ok=True)
-    expected = {
-        "figure_01_sample_coverage",
-        "figure_02_mechanism_change_maps",
-        "figure_03_strong_signal_rankings",
-        "figure_04_mechanism_trajectories",
-        "figure_05_physical_decomposition",
-        "figure_06_robustness_matrix",
-    }
-    expected_assets = {f"{stem}.png" for stem in expected}
-    for existing in destination.glob("figure_*.*"):
-        if existing.name not in expected_assets:
-            existing.unlink()
-    for stem in expected:
-        source = config["paths"]["figures"] / f"{stem}.png"
-        shutil.copy2(source, destination / source.name)
+    for path in sorted(config["paths"]["figures"].glob("figure_0[1-6]_*.png")):
+        shutil.copy2(path, destination / path.name)
+    for path in sorted(config["paths"]["figures"].glob("figure_0[1-6]_*.svg")):
+        shutil.copy2(path, destination / path.name)

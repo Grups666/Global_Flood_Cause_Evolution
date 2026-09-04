@@ -1,6 +1,7 @@
 # Reports
 
-- `global_flood_cause_evolution.md` is the canonical technical report.
+- `global_flood_cause_evolution.md` is the complete Chinese technical report.
+- `global_flood_cause_evolution_en.md` is the corresponding English technical report.
 - `global_flood_cause_evolution.html` is the self-contained browser reading edition; every figure is embedded and clickable for full-screen inspection.
 - `assets/` contains exactly the six current report figures in browser-friendly PNG format. Matching publication SVG files are generated under `outputs/figures/`.
 

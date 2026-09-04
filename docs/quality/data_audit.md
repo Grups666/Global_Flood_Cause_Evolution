@@ -1,27 +1,24 @@
 # Data audit
 
-## Verified scope
+## Source boundary
 
-- Common usable time period: 1982–2019.
-- Source event catalogues: dormant and growing season files.
-- Daily inputs: water input, streamflow, and Soil Saturation Index.
-- Primary population: low-snow catchments with at least 30 observed event years, at least a 30-year span, and at least 80% annual coverage.
+The project reuses the related Event Typology data tree read-only. The feature build scans 4,838 daily observation files (about 37.77 GB), processes 4,150 catchments and reconstructs 1,407,121 hydrological events.
 
-## Reconstruction checks
+## Verified common record
 
-- Daily rainfall sums reproduce event-window rainfall volume.
-- Daily rainfall maxima provide `Pmax`.
-- Daily streamflow maxima provide the event peak used to rank extremes.
-- Antecedent SSI uses complete days before rainfall begins and never includes the event day.
-- Event selection is performed after continuous feature reconstruction.
+The reusable precipitation, streamflow and modelled soil-saturation data support 1982–2019. The analysis does not infer an earlier or later record. Catchments must have at least 30 event years, a 30-year span and 80% event-year coverage; 2,839 catchments satisfy this record gate.
 
-## Primary event sample
+## Event quantities
 
-- 59,048 POT/Q95 events in 2,624 catchments.
-- Minimum 10 selected events and minimum 20-year selected-event span.
-- No overlapping reconstructed stormflow windows in the primary sample.
-- 2,194 adjacent peak pairs are less than 10 days apart, but their reconstructed stormflow windows do not overlap. This interval is retained as an audit diagnostic rather than imposed as a second event-separation rule.
+- `q_direct_volume_mm` is event direct stormflow volume and defines the Q95/Q90/Q97.5 samples.
+- `q_peak_mm_day` is the maximum daily streamflow inside the reconstructed event-response window.
+- `p_volume_daily_mm` and `p_max_daily_mm` are independently reconstructed from daily water input.
+- `intensity_fraction = p_max_daily_mm / p_volume_daily_mm`.
+- `precipitation_cv` is the daily temporal coefficient of variation within the event.
+- `source_ssi` and the dry/moderate/wet state come from the audited event catalogue.
 
-## Geography
+Missing precipitation, streamflow or antecedent-state values are excluded from the affected calculation; they are never replaced by zero. Zero is used only for annual event-frequency series when a catchment has an observed year but no selected event of the relevant type.
 
-Official HydroBASINS v1.c level 5 is used without modifying the source archives. All 8 continental level-5 archives are checked against recorded byte sizes and SHA-256 values during validation.
+## Independence
+
+The reconstructed Q95 sample has no overlapping stormflow-response windows. Adjacent peaks can be fewer than ten days apart without representing overlapping response windows, so independence is checked from the event windows themselves.

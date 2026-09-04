@@ -1,37 +1,25 @@
-# Interactive visualization contract
+# Interactive visualization map
 
-The GitHub Pages site loads a custom Tereon module with two independent analytical layers:
+## Information architecture
 
-1. **Individual catchment trends** — the first-stage scientific result;
-2. **Area-supported HydroBASINS L5 patterns** — the second-stage regional lens.
+The explorer follows the scientific analysis in two levels:
 
-## Visual hierarchy
+1. **All selected floods** — direct stormflow volume, daily flood peak and annual Q95-event frequency.
+2. **By generating process** — process frequency, process share, rainfall concentration, antecedent wetness, direct stormflow volume and daily peak for each of six mechanisms.
 
-- The catchment layer uses zoom-responsive equal-location points rather than polygon area as a size encoding. Points enlarge smoothly with map zoom within fixed minimum and maximum radii.
-- In **Supported focus**, robust individual trends use the signed blue–orange palette and other estimable catchments form a neutral grey context. In **All estimates**, every estimable catchment shows its direction; non-robust estimates use a lighter color and robust trends remain on top.
-- L5 fill shows the selected metric's shared regional slope. Cyan outlines identify signals passing complete regional-family Benjamini–Hochberg false discovery rate (BH-FDR), alternative-event, SSI-window, and leave-one-out checks.
-- Normal boundaries are thin dark lines. Hover/selection uses a wider cyan glow with transparent interior and is repainted above every neighboring boundary.
-- Opaque hover cards are placed above canvas layers and report identifier, physical direction, slope, unit, support, and evidence state.
+Every mark is an observed catchment point. Point size increases with zoom. Supported results are drawn after other estimates so they remain visible.
 
-## Dynamic area support
+## Evidence views
 
-The toolbar offers 10%, 20%, 30%, 40%, and 50% observed polygon-area thresholds. The threshold is
+- **All estimates** retains the directional colour of every estimable trend; less-supported results use paler colour.
+- **Supported focus** keeps unsupported estimates as neutral context and emphasizes the results passing all declared checks.
 
-```text
-area(L5 intersect union of assigned eligible catchment polygons) / area(L5)
-```
+This toggle changes emphasis, not the underlying analysis or available catchments.
 
-and only controls whether an L5 interpretation is shown. Individual catchment estimates never disappear when the regional threshold changes. The default is 50%; lower choices provide a direct spatial-support sensitivity analysis.
+## Interaction
 
-## Inspectors
-
-- A catchment inspector reports Theil–Sen slope, 95% CI, Mann–Kendall p value, fitted start and end levels, selected event years, polygon area, L5 membership, metric-specific stability checks, and alternative-sample slopes.
-- An L5 inspector reports observed area coverage, observed area, contributing catchments, event and catchment-year counts, estimator type, pooled slope and CI, complete-family q, and the metric-specific regional evidence checks.
-- One-catchment L5 representations are explicitly labelled; their area support does not imply multi-catchment corroboration.
-- Rainfall concentration is explained as percentage-point change in the wettest-day share of event rainfall. SSI is explained in normalized index units. Neither is described as flood frequency, peak, or volume.
-
-## Reading hub
-
-The top-bar **Research overview** is not duplicated in the Layers panel. Its left navigation integrates the question, headline result, six figures with interpretation, methods, evidence boundaries, reports, protocol, data dictionary, literature, validation, result tables, and code. Every figure opens in a full-screen viewer.
-
-The module requests an immediate render, first-frame resize, second-frame render, delayed fallback render, and `ResizeObserver` updates so the host canvas does not remain blank after loading.
+- Hover uses a cyan glow with no solid marker border. The opaque tooltip is fixed above page content and anchored to the actual pointer position.
+- Selection retains the same cyan visual language.
+- The inspector combines direction, magnitude and physical meaning in one result block, then shows fitted start and end levels, interval, p value, sample size and sensitivity checks.
+- Percentage-point outcomes include the `pp` suffix; every “per decade” label explicitly means per 10 years.
+- The top-bar **Research overview** opens the complete browser report. A persistent left navigation provides access to the question, data, methods, figures, results, limitations and references.

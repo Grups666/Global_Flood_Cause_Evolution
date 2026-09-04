@@ -12,15 +12,13 @@ from floodcause.analysis import run_analysis
 from floodcause.audit import run_source_audit
 from floodcause.config import ensure_output_directories, load_config
 from floodcause.features import build_event_features
-from floodcause.local_analysis import run_local_analysis
-from floodcause.plots import build_all_figures
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Global Flood Cause Evolution pipeline.")
     parser.add_argument(
         "--stage",
-        choices=["audit", "features", "analysis", "local", "figures", "reports", "html", "web", "all"],
+        choices=["audit", "features", "analysis", "figures", "reports", "html", "web", "all"],
         default="all",
     )
     parser.add_argument("--config", default=str(PROJECT_ROOT / "config" / "analysis.yaml"))
@@ -36,9 +34,9 @@ def main() -> None:
         receipt["features"] = build_event_features(config, force=args.force)
     if args.stage in {"analysis", "all"}:
         receipt["analysis"] = run_analysis(config, force=args.force)
-    if args.stage in {"local", "all"}:
-        receipt["local"] = run_local_analysis(config, force=args.force)
     if args.stage in {"figures", "all"}:
+        from floodcause.plots import build_all_figures
+
         build_all_figures(config)
         receipt["figures"] = {"status": "complete", "directory": str(config["paths"]["figures"])}
     if args.stage in {"reports", "all"}:

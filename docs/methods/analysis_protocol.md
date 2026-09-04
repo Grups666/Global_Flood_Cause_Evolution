@@ -1,103 +1,196 @@
 # Analysis protocol
 
-## Scientific question
+## 1. Scientific question
 
-The analysis asks whether the conditions accompanying large rainfall-driven floods changed during 1982–2019. Two continuous dimensions are retained: rainfall organization within an event and antecedent catchment wetness. The intended result is a catchment-first map of local long-term shifts followed by a second-stage test of whether neighboring catchments form a larger HydroBASINS L5 pattern.
+For each gauged catchment, the experiment asks:
 
-The meeting establishes this scientific question and the two process dimensions. It does not prescribe a calendar split, estimator, HydroBASINS level, or numerical class threshold.
+1. Did the occurrence or magnitude of large rainfall-driven floods change from 1982 to 2019?
+2. Which flood-generating process produced those large floods?
+3. Did the frequency, generating conditions or flood response of a particular process change through time?
 
-## Population and event sample
+Every inference is catchment-specific. The map connects observed results geographically but does not fill or extrapolate to ungauged areas.
 
-- Catchments have long-term snow fraction below 0.10, both seasonal event catalogues, a matching daily record, at least 30 observed event years, at least a 30-year first-to-last span, and at least 80% annual coverage.
-- The primary sample is the catchment-specific upper 5% of reconstructed event flood peaks (POT/Q95).
-- A catchment enters the primary event sample with at least 10 selected events spanning at least 20 years.
-- Sensitivity samples are POT/Q90, POT/Q97.5, and annual maxima.
+## 2. Eligible event record
 
-Flood peak determines sample membership. Rainfall organization and antecedent wetness are calculated after selection, so condition description does not determine which events are called extreme.
+Only rainfall-driven events from catchments with snow fraction below 0.10 are used. A catchment must have at least 30 observed event years, a span of at least 30 years and event-year coverage of at least 80% within that span. Incomplete precipitation or streamflow windows are excluded from the affected calculation rather than converted to zero.
 
-## Continuous outcomes
+## 3. Primary large-flood sample
 
-### Rainfall concentration
+The meeting defined the upper tail using event-scale stormflow volume. For catchment \(i\), let \(Q^{vol}_{ie}\) be direct stormflow volume for event \(e\). The fixed full-record threshold is
 
-For event $e$ in catchment $i$,
+\[
+u_i=\operatorname{quantile}_{0.95}\{Q^{vol}_{ie}\}.
+\]
 
-$$
-C_{ie}=\frac{P_{\max,ie}}{P_{\mathrm{volume},ie}}.
-$$
+The primary sample contains events satisfying
 
-$P_{\max}$ is the wettest daily rainfall in the event window and $P_{\mathrm{volume}}$ is event rainfall total. An increasing $C$ means more rainfall was allocated to the wettest day; a decreasing $C$ means movement toward more prolonged rainfall. The fitted display slope is in percentage points of event rainfall per decade. No binary intensity-dominated label is used.
+\[
+Q^{vol}_{ie}\ge u_i.
+\]
 
-### Antecedent wetness
+Example: if a catchment has 400 reconstructed hydrological events, its Q95 threshold is the 95th percentile of those 400 event volumes. Roughly the largest 20 events enter the primary sample. The threshold is fixed once for the full record; it is not recalculated each year.
 
-For rainfall-start date $t_0$ and window $w\in\{1,3,7,30\}$,
+Q90, Q97.5 and the annual maximum stormflow-volume event are alternative samples. The primary result must keep the same direction in all three alternatives.
 
-$$
-SSI_{ie}^{(w)}=\frac{1}{w}\sum_{k=1}^{w}SSI_{i,t_0-k}.
-$$
+## 4. Rainfall temporal organization
 
-Positive trends indicate wetter states before selected floods; negative trends indicate drier states. SSI remains continuous. The analysis does not construct Dry/Moderate/Wet categories.
+For an event with daily rainfall \(P_{ied}\), define
 
-### Physical rainfall components
+\[
+P_{\max,ie}=\max_d(P_{ied}),
+\qquad
+P_{\mathrm{event},ie}=\sum_d P_{ied},
+\]
 
-Maximum daily rainfall, event rainfall total, and precipitation duration are fitted in their raw units. A secondary relative change is obtained without a logarithmic model:
+and rainfall concentration
 
-$$
-r=100\frac{\widehat\beta}{\bar y}.
-$$
+\[
+C_{ie}=\frac{P_{\max,ie}}{P_{\mathrm{event},ie}}.
+\]
 
-These components explain why rainfall concentration moved; they do not establish causal attribution.
+Example: 42 mm falls on the rainiest day and 70 mm falls over the whole event, so \(C=42/70=0.60\). Sixty percent of the event rainfall was concentrated in one day.
 
-## First stage: direct catchment trends
+The temporal coefficient of variation is
 
-Multiple selected events in one catchment-year are first averaged:
+\[
+CV_{t,ie}=\frac{\operatorname{sd}_d(P_{ied})}{\operatorname{mean}_d(P_{ied})}.
+\]
 
-$$
-\bar y_{it}=\frac{1}{n_{it}}\sum_e y_{iet}.
-$$
+Following Tarasova et al. (2020), an event is **Intensity** when
 
-This gives every observed event year equal time weight. For each catchment and metric, a Theil–Sen slope is estimated from the annualized series and reported per decade:
+\[
+C_{ie}>0.50\quad\text{and}\quad CV_{t,ie}>1.
+\]
 
-$$
-\widehat\beta_i=\operatorname{median}_{t_j>t_k}
-\left(\frac{\bar y_{it_j}-\bar y_{it_k}}{t_j-t_k}\right)\times10.
-$$
+All other rainfall events are **Volume**. The concentration threshold is repeated at 0.40 and 0.60 as a classification sensitivity check.
 
-A tie-corrected Mann–Kendall test evaluates monotonic trend. At least 10 distinct event years spanning at least 20 years are required.
+## 5. Antecedent wetness
 
-A robust individual catchment trend requires $p<0.05$, sign agreement under POT/Q90, POT/Q97.5, and annual maxima, and leave-one-event-year-out sign stability. SSI additionally requires agreement across the four antecedent-wetness windows. Other estimable results remain available as individual trend estimates. The catchment layer is the primary set of direct local results rather than a screening stage for the L5 analysis.
+The event catalogue supplies a soil saturation index (SSI), bounded from 0 to 1, and an audited antecedent state: `Dry`, `Moderate` or `Wet`. SSI summarizes storage relative to modelled field capacity. It is not soil-water depth in millimetres. The empirical boundaries in the source catalogue are approximately
 
-## Second stage: area-supported L5 patterns
+\[
+SSI\leq0.3994:\ Dry,\qquad
+0.3994<SSI\leq0.5640:\ Moderate,\qquad
+SSI>0.5640:\ Wet.
+\]
 
-Each primary-sample catchment is assigned to HydroBASINS v1.c level 5 by its outlet. For L5 polygon $H_j$ and assigned catchment polygons $A_i$, observed area support is
+The three states preserve physically intermediate conditions. For example, SSI = 0.25 is dry, SSI = 0.48 is moderate and SSI = 0.75 is wet under the catalogue thresholds. The continuous SSI remains available for trend estimation; the label is used only to form process groups.
 
-$$
-Coverage_j=\frac{Area\left(H_j\cap\bigcup_{i\in j}A_i\right)}{Area(H_j)}.
-$$
+## 6. Six rainfall-driven processes
 
-Areas are calculated in equal-area EPSG:6933. Invalid polygons are repaired and overlap is counted once through a geometric union. The web explorer offers one regional-support rule with selectable values 10%, 20%, 30%, 40%, and 50%; 50% is the default. This threshold changes L5 interpretation only and never removes direct catchment results.
+Crossing antecedent state with rainfall organization yields:
 
-For at least two contributing catchments, annualized values are fitted with a catchment fixed effect:
+| Process | Physical interpretation |
+|---|---|
+| Dry–Intensity | strongly peaked rainfall over initially dry soil |
+| Dry–Volume | prolonged/distributed rainfall over initially dry soil |
+| Moderate–Intensity | strongly peaked rainfall over moderately wet soil |
+| Moderate–Volume | prolonged/distributed rainfall over moderately wet soil |
+| Wet–Intensity | strongly peaked rainfall over wet soil |
+| Wet–Volume | prolonged/distributed rainfall over wet soil |
 
-$$
-\bar y_{it}=\alpha_i+\beta_j\frac{year_{it}-2000}{10}+\varepsilon_{it}.
-$$
+These are event types, not permanent catchment labels. A catchment can experience several types in different years.
 
-$\alpha_i$ removes stable level differences and $\beta_j$ estimates a shared within-catchment change per decade. Standard errors are clustered by catchment with a $t(G-1)$ reference. The number 2000 is only a centering constant and is not a breakpoint.
+## 7. Annualization
 
-If one catchment alone reaches the selected area threshold, the L5 panel inherits that catchment's Theil–Sen estimate and is explicitly marked as a single-catchment representation. It is not described as multi-catchment corroboration.
+Several Q95 events may occur in one catchment-year. For any continuous event variable \(y\), the catchment-year value is
 
-All estimable L5 × five-primary-metric tests form one complete Benjamini–Hochberg family. A strong regional pattern must pass:
+\[
+\bar y_{it}=\frac{1}{n_{it}}\sum_{e=1}^{n_{it}}y_{iet}.
+\]
 
-1. the selected area-support threshold;
-2. complete regional-family 5% BH-FDR;
-3. sign agreement under POT/Q90, POT/Q97.5, and annual maxima;
-4. sign agreement across SSI windows where applicable; and
-5. leave-one-catchment-out sign stability, or leave-one-year-out stability for a single-catchment representation.
+Example: if a catchment has three selected floods in 2004 with volumes 20, 35 and 50 mm, the 2004 value is \((20+35+50)/3=35\) mm. Thus 2004 receives one temporal observation, not three times the weight of a year with one flood.
 
-## Interpretation limits
+## 8. Trends in all selected large floods
 
-- Results describe temporal association in flood-generating conditions, not changes in flood count, flood peak, or runoff volume.
-- They do not attribute trends to anthropogenic climate change, land use, or engineering controls.
-- Rainfall concentration has daily rather than sub-daily resolution.
-- Area support measures observed polygon coverage, not population, assets, or area-weighted global representativeness.
-- Null and weak results are retained; the research question does not require a universal or globally averaged direction.
+Three outcomes describe what happened to the selected floods:
+
+- direct stormflow volume (mm per decade);
+- maximum daily streamflow during the event (mm/day per decade);
+- number of Q95 exceedances per year (events/year per decade).
+
+The first two use the annualized values above. The frequency series includes zero-event years.
+
+## 9. Process-specific trends
+
+For each of the six processes, the experiment estimates:
+
+- annual process frequency;
+- process share among selected large floods;
+- direct stormflow volume of that process;
+- maximum daily streamflow of that process;
+- rainfall concentration within that process;
+- antecedent SSI within that process.
+
+A process is fitted only when at least five selected events are available. Five is the single hard minimum, following the compromise used by Tarasova et al. (2023). No additional 20-event category is used.
+
+Process frequency answers “did this mechanism produce large floods more often?” Process share answers “did this mechanism occupy a larger fraction of the upper-tail sample?” Flood volume and peak answer “did the floods produced by this mechanism become larger or smaller?” The last two condition metrics show how rainfall organization and antecedent wetness evolved *within* the process.
+
+## 10. Trend estimator and test
+
+For an annual sequence of a continuous physical variable \(y_t\), the Theil–Sen slope is the median of all pairwise slopes:
+
+\[
+\hat\beta_{TS}=\operatorname{median}_{j>k}\left(\frac{y_j-y_k}{t_j-t_k}\right).
+\]
+
+The reported slope is multiplied by 10 and therefore always means change over **10 years**. `Per decade` never means 12 years.
+
+Example: a fitted concentration slope of +0.035 per decade is displayed as **+3.5 percentage points per decade**. If the fitted early-record concentration is 0.32, the corresponding ten-year value is approximately 0.355: the rainiest-day contribution changes from 32.0% to 35.5% of total event rainfall.
+
+For a positive physical variable, a secondary relative effect is reported without a logarithmic model:
+
+\[
+r=100\frac{\hat\beta}{\bar y}.
+\]
+
+Example: if antecedent SSI has \(\hat\beta=+0.009\) per decade and its catchment–process mean is 0.45, then \(r=100(0.009/0.45)=+2.0\%\) of the mean per decade. The primary effect remains **+0.009 SSI units per 10 years**; the relative value only provides scale context.
+
+The Mann–Kendall statistic is
+
+\[
+S=\sum_{j>k}\operatorname{sign}(y_j-y_k),
+\]
+
+with tie-corrected variance. Its two-sided \(p\)-value tests the null hypothesis of no monotonic trend. Individual catchment results use \(p<0.05\), followed by the direction-stability checks below.
+
+Annual event counts use a Poisson trend with a log link:
+
+\[
+N_t\sim\operatorname{Poisson}(\mu_t),
+\qquad
+\log \mu_t=a+b\frac{t-2000}{10}.
+\]
+
+The standard error uses a sandwich covariance so modest count overdispersion does not rely on the exact Poisson variance. The reader-facing effect is converted back to an absolute rate change:
+
+\[
+\Delta f=\frac{\hat\mu_{last}-\hat\mu_{first}}{(t_{last}-t_{first})/10}.
+\]
+
+Example: if fitted frequency rises from 0.4 to 0.7 selected floods per year over 30 years, \(\Delta f=(0.7-0.4)/3=+0.10\) events/year per 10 years. This avoids an uninformative zero median slope in sparse annual count series.
+
+Process shares are fitted to annual successes \(s_t\) out of selected events \(n_t\) with a bias-reduced binomial time trend:
+
+\[
+s_t\sim\operatorname{Binomial}(n_t,\pi_t),
+\qquad
+\operatorname{logit}(\pi_t)=a+b\frac{t-2000}{10}.
+\]
+
+The interface converts the coefficient to fitted probability change in percentage points per decade. Example: an increase from a fitted 18% to 26% over two decades is \((26-18)/2=+4\) percentage points per decade.
+
+## 11. Evidence screen
+
+A displayed result is marked **supported** when all of the following hold:
+
+1. two-sided \(p<0.05\);
+2. the direction agrees for Q90, Q97.5 and annual-maximum samples;
+3. for process-specific results, the direction agrees at concentration cutoffs 0.40 and 0.60;
+4. removing any one observed year does not reverse the direction.
+
+The screens test reproducibility of direction, not truth of a causal claim. The “all estimates” map retains every estimable slope in pale directional colours; “supported focus” emphasizes the subset passing the complete screen.
+
+## 12. Interpretation boundary
+
+The study can state that a particular flood-generating process became more or less frequent, that its rainfall/soil conditions changed, or that floods associated with that process changed in volume or peak. It cannot, from trend coincidence alone, state that the driver trend caused the flood-response trend. Land-use change, regulation, modelled SSI uncertainty and remaining event-classification uncertainty are possible alternatives.

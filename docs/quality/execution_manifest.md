@@ -1,37 +1,41 @@
 # Execution manifest
 
-**Execution date:** 2026-09-02
+**Execution date:** 2026-09-04
 
 **Study period:** 1982–2019
-**Primary sample:** catchment-specific POT/Q95
 
-## Sample flow
+**Primary selection:** catchment-specific full-record Q95 of event direct stormflow volume
 
-| Output | Count |
+## Data flow
+
+| Stage | Output |
 |---|---:|
-| Reconstructed feature rows | 1,407,121 |
-| Long-record eligible catchments | 2,839 |
-| Primary POT/Q95 events | 59,048 |
-| Primary POT/Q95 catchments | 2,624 |
-| Direct-trend catchments | 2,435 |
-| Catchment–metric estimates | 12,163 |
-| Robust individual trends | 378 |
+| Reconstructed hydrological events | 1,407,121 |
+| Catchments processed | 4,150 |
+| Catchments passing the long-record gate | 2,839 |
+| Primary Q95 events | 58,991 |
+| Catchments retained in the primary Q95 sample | 2,637 |
+| Q90 sensitivity events | 119,334 |
+| Q97.5 sensitivity events | 24,291 |
+| Annual-maximum sensitivity events | 100,788 |
 
-## Regional inference
+## Current inference
 
-| Output | Count |
-|---|---:|
-| L5 with estimable trends | 295 |
-| Complete regional-family tests | 1,475 |
-| Complete-family 5% BH-FDR signals | 106 |
-| Full robustness-screen signals before area support | 94 in 43 L5 |
-| Full signals at default ≥50% area support | 10 in 6 L5 |
+- Three catchment-level outcomes describe all selected floods: direct stormflow volume, maximum daily streamflow and annual Q95-event frequency.
+- Six event mechanisms cross dry/moderate/wet antecedent state with intensity/volume rainfall organization.
+- Each mechanism is analysed for annual frequency, share of selected floods, rainfall concentration, antecedent SSI, direct stormflow volume and daily peak.
+- Continuous physical variables use Theil–Sen slopes and tie-corrected Mann–Kendall tests.
+- Annual counts use Poisson trends with sandwich standard errors and reader-facing absolute rate changes.
+- Process shares use bias-reduced binomial trends and reader-facing percentage-point changes.
+- Five events is the single process-specific minimum.
+- Supported results require p<0.05, alternative-sample direction agreement, classification-threshold agreement where applicable and leave-one-year-out direction stability.
 
-At 10%, 20%, 30%, 40%, and 50% area support, the explorer retains respectively 84, 42, 28, 19, and 10 strong regional signals. Direct catchment results remain available at every threshold.
+## Deliverables
 
-## Generated artifacts
+- Six PNG/SVG figure families with stable descriptive names.
+- Chinese and English Markdown technical reports.
+- One self-contained Chinese HTML reading edition with left navigation and click-to-enlarge figures.
+- One point-only interactive JSON dataset and Tereon module.
+- Independent machine-readable and Markdown validation receipts.
 
-- Six PNG/SVG figure pairs.
-- Chinese and English Markdown reports plus one self-contained HTML report.
-- Interactive JSON with 295 L5 polygons and 2,435 direct-trend catchments.
-- Machine-readable validation receipt at `outputs/logs/validation.json`.
+Exact result counts and checks are regenerated into `outputs/logs/analysis_summary.json` and `outputs/logs/validation_summary.json` on every complete run.
