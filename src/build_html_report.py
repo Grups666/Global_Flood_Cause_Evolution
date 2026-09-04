@@ -46,15 +46,47 @@ def _neutralize_local_links(source: str) -> str:
     )
 
 
+def _protect_math(source: str) -> tuple[str, dict[str, str]]:
+    """Keep TeX intact while Markdown processes the surrounding prose."""
+    replacements: dict[str, str] = {}
+
+    def stash(tex: str, display: bool) -> str:
+        token = f"MATHPLACEHOLDER{len(replacements):04d}TOKEN"
+        delimiter = (r"\[", r"\]") if display else (r"\(", r"\)")
+        css_class = "math-display" if display else "math-inline"
+        replacements[token] = (
+            f'<span class="{css_class}">{delimiter[0]}'
+            f'{html.escape(tex.strip())}{delimiter[1]}</span>'
+        )
+        return token
+
+    source = re.sub(
+        r"\$\$(.*?)\$\$",
+        lambda match: stash(match.group(1), True),
+        source,
+        flags=re.DOTALL,
+    )
+    source = re.sub(
+        r"\\\((.*?)\\\)",
+        lambda match: stash(match.group(1), False),
+        source,
+        flags=re.DOTALL,
+    )
+    return source, replacements
+
+
 def build_html_report(source: Path = SOURCE, destination: Path = DESTINATION) -> dict[str, object]:
     content, image_count = _embed_images(source.read_text(encoding="utf-8"), source.parent)
     content = _neutralize_local_links(content)
+    content, math_replacements = _protect_math(content)
     converter = markdown.Markdown(
         extensions=["extra", "sane_lists", "toc"],
         extension_configs={"toc": {"toc_depth": "2-3"}},
         output_format="html5",
     )
     article = converter.convert(content)
+    for token, expression in math_replacements.items():
+        article = article.replace(token, expression)
     if article.count("data:image/") != image_count:
         raise RuntimeError("Not all report figures were embedded")
 
@@ -81,12 +113,12 @@ def build_html_report(source: Path = SOURCE, destination: Path = DESTINATION) ->
 .actions{{display:flex;gap:8px;margin-top:16px}}button{{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);cursor:pointer}}
 article{{min-width:0;padding:58px clamp(30px,5.2vw,84px) 80px;background:var(--paper);border-radius:18px;box-shadow:0 18px 54px rgba(28,43,58,.1)}}.facts{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:42px}}.fact{{padding:17px 18px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#eaf3f6,#fff)}}.fact b,.fact span{{display:block}}.fact b{{font-size:24px;color:var(--blue)}}.fact span{{font-size:12px;color:var(--muted);margin-top:3px}}
 h1{{font-size:clamp(35px,5vw,58px);line-height:1.13;letter-spacing:-.035em;margin:0 0 10px}}h1+p{{color:var(--muted)}}h2{{font-size:29px;line-height:1.3;margin:68px 0 22px;padding-top:10px;border-top:1px solid var(--line)}}h3{{font-size:21px;margin:38px 0 13px}}p{{margin:14px 0}}li{{margin:7px 0}}blockquote{{margin:28px 0;padding:18px 22px;border-left:4px solid var(--orange);border-radius:0 12px 12px 0;background:#f9eee8;font-size:18px}}
-code{{padding:2px 6px;border-radius:5px;background:#eef2f5;color:#944c33}}pre{{overflow:auto;padding:18px;border-radius:12px;background:#1f2b3a;color:#eef3f7}}pre code{{padding:0;background:none;color:inherit}}a{{color:var(--blue);text-underline-offset:3px}}.local-reference{{color:var(--muted);border-bottom:1px dotted #9ba9b5}}
+code{{padding:2px 6px;border-radius:5px;background:#eef2f5;color:#944c33}}pre{{overflow:auto;padding:18px;border-radius:12px;background:#1f2b3a;color:#eef3f7}}pre code{{padding:0;background:none;color:inherit}}a{{color:var(--blue);text-underline-offset:3px}}.local-reference{{color:var(--muted);border-bottom:1px dotted #9ba9b5}}.math-display{{display:block;overflow-x:auto;margin:20px 0;text-align:center}}.math-inline{{white-space:nowrap}}mjx-container{{color:var(--ink)}}
 article img{{display:block;width:min(100%,1180px);height:auto;margin:28px auto 40px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 12px 34px rgba(36,49,66,.08);cursor:zoom-in}}table{{width:100%;border-collapse:collapse;margin:24px 0;font-size:14px}}th,td{{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}}th{{background:#f6f9fa;color:var(--muted)}}
 .lightbox{{display:none;position:fixed;z-index:100;inset:0;align-items:center;justify-content:center;padding:28px;background:rgba(14,24,35,.94)}}.lightbox.open{{display:flex}}.lightbox img{{max-width:97vw;max-height:93vh;object-fit:contain;background:#fff;border-radius:10px}}.close{{position:fixed;top:18px;right:20px;width:44px;height:44px;border-color:#71808e;border-radius:50%;background:#172334;color:#fff;font-size:25px}}
 @media(max-width:900px){{.shell{{display:block;padding:0}}aside{{display:none}}article{{border-radius:0;padding:55px 20px}}.facts{{grid-template-columns:1fr 1fr}}}}
 @media print{{body{{background:#fff}}#progress,aside,.lightbox{{display:none!important}}.shell{{display:block;padding:0}}article{{padding:0;box-shadow:none}}article img{{box-shadow:none}}}}
-</style></head><body><div id="progress"></div><div class="lightbox" id="figure-lightbox" aria-hidden="true"><button class="close" aria-label="关闭">×</button><img alt="放大图表"></div>
+</style><script>window.MathJax={{tex:{{inlineMath:[["\\\\(","\\\\)"]],displayMath:[["\\\\[","\\\\]"]]}},chtml:{{scale:1.02}}}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head><body><div id="progress"></div><div class="lightbox" id="figure-lightbox" aria-hidden="true"><button class="close" aria-label="关闭">×</button><img alt="放大图表"></div>
 <div class="shell"><aside><div class="brand"><strong>Research report</strong><span>1982–2019 · gauged catchments</span></div><nav class="toc report-nav">{converter.toc}</nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside><article><div class="facts">{fact_html}</div>{article}</article></div>
 <script>
 const progress=document.getElementById('progress'),links=[...document.querySelectorAll('.toc a')],sections=links.map(a=>document.getElementById(a.hash.slice(1))).filter(Boolean);function update(){{const h=document.documentElement.scrollHeight-innerHeight;progress.style.width=(h?scrollY/h*100:0)+'%';let c=sections[0];for(const s of sections)if(s.getBoundingClientRect().top<140)c=s;links.forEach(a=>a.classList.toggle('active',c&&a.hash==='#'+c.id))}}addEventListener('scroll',update,{{passive:true}});update();
