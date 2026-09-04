@@ -105,7 +105,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fillStyle = contextual ? "#aeb8bf" : this.color(metric.slope, limit, metric.supported);
-          ctx.globalAlpha = metric.supported ? 0.98 : (contextual ? 0.30 : 0.82);
+          ctx.globalAlpha = metric.supported ? 0.98 : (contextual ? 0.30 : 0.88);
           ctx.fill();
           ctx.restore();
         }
@@ -338,8 +338,12 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   color(value, limit, supported) {
     const t = Math.max(-1, Math.min(1, Number(value) / limit));
-    const base = t < 0 ? this.mix("#ecebe6", "#2f6688", -t) : this.mix("#ecebe6", "#d96b3f", t);
-    return supported ? base : this.mix(base, "#ffffff", 0.24);
+    if (Math.abs(t) < 1e-12) return "#d9dfe2";
+    const strength = supported ? Math.abs(t) : 0.20 + 0.80 * Math.abs(t);
+    const base = t < 0
+      ? this.mix("#ecebe6", "#2f6688", strength)
+      : this.mix("#ecebe6", "#d96b3f", strength);
+    return supported ? base : this.mix(base, "#ffffff", 0.15);
   }
   mix(a, b, t) {
     const parse = (hex) => [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16));
