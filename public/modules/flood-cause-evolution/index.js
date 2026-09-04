@@ -215,17 +215,37 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.toolbar = document.createElement("div");
     this.toolbar.className = "fce-toolbar";
     this.toolbar.innerHTML = `
-      <div class="fce-primary-row">
-        <div class="fce-scope"><button data-scope="overall">All selected floods</button><button data-scope="process">By generating process</button></div>
-        <select data-mechanism aria-label="Flood-generating process">${this.data.meta.mechanisms.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}</select>
-        <div class="fce-outcomes" data-outcomes></div>
-        <button class="fce-overview" data-overview>Research overview</button>
-      </div>
-      <div class="fce-secondary-row"><div data-count></div><div class="fce-evidence"><button data-evidence="supported">Supported focus</button><button data-evidence="all">All estimates</button></div></div>`;
+      <div class="fce-toolbar-main">
+        <label class="fce-field fce-scope-field">
+          <span>Analysis</span>
+          <select data-scope-select aria-label="Analysis level">
+            <option value="overall">All selected floods</option>
+            <option value="process">By generating process</option>
+          </select>
+        </label>
+        <label class="fce-field fce-mechanism-field" data-mechanism-field>
+          <span>Generating process</span>
+          <select data-mechanism aria-label="Flood-generating process">${this.data.meta.mechanisms.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}</select>
+        </label>
+        <label class="fce-field fce-outcome-field">
+          <span>Metric</span>
+          <select data-outcome-select aria-label="Displayed metric"></select>
+        </label>
+        <div class="fce-summary" data-count aria-live="polite"></div>
+        <label class="fce-field fce-evidence-field">
+          <span>Map display</span>
+          <select data-evidence-select aria-label="Map display">
+            <option value="all">All estimates</option>
+            <option value="supported">Supported focus</option>
+          </select>
+        </label>
+        <button class="fce-overview" data-overview title="Open the complete research overview">Overview</button>
+      </div>`;
     document.body.appendChild(this.toolbar);
-    this.toolbar.querySelectorAll("[data-scope]").forEach((button) => button.onclick = () => this.setScope(button.dataset.scope));
+    this.toolbar.querySelector("[data-scope-select]").onchange = (event) => this.setScope(event.target.value);
     this.toolbar.querySelector("[data-mechanism]").onchange = (event) => this.setMechanism(event.target.value);
-    this.toolbar.querySelectorAll("[data-evidence]").forEach((button) => button.onclick = () => this.setEvidence(button.dataset.evidence));
+    this.toolbar.querySelector("[data-outcome-select]").onchange = (event) => this.setOutcome(event.target.value);
+    this.toolbar.querySelector("[data-evidence-select]").onchange = (event) => this.setEvidence(event.target.value);
     this.toolbar.querySelector("[data-overview]").onclick = () => this.showOverview();
   }
 
@@ -234,17 +254,20 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const outcomeKeys = this.scope === "overall"
       ? ["direct_runoff_volume", "flood_peak", "exceedance_frequency"]
       : ["mechanism_frequency", "mechanism_share", "rainfall_concentration", "antecedent_wetness", "direct_runoff_volume", "flood_peak"];
-    this.toolbar.querySelectorAll("[data-scope]").forEach((button) => button.classList.toggle("active", button.dataset.scope === this.scope));
+    this.toolbar.querySelector("[data-scope-select]").value = this.scope;
     const select = this.toolbar.querySelector("[data-mechanism]");
-    select.hidden = this.scope !== "process";
+    this.toolbar.querySelector("[data-mechanism-field]").hidden = this.scope !== "process";
     select.value = this.mechanism;
-    const outcomes = this.toolbar.querySelector("[data-outcomes]");
-    outcomes.innerHTML = outcomeKeys.map((key) => `<button data-outcome="${key}" class="${key === this.outcomeKey ? "active" : ""}">${this.data.meta.outcomes[key].short}</button>`).join("");
-    outcomes.querySelectorAll("[data-outcome]").forEach((button) => button.onclick = () => this.setOutcome(button.dataset.outcome));
-    this.toolbar.querySelectorAll("[data-evidence]").forEach((button) => button.classList.toggle("active", button.dataset.evidence === this.evidenceView));
+    const outcomeSelect = this.toolbar.querySelector("[data-outcome-select]");
+    outcomeSelect.innerHTML = outcomeKeys.map((key) => `<option value="${key}">${this.data.meta.outcomes[key].short}</option>`).join("");
+    outcomeSelect.value = this.outcomeKey;
+    this.toolbar.querySelector("[data-evidence-select]").value = this.evidenceView;
     const available = this.catchments.map((item) => this.metric(item)).filter(Boolean);
     const supported = available.filter((metric) => metric.supported);
-    this.toolbar.querySelector("[data-count]").innerHTML = `<strong>${supported.length.toLocaleString()}</strong> supported · ${available.length.toLocaleString()} estimable catchments <span>· ${this.scope === "process" ? this.mechanism.replace("-", " + ") : "all Q95 floods"}</span>`;
+    const context = this.scope === "process" ? this.mechanism.replace("-", " + ") : "all Q95 floods";
+    const count = this.toolbar.querySelector("[data-count]");
+    count.innerHTML = `<strong>${supported.length.toLocaleString()}</strong><span>supported</span><small>of ${available.length.toLocaleString()}</small>`;
+    count.title = `${supported.length.toLocaleString()} supported of ${available.length.toLocaleString()} estimable catchments · ${context}`;
   }
 
   showInspector(item) {
@@ -359,7 +382,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const style = document.createElement("style");
     style.id = "fce-styles";
     style.textContent = `
-      .fce-toolbar{position:fixed;z-index:10020;top:16px;left:50%;transform:translateX(-50%);width:min(1120px,calc(100vw - 380px));padding:8px 10px;border:1px solid #d9e3e9;border-radius:15px;background:rgba(255,255,255,.97);box-shadow:0 10px 34px rgba(28,43,58,.13);font:13px/1.25 Inter,system-ui;color:#263548}.fce-primary-row,.fce-secondary-row,.fce-scope,.fce-outcomes,.fce-evidence{display:flex;align-items:center;gap:6px}.fce-primary-row{flex-wrap:wrap}.fce-outcomes{flex:1;flex-wrap:wrap}.fce-toolbar button,.fce-toolbar select{border:0;border-radius:9px;background:#eef3f5;color:#526274;padding:9px 11px;font:600 12px Inter,system-ui;cursor:pointer}.fce-toolbar button.active{background:#174b61;color:white}.fce-toolbar select{background:#fff;border:1px solid #d7e1e7;color:#263548}.fce-overview{margin-left:auto!important;background:#173f54!important;color:#fff!important}.fce-secondary-row{justify-content:space-between;margin-top:7px;padding-top:7px;border-top:1px solid #e3eaee;color:#607184}.fce-secondary-row strong{color:#16778a;font-size:15px}.fce-secondary-row span{color:#84919d}.fce-evidence button{padding:6px 9px}.fce-tooltip{display:none;position:fixed;z-index:2147483000;max-width:320px;padding:13px 15px;border-radius:12px;background:#172337;color:white;box-shadow:0 16px 38px rgba(18,28,41,.34);font:13px/1.45 Inter,system-ui;pointer-events:none}.fce-tooltip.visible{display:block}.fce-tooltip strong,.fce-tooltip span,.fce-tooltip b,.fce-tooltip em{display:block}.fce-tooltip strong{font-size:14px}.fce-tooltip span{color:#cbd6df}.fce-tooltip b{margin-top:3px;color:#67e8f9;font-size:18px}.fce-tooltip small{font-size:11px;color:#e5eef3}.fce-tooltip em{font-style:normal;color:#9fe0bd;font-size:11px}.fce-inspector-lead{color:#64778c}.fce-result{padding:16px 18px;border-radius:14px;background:#f1f5f6;border-left:3px solid #22d3ee}.fce-result span,.fce-result strong,.fce-result small{display:block}.fce-result strong{font-size:34px;color:#2f6688}.fce-result small{color:#64778c}.fce-result p{margin:9px 0 0;padding-top:9px;border-top:1px solid #d8e2e7;color:#29475a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.fce-grid>div{padding:10px;border:1px solid #dbe5eb;border-radius:10px}.fce-grid span,.fce-grid strong{display:block}.fce-grid span{font-size:10px;text-transform:uppercase;color:#75869a}.fce-checks,.fce-alternatives{margin-top:13px;padding:12px;border:1px solid #dbe5eb;border-radius:12px}.fce-checks>div{display:flex;justify-content:space-between}.fce-checks p{display:inline-flex;align-items:center;gap:4px;margin:8px 5px 0 0;padding:5px 8px;border-radius:16px;font-size:11px}.fce-checks p.pass{background:#e6f1ea;color:#315f48}.fce-checks p.fail{background:#eef2f4;color:#778594}.fce-checks i{font-style:normal}.fce-alternatives span{display:flex;justify-content:space-between;margin-top:7px}.fce-note{color:#64778c;font-size:12px}.fce-legend-bar{height:10px;border-radius:8px;background:linear-gradient(90deg,#2f6688,#ecebe6,#d96b3f)}.fce-legend-axis{display:flex;justify-content:space-between}.fce-key{display:flex;align-items:center;gap:7px;margin:7px 0}.fce-key i{width:12px;height:12px;border-radius:50%}.fce-key .supported{background:#d96b3f}.fce-key .estimate{background:#e8bca8}.fce-key .hover{background:white;border:2px solid #22d3ee;box-shadow:0 0 8px #22d3ee}.fce-modal{display:none;position:fixed;z-index:100000;inset:0;padding:4vh 5vw;background:rgba(21,32,45,.62);backdrop-filter:blur(7px)}.fce-modal.visible{display:block}.fce-modal-card{position:relative;width:100%;height:100%;border-radius:18px;overflow:hidden;background:white;box-shadow:0 26px 80px rgba(14,23,34,.32)}.fce-modal iframe{width:100%;height:100%;border:0}.fce-modal-close{position:absolute;z-index:4;right:15px;top:14px;width:42px;height:42px;border:0;border-radius:50%;background:#e9eef1;color:#405164;font-size:25px;cursor:pointer}@media(max-width:900px){.fce-toolbar{left:10px;right:10px;transform:none;width:auto}.fce-secondary-row{align-items:flex-start}.fce-modal{padding:0}.fce-modal-card{border-radius:0}}`;
+      .fce-toolbar{position:fixed;z-index:10020;top:14px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 380px);padding:7px;border:1px solid #d8e3e8;border-radius:14px;background:rgba(255,255,255,.98);box-shadow:0 10px 30px rgba(28,43,58,.13);font:13px/1.2 Inter,system-ui;color:#263548}.fce-toolbar-main{display:flex;align-items:stretch;gap:7px}.fce-field{display:grid;gap:1px;min-width:0;padding:4px 8px 5px;border:1px solid #dce6eb;border-radius:10px;background:#f7fafb}.fce-mechanism-field[hidden]{display:none!important}.fce-field>span{font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8493a1}.fce-field select{height:20px;padding:0 22px 0 0;border:0;outline:0;background:transparent;color:#293a4d;font:650 12px Inter,system-ui;cursor:pointer}.fce-scope-field select{width:164px}.fce-mechanism-field select{width:142px}.fce-outcome-field select{width:158px}.fce-evidence-field select{width:116px}.fce-summary{display:flex;align-items:baseline;gap:4px;align-self:center;white-space:nowrap;padding:0 3px;color:#607184}.fce-summary strong{color:#14778a;font-size:18px}.fce-summary span{font-weight:650}.fce-summary small{color:#8a98a5;font-size:11px}.fce-toolbar button{border:0;border-radius:10px;padding:0 13px;background:#173f54;color:#fff;font:700 12px Inter,system-ui;cursor:pointer}.fce-toolbar button:hover{background:#205870}.fce-tooltip{display:none;position:fixed;z-index:2147483000;max-width:320px;padding:13px 15px;border-radius:12px;background:#172337;color:white;box-shadow:0 16px 38px rgba(18,28,41,.34);font:13px/1.45 Inter,system-ui;pointer-events:none}.fce-tooltip.visible{display:block}.fce-tooltip strong,.fce-tooltip span,.fce-tooltip b,.fce-tooltip em{display:block}.fce-tooltip strong{font-size:14px}.fce-tooltip span{color:#cbd6df}.fce-tooltip b{margin-top:3px;color:#67e8f9;font-size:18px}.fce-tooltip small{font-size:11px;color:#e5eef3}.fce-tooltip em{font-style:normal;color:#9fe0bd;font-size:11px}.fce-inspector-lead{color:#64778c}.fce-result{padding:16px 18px;border-radius:14px;background:#f1f5f6;border-left:3px solid #22d3ee}.fce-result span,.fce-result strong,.fce-result small{display:block}.fce-result strong{font-size:34px;color:#2f6688}.fce-result small{color:#64778c}.fce-result p{margin:9px 0 0;padding-top:9px;border-top:1px solid #d8e2e7;color:#29475a}.fce-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.fce-grid>div{padding:10px;border:1px solid #dbe5eb;border-radius:10px}.fce-grid span,.fce-grid strong{display:block}.fce-grid span{font-size:10px;text-transform:uppercase;color:#75869a}.fce-checks,.fce-alternatives{margin-top:13px;padding:12px;border:1px solid #dbe5eb;border-radius:12px}.fce-checks>div{display:flex;justify-content:space-between}.fce-checks p{display:inline-flex;align-items:center;gap:4px;margin:8px 5px 0 0;padding:5px 8px;border-radius:16px;font-size:11px}.fce-checks p.pass{background:#e6f1ea;color:#315f48}.fce-checks p.fail{background:#eef2f4;color:#778594}.fce-checks i{font-style:normal}.fce-alternatives span{display:flex;justify-content:space-between;margin-top:7px}.fce-note{color:#64778c;font-size:12px}.fce-legend-bar{height:10px;border-radius:8px;background:linear-gradient(90deg,#2f6688,#ecebe6,#d96b3f)}.fce-legend-axis{display:flex;justify-content:space-between}.fce-key{display:flex;align-items:center;gap:7px;margin:7px 0}.fce-key i{width:12px;height:12px;border-radius:50%}.fce-key .supported{background:#d96b3f}.fce-key .estimate{background:#e8bca8}.fce-key .hover{background:white;border:2px solid #22d3ee;box-shadow:0 0 8px #22d3ee}.fce-modal{display:none;position:fixed;z-index:100000;inset:0;padding:4vh 5vw;background:rgba(21,32,45,.62);backdrop-filter:blur(7px)}.fce-modal.visible{display:block}.fce-modal-card{position:relative;width:100%;height:100%;border-radius:18px;overflow:hidden;background:white;box-shadow:0 26px 80px rgba(14,23,34,.32)}.fce-modal iframe{width:100%;height:100%;border:0}.fce-modal-close{position:absolute;z-index:4;right:15px;top:14px;width:42px;height:42px;border:0;border-radius:50%;background:#e9eef1;color:#405164;font-size:25px;cursor:pointer}@media(max-width:1120px){.fce-toolbar{max-width:calc(100vw - 320px)}.fce-toolbar-main{flex-wrap:wrap}.fce-summary{margin-left:auto}.fce-overview{min-height:43px}}@media(max-width:900px){.fce-toolbar{left:10px;right:10px;transform:none;width:auto;max-width:none}.fce-toolbar-main{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.fce-toolbar-main::-webkit-scrollbar{display:none}.fce-field,.fce-summary,.fce-overview{flex:0 0 auto}.fce-scope-field select{width:145px}.fce-mechanism-field select{width:125px}.fce-outcome-field select{width:145px}.fce-evidence-field select{width:110px}.fce-summary{margin:0;padding:4px 5px}.fce-overview{min-height:43px}.fce-modal{padding:0}.fce-modal-card{border-radius:0}}`;
     document.head.appendChild(style);
   }
 };
