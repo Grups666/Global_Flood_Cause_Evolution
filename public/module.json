@@ -2,17 +2,17 @@
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
   "description": "Catchment-scale evidence for changes in large-flood occurrence, generating processes, conditions, and flood response.",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "basePath": "https://grups666.github.io/Global_Flood_Cause_Evolution/",
-  "entry": "./modules/flood-cause-evolution/index.js?release=catchment-process-20260904b",
+  "entry": "./modules/flood-cause-evolution/index.js?release=catchment-process-20260904c",
   "className": "FloodCauseEvolutionModule",
   "defaultLoad": true,
-  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-process-20260904b",
+  "dataFile": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-process-20260904c",
   "datasets": [
     {
       "id": "flood-cause-explorer",
       "name": "Observed catchment flood-process trends",
-      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-process-20260904b",
+      "file": "./modules/flood-cause-evolution/data/flood-cause-explorer.json?release=catchment-process-20260904c",
       "format": "json"
     }
   ],
