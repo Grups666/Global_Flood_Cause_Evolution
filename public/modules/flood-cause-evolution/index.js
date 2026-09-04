@@ -340,10 +340,10 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const t = Math.max(-1, Math.min(1, Number(value) / limit));
     if (Math.abs(t) < 1e-12) return "#d9dfe2";
     const strength = supported ? Math.abs(t) : 0.20 + 0.80 * Math.abs(t);
-    const base = t < 0
-      ? this.mix("#ecebe6", "#2f6688", strength)
-      : this.mix("#ecebe6", "#d96b3f", strength);
-    return supported ? base : this.mix(base, "#ffffff", 0.15);
+    const neutral = supported ? "#ecebe6" : "#f2f1ee";
+    return t < 0
+      ? this.mix(neutral, "#2f6688", strength)
+      : this.mix(neutral, "#d96b3f", strength);
   }
   mix(a, b, t) {
     const parse = (hex) => [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16));
