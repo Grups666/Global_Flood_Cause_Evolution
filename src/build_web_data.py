@@ -55,14 +55,14 @@ OUTCOMES = {
     },
     "rainfall_concentration": {
         "short": "Rainfall concentration",
-        "label": "Rainfall concentration within this flood-generating process",
+        "label": "Share of event rainfall falling on its rainiest day",
         "unit": "percentage points per 10 years",
         "meaning": "Rainfall concentration is the percentage of total event rainfall falling on the single rainiest day.",
         "digits": 2,
     },
     "antecedent_wetness": {
         "short": "Antecedent wetness",
-        "label": "Soil saturation index before events of this process",
+        "label": "Soil saturation index before the selected flood events",
         "unit": "SSI units per 10 years",
         "meaning": "The normalized 0–1 soil saturation state preceding the selected events.",
         "digits": 3,
@@ -130,12 +130,19 @@ def _limit(table: pd.DataFrame, outcome: str) -> float:
 def build_web_data() -> dict[str, Any]:
     summary = json.loads((LOGS / "analysis_summary.json").read_text(encoding="utf-8"))
     overall = pd.read_csv(TABLES / "catchment_overall_trends.csv")
+    conditions = pd.read_csv(TABLES / "catchment_conditions_trends.csv")
+    condition_annual = pd.read_csv(TABLES / "catchment_conditions_annual.csv")
     process = pd.read_csv(TABLES / "catchment_mechanism_trends.csv", low_memory=False)
     sample = pd.read_parquet(ROOT / "data" / "derived" / "primary_extreme_events.parquet")
     metadata = sample[["GCIN", "country", "continent", "longitude", "latitude"]].drop_duplicates("GCIN")
     composition = pd.read_csv(TABLES / "mechanism_composition.csv")
 
     overall_groups = {int(key): frame for key, frame in overall.groupby("GCIN", sort=False)}
+    condition_groups = {int(key): frame for key, frame in conditions.groupby("GCIN", sort=False)}
+    annual_groups = {
+        (int(gcin), outcome): frame.sort_values("peak_year")
+        for (gcin, outcome), frame in condition_annual.groupby(["GCIN", "outcome"], sort=False)
+    }
     process_groups = {int(key): frame for key, frame in process.groupby("GCIN", sort=False)}
     catchments = []
     for item in metadata.itertuples(index=False):
@@ -144,10 +151,27 @@ def build_web_data() -> dict[str, Any]:
             row.outcome: _metric(row)
             for _, row in overall_groups.get(gcin, pd.DataFrame()).iterrows()
         }
+        condition_metrics = {}
+        for _, row in condition_groups.get(gcin, pd.DataFrame()).iterrows():
+            metric = _metric(row)
+            annual = annual_groups[(gcin, row.outcome)]
+            metric["annual"] = [
+                [int(point.peak_year), round(float(point.value), 6), int(point.events)]
+                for point in annual.itertuples(index=False)
+            ]
+            # Match scipy.theilslopes' separate-median intercept exactly.
+            # Preserve the unconstrained fitted endpoints; flag values beyond
+            # the physical range rather than silently clipping the model.
+            intercept = annual.value.median() - float(row.display_slope_per_decade) / 10 * annual.peak_year.median()
+            metric["from"] = round(float(intercept + row.display_slope_per_decade / 10 * row.first_year), 6)
+            metric["to"] = round(float(intercept + row.display_slope_per_decade / 10 * row.last_year), 6)
+            upper = 100 if row.outcome == "rainfall_concentration" else 1
+            metric["fitOutsideBounds"] = any(value < 0 or value > upper for value in [metric["from"], metric["to"]])
+            condition_metrics[row.outcome] = metric
         process_metrics: dict[str, dict[str, Any]] = {}
         for _, row in process_groups.get(gcin, pd.DataFrame()).iterrows():
             process_metrics.setdefault(row.mechanism, {})[row.outcome] = _metric(row)
-        if not overall_metrics and not process_metrics:
+        if not overall_metrics and not process_metrics and not condition_metrics:
             continue
         catchments.append({
             "id": gcin,
@@ -156,6 +180,7 @@ def build_web_data() -> dict[str, Any]:
             "lon": round(float(item.longitude), 5),
             "lat": round(float(item.latitude), 5),
             "overall": overall_metrics,
+            "conditions": condition_metrics,
             "processes": process_metrics,
         })
 
@@ -187,6 +212,8 @@ def build_web_data() -> dict[str, Any]:
             "composition": composition.to_dict(orient="records"),
             "supportedOverall": summary["supported_overall_trends"],
             "supportedProcess": summary["supported_mechanism_trends"],
+            "conditionLimits": {key: _limit(conditions, key) for key in ["rainfall_concentration", "antecedent_wetness"]},
+            "conditionSource": "All selected POT/Q95 floods; annual event means; Theil–Sen slope and Mann–Kendall test. Source: primary_extreme_events.parquet.",
             "figures": [
                 {"src": f"reports/assets/figure_0{i}_{name}.png", "alt": alt}
                 for i, name, alt in [

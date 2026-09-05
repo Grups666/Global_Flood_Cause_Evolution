@@ -103,6 +103,22 @@ Example: if a catchment has three selected floods in 2004 with volumes 20, 35 an
 
 ## 8. Trends in all selected large floods
 
+The map's continuous-conditions view uses the same Q95 sample without a class
+filter. It fits rainfall concentration and source-catalogue antecedent SSI
+separately in each catchment, using at least 10 valid event-years and a span of
+at least 20 years inclusive. Annual points are event means; absent event-years
+are missing, not zeros. The existing Theil–Sen/Mann–Kendall, alternative-sample
+direction and leave-one-year-out checks are reused. Classification-threshold
+checks do not apply to this unclassified population. Reproduce this view with
+`python src/run_pipeline.py --stage conditions`, then the `web` stage.
+
+Full-sample condition trends, changes in class proportions and within-class
+condition trends answer different questions. Every event receives its own
+class; no permanent catchment class is assigned. A small continuous change near
+a boundary can change a label, and conditioning on that label changes the
+population being compared. Read class trends alongside the unclassified
+continuous series; neither view alone establishes causal attribution.
+
 Three outcomes describe what happened to the selected floods:
 
 - direct stormflow volume (mm per decade);

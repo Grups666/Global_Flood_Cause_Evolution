@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -143,7 +144,7 @@ def write_report(result: dict[str, object]) -> None:
         "# Validation report", "",
         f"**Status:** {str(result['status']).upper()}",
         f"**Checks:** {result['checks_passed']} / {result['checks_total']} passed",
-        "**Execution date:** 2026-09-04", "",
+        f"**Execution date:** {date.today().isoformat()}", "",
         "| Check | Status | Evidence |", "|---|---:|---|",
     ]
     for item in result["checks"]:

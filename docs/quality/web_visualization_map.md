@@ -2,10 +2,13 @@
 
 ## Information architecture
 
-The explorer follows the scientific analysis in two levels:
+The compact **Object** selector has two choices:
 
-1. **All selected floods** — direct stormflow volume, daily flood peak and annual Q95-event frequency.
-2. **By generating process** — process frequency, process share, rainfall concentration, antecedent wetness, direct stormflow volume and daily peak for each of six mechanisms.
+1. **Flood-generating conditions** — rainfall concentration and antecedent SSI. The default **All selected floods** uses every valid selected Q95 event without a class filter. **Filter by process** exposes separate wetness and rainfall-forcing selectors and adds process frequency/share and associated flood responses.
+2. **Flood characteristics** — direct stormflow volume, daily flood peak and annual Q95-event frequency.
+
+Choosing a continuous quantity never requires choosing a qualitative category.
+The quantitative map shows a fitted change, not proof of a causal mechanism.
 
 Every mark is an observed catchment point. Point size increases with zoom. Supported results are drawn after other estimates so they remain visible.
 
@@ -21,5 +24,15 @@ This toggle changes emphasis, not the underlying analysis or available catchment
 - Hover uses a cyan glow with no solid marker border. The opaque tooltip is fixed above page content and anchored to the actual pointer position.
 - Selection retains the same cyan visual language.
 - The inspector combines direction, magnitude and physical meaning in one result block, then shows fitted start and end levels, interval, p value, sample size and sensitivity checks.
+- Full-sample condition panels plot annual event means and the exact Theil–Sen line; fitted endpoints are explicitly labelled by year and unit.
 - Percentage-point outcomes include the `pp` suffix; every “per decade” label explicitly means per 10 years.
 - The top-bar **Research overview** opens the complete browser report. A persistent left navigation provides access to the question, data, methods, figures, results, limitations and references.
+
+## Annual trajectory chart contract
+
+- Question: how did the selected-event physical condition vary within this catchment across its record?
+- Family: temporal observations plus fitted line, in the map inspector's native SVG surface. At least 10 annual points; no interpolation of missing event-years.
+- Source: `primary_extreme_events.parquet` → `catchment_conditions_annual.csv` and `catchment_conditions_trends.csv` → `conditions` in the interactive JSON. Observation grain is one catchment–metric–event-year; point detail retains valid event count.
+- Units: concentration in percent, SSI in dimensionless index units; slope in percentage points or SSI units per 10 years. No inferred zero baseline, arbitrary early/late split, or extrapolation beyond the record.
+- Marks: grey annual dots and a blue fitted line (two distinct mark types); measured-range y-axis with explicit ticks. No decorative logo.
+- Footprint: responsive 340×210 viewBox in the catchment inspector. Validate numeric reconciliation and line endpoints, and inspect the published page at desktop and narrow widths.

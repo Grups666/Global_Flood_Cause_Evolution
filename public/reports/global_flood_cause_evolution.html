@@ -19,7 +19,10 @@ article img{display:block;width:min(100%,1180px);height:auto;margin:28px auto 40
 </style><script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},chtml:{scale:1.02}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head><body><div id="progress"></div><div class="lightbox" id="figure-lightbox" aria-hidden="true"><button class="close" aria-label="关闭">×</button><img alt="放大图表"></div>
 <div class="shell"><aside><div class="brand"><strong>Research report</strong><span>1982–2019 · gauged catchments</span></div><nav class="toc report-nav"><div class="toc">
 <ul>
-<li><a href="#1">1. 研究问题</a></li>
+<li><a href="#1">1. 研究问题</a><ul>
+<li><a href="#_1">地图怎样看：先选物理量，再选择是否分组</a></li>
+</ul>
+</li>
 <li><a href="#2">2. 数据与研究边界</a></li>
 <li><a href="#3-q95">3. Q95到底是什么</a></li>
 <li><a href="#4">4. 为什么还要看洪水本身</a></li>
@@ -48,13 +51,18 @@ article img{display:block;width:min(100%,1180px);height:auto;margin:28px auto 40
 </div>
 </nav><div class="actions"><button onclick="window.print()">打印 / PDF</button><button onclick="scrollTo(0,0)">回到顶部</button></div></aside><article><div class="facts"><div class="fact"><b>58,991</b><span>Q95 大洪水事件</span></div><div class="fact"><b>2,637</b><span>有长期记录的观测流域</span></div><div class="fact"><b>264</b><span>大洪水本身的稳健变化</span></div><div class="fact"><b>523</b><span>机制特异的稳健变化</span></div></div><h1 id="19822019">全球降雨驱动型大洪水生成机制的长期变化（1982–2019）</h1>
 <p><strong>完整技术报告｜事件尺度分类、观测流域趋势与可复现实验</strong></p>
-<p>生成日期：2026-09-04</p>
+<p>生成日期：2026-09-05</p>
 <blockquote>
 <p><strong>核心结果。</strong> 研究先在每个观测流域中按事件直接径流量选出全记录 Q95 大洪水，再区分六种“前期湿润状态 × 降雨时间组织”机制。结果不是寻找一条全球统一趋势，而是定位哪些观测流域的机制出现频率、机制内部条件或相应洪水响应发生了稳定变化。</p>
 </blockquote>
 <h2 id="1">1. 研究问题</h2>
 <p>本研究回答三件事：入选的大洪水本身是否变了；这些洪水由什么机制产生；把不同机制分开后，哪些机制的发生频率、组成比例、降雨与前期湿润条件以及洪水量级发生了长期变化。</p>
-<p>老师在 2026 年 9 月 2 日会议中强调，混合不同成因会相互抵消时间信号。因此单个观测流域是首要分析单元，机制分类先于趋势解释；地图只显示真实观测流域，不对无资料区域作空间外推。</p>
+<p>老师在 2026 年 9 月 2 日会议中强调，混合不同成因可能相互抵消时间信号，并建议按事件成因分组。本研究同时保留全部入选事件的连续条件趋势和分组结果：前者回答整体条件怎样变，后者回答事件构成与组内条件怎样变。单个观测流域是分析单元，地图不对无资料区域作空间外推。</p>
+<h3 id="_1">地图怎样看：先选物理量，再选择是否分组</h3>
+<p>在 <strong>Object → Flood-generating conditions</strong> 下，可直接选择 <strong>Rainfall concentration（降雨集中度）</strong> 或 <strong>Antecedent wetness（前期土壤湿润程度，SSI）</strong>。默认 <strong>All selected floods</strong> 使用同一Q95样本内的全部有效事件，不要求先选干湿或降雨类别。</p>
+<p>降雨集中度和SSI分别有 <strong>2,497</strong>、<strong>2,497</strong> 个流域可估计趋势，其中 <strong>85</strong>、<strong>87</strong> 个通过本项目的局地完整筛选（p&lt;0.05、替代极端样本方向一致、逐年剔除方向稳定）。每个指标至少有10个有效事件年份，首末年份跨度按含首尾计至少20年。没有有效事件的年份不填0。</p>
+<p>点击流域后，灰点是各年的事件均值，蓝线是Theil–Sen拟合；拟合起止值标明具体年份，不能当作那两年的实测值。比如从30%拟合到40%的降雨集中度，表示整场事件降雨落在最多雨那一天的比例提高了10个百分点，并非洪峰提高10%。这是说明单位的例子，不是某个流域的观测结果。</p>
+<p><strong>Filter by process</strong> 才启用分开的前期湿润状态与降雨组织筛选。分类逐事件进行，流域不会被永久归为一类。组内趋势不能替代整体趋势；只跨过一个分类边界，也不能直接解释成显著的物理机制转换。<strong>Flood characteristics</strong> 则用于选择洪水量、日洪峰和Q95年频次。</p>
 <h2 id="2">2. 数据与研究边界</h2>
 <ul>
 <li>时间：1982–2019；这是降水、流量和土壤湿润度均可核验的共同记录。</li>

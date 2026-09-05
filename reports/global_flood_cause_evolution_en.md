@@ -2,13 +2,23 @@
 
 **Complete technical report | event-scale process classification, gauged-catchment trends and reproducible evidence**
 
-Generated: 2026-09-04
+Generated: 2026-09-05
 
 > **Main result.** The experiment first selects each catchment's upper-tail floods by direct stormflow volume, then separates six antecedent-wetness × rainfall-organization processes. Its target is not a single global direction. It identifies gauged catchments where process occurrence, process conditions or associated flood response changed reproducibly.
 
 ## 1. Research question and meeting-directed logic
 
-The study asks what happened to the selected large floods, which processes generated them, and whether each process changed in frequency, composition, generating conditions or flood response. The 2 September 2026 meeting emphasized that pooling different causes can cancel temporal signals. Event classification therefore precedes trend interpretation, and individual gauged catchments remain the inferential units.
+The study asks what happened to the selected large floods and how their generating conditions changed. The 2 September 2026 meeting noted that pooling causes can cancel temporal signals and suggested event grouping. The analysis retains both full-sample continuous trends and grouped results: the former describe overall conditions, while the latter describe composition and within-group changes. Individual gauged catchments remain the analytical units.
+
+### Reading the map: choose a physical quantity before an optional group
+
+Under **Object → Flood-generating conditions**, select **Rainfall concentration** or **Antecedent wetness (SSI)**. The default **All selected floods** uses all valid events in the same Q95 sample without a wetness or rainfall-class filter.
+
+The two metrics each have **2,497** estimable catchments; **85** rainfall-concentration trends and **87** SSI trends pass the project's complete local screen (p<0.05, alternative-sample direction agreement, and leave-one-year-out direction stability). Each metric requires at least 10 valid event-years and a first-to-last span of at least 20 years inclusive. Years without valid selected events are not filled with zeros.
+
+In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
+
+**Filter by process** enables separate antecedent-wetness and rainfall-organization controls. Events are classified individually; a catchment has no permanent process label. A within-group trend is not the full-sample trend, and a threshold crossing alone is not proof of a physical mechanism conversion. **Flood characteristics** provides flood volume, daily peak and Q95 frequency.
 
 ## 2. Data boundary
 

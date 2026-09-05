@@ -44,6 +44,7 @@ def _load() -> dict[str, Any]:
     return {
         "summary": json.loads((LOGS / "analysis_summary.json").read_text(encoding="utf-8")),
         "overall": pd.read_csv(TABLES / "catchment_overall_trends.csv"),
+        "conditions": pd.read_csv(TABLES / "catchment_conditions_trends.csv"),
         "mechanism": pd.read_csv(
             TABLES / "catchment_mechanism_trends.csv", low_memory=False
         ),
@@ -165,7 +166,7 @@ def _zh(stats: dict[str, Any]) -> str:
 
 **完整技术报告｜事件尺度分类、观测流域趋势与可复现实验**
 
-生成日期：2026-09-04
+生成日期：2026-09-05
 
 > **核心结果。** 研究先在每个观测流域中按事件直接径流量选出全记录 Q95 大洪水，再区分六种“前期湿润状态 × 降雨时间组织”机制。结果不是寻找一条全球统一趋势，而是定位哪些观测流域的机制出现频率、机制内部条件或相应洪水响应发生了稳定变化。
 
@@ -173,7 +174,17 @@ def _zh(stats: dict[str, Any]) -> str:
 
 本研究回答三件事：入选的大洪水本身是否变了；这些洪水由什么机制产生；把不同机制分开后，哪些机制的发生频率、组成比例、降雨与前期湿润条件以及洪水量级发生了长期变化。
 
-老师在 2026 年 9 月 2 日会议中强调，混合不同成因会相互抵消时间信号。因此单个观测流域是首要分析单元，机制分类先于趋势解释；地图只显示真实观测流域，不对无资料区域作空间外推。
+老师在 2026 年 9 月 2 日会议中强调，混合不同成因可能相互抵消时间信号，并建议按事件成因分组。本研究同时保留全部入选事件的连续条件趋势和分组结果：前者回答整体条件怎样变，后者回答事件构成与组内条件怎样变。单个观测流域是分析单元，地图不对无资料区域作空间外推。
+
+### 地图怎样看：先选物理量，再选择是否分组
+
+在 **Object → Flood-generating conditions** 下，可直接选择 **Rainfall concentration（降雨集中度）** 或 **Antecedent wetness（前期土壤湿润程度，SSI）**。默认 **All selected floods** 使用同一Q95样本内的全部有效事件，不要求先选干湿或降雨类别。
+
+降雨集中度和SSI分别有 **{_counts(stats['conditions'], 'rainfall_concentration')['estimated']:,}**、**{_counts(stats['conditions'], 'antecedent_wetness')['estimated']:,}** 个流域可估计趋势，其中 **{_counts(stats['conditions'], 'rainfall_concentration')['supported']}**、**{_counts(stats['conditions'], 'antecedent_wetness')['supported']}** 个通过本项目的局地完整筛选（p<0.05、替代极端样本方向一致、逐年剔除方向稳定）。每个指标至少有10个有效事件年份，首末年份跨度按含首尾计至少20年。没有有效事件的年份不填0。
+
+点击流域后，灰点是各年的事件均值，蓝线是Theil–Sen拟合；拟合起止值标明具体年份，不能当作那两年的实测值。比如从30%拟合到40%的降雨集中度，表示整场事件降雨落在最多雨那一天的比例提高了10个百分点，并非洪峰提高10%。这是说明单位的例子，不是某个流域的观测结果。
+
+**Filter by process** 才启用分开的前期湿润状态与降雨组织筛选。分类逐事件进行，流域不会被永久归为一类。组内趋势不能替代整体趋势；只跨过一个分类边界，也不能直接解释成显著的物理机制转换。**Flood characteristics** 则用于选择洪水量、日洪峰和Q95年频次。
 
 ## 2. 数据与研究边界
 
@@ -398,13 +409,23 @@ def _en(stats: dict[str, Any]) -> str:
 
 **Complete technical report | event-scale process classification, gauged-catchment trends and reproducible evidence**
 
-Generated: 2026-09-04
+Generated: 2026-09-05
 
 > **Main result.** The experiment first selects each catchment's upper-tail floods by direct stormflow volume, then separates six antecedent-wetness × rainfall-organization processes. Its target is not a single global direction. It identifies gauged catchments where process occurrence, process conditions or associated flood response changed reproducibly.
 
 ## 1. Research question and meeting-directed logic
 
-The study asks what happened to the selected large floods, which processes generated them, and whether each process changed in frequency, composition, generating conditions or flood response. The 2 September 2026 meeting emphasized that pooling different causes can cancel temporal signals. Event classification therefore precedes trend interpretation, and individual gauged catchments remain the inferential units.
+The study asks what happened to the selected large floods and how their generating conditions changed. The 2 September 2026 meeting noted that pooling causes can cancel temporal signals and suggested event grouping. The analysis retains both full-sample continuous trends and grouped results: the former describe overall conditions, while the latter describe composition and within-group changes. Individual gauged catchments remain the analytical units.
+
+### Reading the map: choose a physical quantity before an optional group
+
+Under **Object → Flood-generating conditions**, select **Rainfall concentration** or **Antecedent wetness (SSI)**. The default **All selected floods** uses all valid events in the same Q95 sample without a wetness or rainfall-class filter.
+
+The two metrics each have **{_counts(stats['conditions'], 'rainfall_concentration')['estimated']:,}** estimable catchments; **{_counts(stats['conditions'], 'rainfall_concentration')['supported']}** rainfall-concentration trends and **{_counts(stats['conditions'], 'antecedent_wetness')['supported']}** SSI trends pass the project's complete local screen (p<0.05, alternative-sample direction agreement, and leave-one-year-out direction stability). Each metric requires at least 10 valid event-years and a first-to-last span of at least 20 years inclusive. Years without valid selected events are not filled with zeros.
+
+In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
+
+**Filter by process** enables separate antecedent-wetness and rainfall-organization controls. Events are classified individually; a catchment has no permanent process label. A within-group trend is not the full-sample trend, and a threshold crossing alone is not proof of a physical mechanism conversion. **Flood characteristics** provides flood volume, daily peak and Q95 frequency.
 
 ## 2. Data boundary
 

@@ -18,7 +18,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Global Flood Cause Evolution pipeline.")
     parser.add_argument(
         "--stage",
-        choices=["audit", "features", "analysis", "figures", "reports", "html", "web", "all"],
+        choices=["audit", "features", "analysis", "conditions", "figures", "reports", "html", "web", "all"],
         default="all",
     )
     parser.add_argument("--config", default=str(PROJECT_ROOT / "config" / "analysis.yaml"))
@@ -34,6 +34,10 @@ def main() -> None:
         receipt["features"] = build_event_features(config, force=args.force)
     if args.stage in {"analysis", "all"}:
         receipt["analysis"] = run_analysis(config, force=args.force)
+    if args.stage in {"conditions", "all"}:
+        from floodcause.conditions import run_conditions_analysis
+
+        receipt["conditions"] = run_conditions_analysis(config)
     if args.stage in {"figures", "all"}:
         from floodcause.plots import build_all_figures
 

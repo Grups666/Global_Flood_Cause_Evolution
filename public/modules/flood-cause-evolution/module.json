@@ -1,8 +1,8 @@
 {
   "id": "flood-cause-evolution",
   "name": "Global Flood Cause Evolution",
-  "version": "7.1.0",
-  "entry": "./index.js?release=catchment-process-20260904f",
+  "version": "7.2.0",
+  "entry": "./index.js?release=conditions-20260905",
   "className": "FloodCauseEvolutionModule",
-  "dataFile": "./data/flood-cause-explorer.json?release=catchment-process-20260904f"
+  "dataFile": "./data/flood-cause-explorer.json?release=conditions-20260905"
 }
