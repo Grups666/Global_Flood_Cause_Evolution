@@ -184,7 +184,7 @@ def _zh(stats: dict[str, Any]) -> str:
 
 点击流域后，灰点是各年的事件均值，蓝线是Theil–Sen拟合；拟合起止值标明具体年份，不能当作那两年的实测值。比如从30%拟合到40%的降雨集中度，表示整场事件降雨落在最多雨那一天的比例提高了10个百分点，并非洪峰提高10%。这是说明单位的例子，不是某个流域的观测结果。
 
-**Filter by process** 才启用分开的前期湿润状态与降雨组织筛选。分类逐事件进行，流域不会被永久归为一类。组内趋势不能替代整体趋势；只跨过一个分类边界，也不能直接解释成显著的物理机制转换。**Flood characteristics** 则用于选择洪水量、日洪峰和Q95年频次。
+**Object** 决定研究哪个物理量，**Event sample** 独立决定使用全部事件还是按过程筛选；两个对象入口均可使用 **Filter by process**，并分别选择前期湿润状态与降雨组织。**Flood characteristics** 只显示洪水量、日洪峰和Q95年频次；**Flood-generating conditions** 显示降雨集中度、SSI，以及分组时的Process share（该类型占全部Q95事件的比例）。分类逐事件进行，流域不会被永久归为一类；组内趋势不能替代整体趋势，跨过分类边界也不自动证明物理机制转换。
 
 ## 2. 数据与研究边界
 
@@ -425,7 +425,7 @@ The two metrics each have **{_counts(stats['conditions'], 'rainfall_concentratio
 
 In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
 
-**Filter by process** enables separate antecedent-wetness and rainfall-organization controls. Events are classified individually; a catchment has no permanent process label. A within-group trend is not the full-sample trend, and a threshold crossing alone is not proof of a physical mechanism conversion. **Flood characteristics** provides flood volume, daily peak and Q95 frequency.
+**Object** determines the metric family; **Event sample** independently selects all events or a process. Both objects support **Filter by process**, with separate antecedent-wetness and rainfall-organization controls. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (the selected type's share of all Q95 events). Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
 
 ## 2. Data boundary
 

@@ -22,7 +22,7 @@
 | `six_current_figures` | PASS | figure_01_sample_and_process_coverage:3981x2107; figure_02_overall_flood_changes:4312x1595; figure_03_process_frequency_changes:4105x2278; figure_04_process_share_changes:4105x2278; figure_05_process_response_rankings:3943x2107; figure_06_example_process_trajectories:3914x1425 |
 | `current_report_scope` | PASS | forbidden terms absent: HydroBASINS, BH-FDR, unadjusted p, 10-day declustering, previous version, old version |
 | `markdown_local_links` | PASS | none missing |
-| `self_contained_html` | PASS | embedded figures=6; bytes=5,860,632 |
+| `self_contained_html` | PASS | embedded figures=6; bytes=5,860,912 |
 | `catchment_point_web_schema` | PASS | catchment points=2,637; process classes=6 |
 | `interactive_ui_semantics` | PASS | catchment points, pale all-estimate directions, supported z-order, pointer-anchored opaque tooltip |
 | `public_report_sync` | PASS | HTML and six PNG assets match reports/ |

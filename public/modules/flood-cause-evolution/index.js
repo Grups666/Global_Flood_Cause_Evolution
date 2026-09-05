@@ -8,6 +8,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.layerId = "flood-cause-catchments";
     this.legendId = "flood-cause-legend";
     this.scope = "conditions";
+    this.population = "all";
     this.outcomeKey = "rainfall_concentration";
     this.mechanism = "Dry-Intensity";
     this.evidenceView = "all";
@@ -83,14 +84,25 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   metric(item) {
+    if (this.population === "process") return item.processes?.[this.mechanism]?.[this.outcomeKey];
     if (this.scope === "overall") return item.overall?.[this.outcomeKey];
-    if (this.scope === "conditions") return item.conditions?.[this.outcomeKey];
-    return item.processes?.[this.mechanism]?.[this.outcomeKey];
+    return item.conditions?.[this.outcomeKey];
+  }
+
+  availableOutcomes() {
+    if (this.scope === "overall") return ["direct_runoff_volume", "flood_peak", this.population === "process" ? "mechanism_frequency" : "exceedance_frequency"];
+    return this.population === "process"
+      ? ["rainfall_concentration", "antecedent_wetness", "mechanism_share"]
+      : ["rainfall_concentration", "antecedent_wetness"];
+  }
+
+  metricShort(key) {
+    return key === "mechanism_frequency" ? "Q95 frequency" : this.data.meta.outcomes[key].short;
   }
 
   outcome() {
-    const outcome = this.data.meta.outcomes[this.outcomeKey];
-    return this.scope === "conditions"
+    const outcome = { ...this.data.meta.outcomes[this.outcomeKey], short: this.metricShort(this.outcomeKey) };
+    return this.scope === "conditions" && this.population === "all"
       ? { ...outcome, limit: this.data.meta.conditionLimits[this.outcomeKey] }
       : outcome;
   }
@@ -182,7 +194,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     }
     const metric = this.metric(item);
     const outcome = this.outcome();
-    const process = this.scope === "process" ? `${this.processLabel()} · ` : "";
+    const process = this.population === "process" ? `${this.processLabel()} · ` : "";
     this.tooltip.innerHTML = `<strong>GCIN ${this.escape(item.id)} · ${this.escape(item.country)}</strong><span>${this.escape(process + outcome.short)}</span><b>${this.signed(metric.slope, outcome.digits)} <small>${this.escape(outcome.unit)}</small></b><em>${metric.supported ? "passes complete evidence screen" : "estimable direction"}</em>`;
     this.tooltip.classList.add("visible");
     const width = this.tooltip.offsetWidth;
@@ -206,9 +218,12 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   setPopulation(population) {
-    if (this.scope === "overall" || !["all", "process"].includes(population)) return;
-    this.scope = population === "all" ? "conditions" : "process";
-    if (this.scope === "conditions" && !["rainfall_concentration", "antecedent_wetness"].includes(this.outcomeKey)) this.outcomeKey = "rainfall_concentration";
+    if (!["all", "process"].includes(population)) return;
+    this.population = population;
+    if (this.scope === "overall" && ["exceedance_frequency", "mechanism_frequency"].includes(this.outcomeKey)) {
+      this.outcomeKey = population === "process" ? "mechanism_frequency" : "exceedance_frequency";
+    }
+    if (!this.availableOutcomes().includes(this.outcomeKey)) this.outcomeKey = this.availableOutcomes()[0];
     this.updateToolbar();
     this.updateLegend();
     if (this.selected) this.showInspector(this.selected);
@@ -216,7 +231,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   }
 
   setOutcome(outcome) {
-    if (!this.data.meta.outcomes[outcome]) return;
+    if (!this.availableOutcomes().includes(outcome)) return;
     this.outcomeKey = outcome;
     this.updateToolbar();
     this.updateLegend();
@@ -290,6 +305,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       </div>
       <div class="fce-definitions" id="fce-class-definitions" hidden>
         <div class="fce-definitions-header"><strong>Continuous conditions and optional groups</strong><button data-definitions-close aria-label="Close classification explanation">×</button></div>
+        <p><b>Object chooses what is measured.</b> Flood characteristics contains flood volume, flood peak and Q95 frequency. Flood-generating conditions contains rainfall concentration and antecedent SSI, plus Process share when a group is selected. Event sample only changes which floods contribute; it does not change the measurement object.</p>
         <p><b>All selected floods.</b> Rainfall concentration is 100 × Pmax / Pevent (%). Antecedent wetness is the source catalogue's pre-event soil saturation index (SSI, 0–1). Their full-sample trends use every valid selected event, regardless of its class. A trend describes generating conditions, not proof of a causal mechanism.</p>
         <p id="fce-wetness-definition"><b>Antecedent wetness.</b> Dry, Moderate and Wet follow the source catalogue's global SSI terciles, with approximate boundaries of 0.3994 and 0.5640. These are relative wetness groups, not universal soil-saturation thresholds.</p>
         <p id="fce-forcing-definition"><b>Rainfall forcing.</b> Intensity-led requires both Pmax / Pevent &gt; 0.50 and daily rainfall CV &gt; 1. Volume-led contains the remaining events; the label alone does not establish a large rainfall total or a particular runoff mechanism.</p>
@@ -318,26 +334,23 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   updateToolbar() {
     if (!this.toolbar) return;
-    const outcomeKeys = this.scope === "overall"
-      ? ["direct_runoff_volume", "flood_peak", "exceedance_frequency"]
-      : this.scope === "conditions" ? ["rainfall_concentration", "antecedent_wetness"]
-      : ["rainfall_concentration", "antecedent_wetness", "mechanism_frequency", "mechanism_share", "direct_runoff_volume", "flood_peak"];
-    this.toolbar.querySelector("[data-scope-select]").value = this.scope === "overall" ? "overall" : "conditions";
-    this.toolbar.querySelectorAll("[data-population-field]").forEach((field) => { field.hidden = this.scope === "overall"; });
-    this.toolbar.querySelector("[data-population]").value = this.scope === "process" ? "process" : "all";
-    this.toolbar.querySelectorAll("[data-condition-field]").forEach((field) => { field.hidden = this.scope !== "process"; });
+    const outcomeKeys = this.availableOutcomes();
+    this.toolbar.querySelector("[data-scope-select]").value = this.scope;
+    this.toolbar.querySelectorAll("[data-population-field]").forEach((field) => { field.hidden = false; });
+    this.toolbar.querySelector("[data-population]").value = this.population;
+    this.toolbar.querySelectorAll("[data-condition-field]").forEach((field) => { field.hidden = this.population !== "process"; });
     const [wetness, forcing] = this.mechanism.split("-");
     this.toolbar.querySelector("[data-wetness]").value = wetness;
     this.toolbar.querySelector("[data-forcing]").value = forcing;
     this.toolbar.querySelector(".fce-definitions").hidden = true;
     this.toolbar.querySelector("[data-definitions-toggle]").setAttribute("aria-expanded", "false");
     const outcomeSelect = this.toolbar.querySelector("[data-outcome-select]");
-    outcomeSelect.innerHTML = outcomeKeys.map((key) => `<option value="${key}">${this.data.meta.outcomes[key].short}</option>`).join("");
+    outcomeSelect.innerHTML = outcomeKeys.map((key) => `<option value="${key}">${this.metricShort(key)}</option>`).join("");
     outcomeSelect.value = this.outcomeKey;
     this.toolbar.querySelector("[data-evidence-select]").value = this.evidenceView;
     const available = this.catchments.map((item) => this.metric(item)).filter(Boolean);
     const supported = available.filter((metric) => metric.supported);
-    const context = this.scope === "process" ? this.processLabel() : "all Q95 floods";
+    const context = this.population === "process" ? this.processLabel() : "all Q95 floods";
     const count = this.toolbar.querySelector("[data-count]");
     count.innerHTML = `<strong>${supported.length.toLocaleString()}</strong><span>supported</span><small>of ${available.length.toLocaleString()}</small>`;
     count.title = `${supported.length.toLocaleString()} supported of ${available.length.toLocaleString()} estimable catchments · ${context}`;
@@ -362,20 +375,20 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       return;
     }
     const outcome = this.outcome();
-    const process = this.scope === "process" ? this.processLabel() : "All selected Q95 floods";
+    const process = this.population === "process" ? this.processLabel() : "All selected Q95 floods";
     const sampleDetail = this.outcomeKey === "exceedance_frequency"
       ? "same direction for Q90 and Q97.5; annual maximum is not a fixed-threshold frequency test"
       : "same direction for Q90, Q97.5 and annual maximum";
     const checks = [
       { name: "p < 0.05", pass: metric.pPass, detail: `two-sided p = ${this.prob(metric.p)}` },
       { name: "Alternative extreme samples", pass: metric.sampleStable, detail: sampleDetail },
-      ...(this.scope === "process" ? [{ name: "Classification threshold", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
+      ...(this.population === "process" ? [{ name: "Classification threshold", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
       { name: "Leave-one-year-out", pass: metric.leaveOneYearStable, detail: "removing any one year does not reverse direction" },
     ];
     const passed = checks.filter((check) => check.pass).length;
     this.app.showInspector?.(`GCIN ${item.id} · ${item.country}`, `
       <p class="fce-inspector-lead">${this.escape(process)} · ${this.escape(outcome.label)}</p>
-      ${this.scope === "process" && ["rainfall_concentration", "antecedent_wetness"].includes(this.outcomeKey) ? '<p class="fce-note">Within the selected event group. Group membership can change over time; use Process share to inspect shifts between types.</p>' : ""}
+      ${this.population === "process" && ["rainfall_concentration", "antecedent_wetness"].includes(this.outcomeKey) ? '<p class="fce-note">Within the selected event group. Group membership can change over time; use Process share to inspect shifts between types.</p>' : ""}
       <div class="fce-result"><span>${this.escape(this.direction(metric.slope))}</span><strong style="color:${Number(metric.slope) >= 0 ? '#d96b3f' : '#2f6688'}">${this.displayEffect(metric.slope, outcome.digits)}</strong><small>${this.escape(outcome.unit)}</small><p>${this.escape(this.physicalMeaning(metric))}</p></div>
       ${this.annualChart(metric)}
       <div class="fce-grid">
@@ -398,8 +411,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const to = this.num(metric.to, this.outcome().digits);
     const slope = this.signed(metric.slope, this.outcome().digits);
     if (this.outcomeKey === "mechanism_share") return `Among selected large floods, this process changes from about ${from}% to ${to}% across the fitted record (${slope} percentage points per 10 years).`;
-    if (this.outcomeKey === "rainfall_concentration") return `For ${this.scope === "process" ? "floods in this event group" : "all selected floods"}, the fitted rainfall-concentration trend is ${slope} percentage points per 10 years: the share of event rainfall falling on its rainiest day ${Number(metric.slope) >= 0 ? "increases" : "decreases"}.`;
-    if (this.outcomeKey === "antecedent_wetness") return `Before ${this.scope === "process" ? "floods in this event group" : "all selected floods"}, the fitted soil saturation index ${Number(metric.slope) >= 0 ? "increases" : "decreases"} by ${this.num(Math.abs(metric.slope), 3)} SSI units per 10 years.`;
+    if (this.outcomeKey === "rainfall_concentration") return `For ${this.population === "process" ? "floods in this event group" : "all selected floods"}, the fitted rainfall-concentration trend is ${slope} percentage points per 10 years: the share of event rainfall falling on its rainiest day ${Number(metric.slope) >= 0 ? "increases" : "decreases"}.`;
+    if (this.outcomeKey === "antecedent_wetness") return `Before ${this.population === "process" ? "floods in this event group" : "all selected floods"}, the fitted soil saturation index ${Number(metric.slope) >= 0 ? "increases" : "decreases"} by ${this.num(Math.abs(metric.slope), 3)} SSI units per 10 years.`;
     if (this.outcomeKey === "mechanism_frequency") return `This process changes from about ${from} to ${to} selected large floods per observed year across the fitted record.`;
     if (this.outcomeKey === "exceedance_frequency") return `The fixed-threshold Q95-event frequency changes from about ${from} to ${to} events per observed year across the fitted record.`;
     if (this.outcomeKey === "direct_runoff_volume") return `Mean selected-event direct stormflow volume changes from about ${from} to ${to} mm across the fitted record.`;
@@ -455,7 +468,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const supported = metrics.filter((metric) => metric.supported);
     this.app.unregisterLegend?.(this.legendId);
     this.app.registerLegend?.(this.legendId, {
-      title: this.scope === "process" ? `${this.processLabel()} · ${outcome.short}` : outcome.short,
+      title: this.population === "process" ? `${this.processLabel()} · ${outcome.short}` : outcome.short,
       html: `<div class="fce-legend-bar"></div><div class="fce-legend-axis"><span>${this.axis(-outcome.limit)}</span><span>0</span><span>+${this.axis(outcome.limit)}</span></div><p>${this.escape(outcome.unit)} · values outside the scale are clipped.</p><div class="fce-key"><i class="supported"></i>Passes complete screen (${supported.length})</div><div class="fce-key"><i class="estimate"></i>Other estimable direction (${metrics.length - supported.length})</div><div class="fce-key"><i class="hover"></i>Hover / selected</div><small>All estimates retains pale directional colour. Supported points are drawn last. Points enlarge as the map is zoomed.</small>`,
     });
   }

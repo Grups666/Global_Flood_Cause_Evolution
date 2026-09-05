@@ -4,8 +4,13 @@
 
 The compact **Object** selector has two choices:
 
-1. **Flood-generating conditions** — rainfall concentration and antecedent SSI. The default **All selected floods** uses every valid selected Q95 event without a class filter. **Filter by process** exposes separate wetness and rainfall-forcing selectors and adds process frequency/share and associated flood responses.
-2. **Flood characteristics** — direct stormflow volume, daily flood peak and annual Q95-event frequency.
+1. **Flood-generating conditions** — rainfall concentration and antecedent SSI; a selected process also exposes its share of the Q95-event sample.
+2. **Flood characteristics** — direct stormflow volume, daily flood peak and annual Q95-event frequency, for all selected floods or a selected process.
+
+**Object** determines the metric family. **Event sample** independently selects
+all Q95 floods or a process, with separate wetness and rainfall-forcing filters.
+The default is unclassified, continuous generating conditions. Changing the
+event population never moves flood-response metrics into generating conditions.
 
 Choosing a continuous quantity never requires choosing a qualitative category.
 The quantitative map shows a fitted change, not proof of a causal mechanism.

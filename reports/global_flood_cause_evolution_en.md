@@ -18,7 +18,7 @@ The two metrics each have **2,497** estimable catchments; **85** rainfall-concen
 
 In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
 
-**Filter by process** enables separate antecedent-wetness and rainfall-organization controls. Events are classified individually; a catchment has no permanent process label. A within-group trend is not the full-sample trend, and a threshold crossing alone is not proof of a physical mechanism conversion. **Flood characteristics** provides flood volume, daily peak and Q95 frequency.
+**Object** determines the metric family; **Event sample** independently selects all events or a process. Both objects support **Filter by process**, with separate antecedent-wetness and rainfall-organization controls. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (the selected type's share of all Q95 events). Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
 
 ## 2. Data boundary
 
