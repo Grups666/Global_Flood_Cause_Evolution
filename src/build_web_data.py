@@ -7,6 +7,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from floodcause.analysis import MARGINAL_GROUPS
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TABLES = ROOT / "outputs" / "tables"
@@ -133,6 +135,7 @@ def build_web_data() -> dict[str, Any]:
     conditions = pd.read_csv(TABLES / "catchment_conditions_trends.csv")
     condition_annual = pd.read_csv(TABLES / "catchment_conditions_annual.csv")
     process = pd.read_csv(TABLES / "catchment_mechanism_trends.csv", low_memory=False)
+    marginal = pd.read_csv(TABLES / "catchment_filter_group_trends.csv", low_memory=False)
     sample = pd.read_parquet(ROOT / "data" / "derived" / "primary_extreme_events.parquet")
     metadata = sample[["GCIN", "country", "continent", "longitude", "latitude"]].drop_duplicates("GCIN")
     composition = pd.read_csv(TABLES / "mechanism_composition.csv")
@@ -143,7 +146,8 @@ def build_web_data() -> dict[str, Any]:
         (int(gcin), outcome): frame.sort_values("peak_year")
         for (gcin, outcome), frame in condition_annual.groupby(["GCIN", "outcome"], sort=False)
     }
-    process_groups = {int(key): frame for key, frame in process.groupby("GCIN", sort=False)}
+    filter_results = pd.concat([process, marginal], ignore_index=True)
+    process_groups = {int(key): frame for key, frame in filter_results.groupby("GCIN", sort=False)}
     catchments = []
     for item in metadata.itertuples(index=False):
         gcin = int(item.GCIN)
@@ -209,6 +213,7 @@ def build_web_data() -> dict[str, Any]:
             "rankingVariable": "Event direct stormflow volume",
             "outcomes": outcome_meta,
             "mechanisms": [{"id": key, "label": key.replace("-", " + "), "meaning": MECHANISM_TEXT[key]} for key in MECHANISMS],
+            "filterGroups": ["All-All", *MECHANISMS, *MARGINAL_GROUPS],
             "composition": composition.to_dict(orient="records"),
             "supportedOverall": summary["supported_overall_trends"],
             "supportedProcess": summary["supported_mechanism_trends"],

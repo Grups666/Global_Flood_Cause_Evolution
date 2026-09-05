@@ -17,7 +17,7 @@ The analysis estimates, for each observed catchment, changes in flood volume, da
 - [Literature review](docs/background/literature_review.md)
 - [Validation report](docs/quality/validation_report.md)
 
-The explorer has two reading levels: **All selected floods** first shows what happened to the upper-tail floods themselves; **By generating process** then separates occurrence, composition, conditions and flood response for the six mechanisms. `All estimates` retains pale directional context, while `Supported focus` emphasizes results that pass the declared significance and sensitivity checks.
+The explorer's **Object** selects **Flood-generating conditions** (rainfall concentration and antecedent SSI) or **Flood characteristics** (volume, peak and Q95 frequency). **Antecedent wetness** and **Rainfall forcing** each include **All**: both All gives the full Q95 sample; either can be restricted independently. Filtered conditions also expose the matching events' share of all Q95 floods. `All estimates` retains pale directional context, while `Supported focus` emphasizes results that pass the declared significance and sensitivity checks.
 
 ## Repository structure
 
@@ -35,6 +35,9 @@ The explorer has two reading levels: **All selected floods** first shows what ha
 $projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scripts/python.exe'
 & $projectPython src/run_pipeline.py --stage all --force
 & $projectPython src/validate_outputs.py
+& $projectPython src/validate_conditions.py
+& $projectPython src/validate_filter_groups.py
+node src/test_explorer_controls.cjs
 ```
 
 The related source project `D:/MyPaper/papers/Event_Typology` is reused read-only; its multi-gigabyte source data are not duplicated here.

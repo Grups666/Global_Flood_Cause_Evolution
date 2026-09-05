@@ -14,13 +14,13 @@
 
 ### 地图怎样看：先选物理量，再选择是否分组
 
-在 **Object → Flood-generating conditions** 下，可直接选择 **Rainfall concentration（降雨集中度）** 或 **Antecedent wetness（前期土壤湿润程度，SSI）**。默认 **All selected floods** 使用同一Q95样本内的全部有效事件，不要求先选干湿或降雨类别。
+在 **Object → Flood-generating conditions** 下，可直接选择 **Rainfall concentration（降雨集中度）** 或 **Antecedent wetness（前期土壤湿润程度，SSI）**。前期湿润状态和降雨组织两个筛选均默认 **All**，使用同一Q95样本内的全部有效事件。
 
 降雨集中度和SSI分别有 **2,497**、**2,497** 个流域可估计趋势，其中 **85**、**87** 个通过本项目的局地完整筛选（p<0.05、替代极端样本方向一致、逐年剔除方向稳定）。每个指标至少有10个有效事件年份，首末年份跨度按含首尾计至少20年。没有有效事件的年份不填0。
 
 点击流域后，灰点是各年的事件均值，蓝线是Theil–Sen拟合；拟合起止值标明具体年份，不能当作那两年的实测值。比如从30%拟合到40%的降雨集中度，表示整场事件降雨落在最多雨那一天的比例提高了10个百分点，并非洪峰提高10%。这是说明单位的例子，不是某个流域的观测结果。
 
-**Object** 决定研究哪个物理量，**Event sample** 独立决定使用全部事件还是按过程筛选；两个对象入口均可使用 **Filter by process**，并分别选择前期湿润状态与降雨组织。**Flood characteristics** 只显示洪水量、日洪峰和Q95年频次；**Flood-generating conditions** 显示降雨集中度、SSI，以及分组时的Process share（该类型占全部Q95事件的比例）。分类逐事件进行，流域不会被永久归为一类；组内趋势不能替代整体趋势，跨过分类边界也不自动证明物理机制转换。
+**Object** 决定研究哪个物理量。**Antecedent wetness** 和 **Rainfall forcing** 各自筛选事件，选 **All** 表示不限该条件。例如 Wet + All 汇集两种降雨组织下的湿润前期事件；All + Intensity-led 汇集所有干湿状态下的强度型事件。先汇集事件再重新拟合趋势，不平均各类别的斜率。**Flood characteristics** 只显示洪水量、日洪峰和Q95年频次；**Flood-generating conditions** 显示降雨集中度、SSI，以及筛选时的Process share（匹配事件占全部Q95事件的比例）。只限定干湿状态时，降雨分类阈值不参与筛选，也不作为该结果的稳定性检验。分类逐事件进行，流域不会被永久归为一类；组内趋势不能替代整体趋势，跨过分类边界也不自动证明物理机制转换。
 
 ## 2. 数据与研究边界
 

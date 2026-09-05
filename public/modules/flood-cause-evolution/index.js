@@ -8,9 +8,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.layerId = "flood-cause-catchments";
     this.legendId = "flood-cause-legend";
     this.scope = "conditions";
-    this.population = "all";
     this.outcomeKey = "rainfall_concentration";
-    this.mechanism = "Dry-Intensity";
+    this.mechanism = "All-All";
     this.evidenceView = "all";
     this.selected = null;
     this.viewport = null;
@@ -62,6 +61,8 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   getLayerIds() { return [this.layerId]; }
 
+  get population() { return this.mechanism === "All-All" ? "all" : "process"; }
+
   resolve(path) {
     if (/^https?:\/\//i.test(path) || path.startsWith("/")) return path;
     return this.basePath + path.replace(/^\.\//, "");
@@ -109,7 +110,9 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
 
   processLabel() {
     const [wetness, forcing] = this.mechanism.split("-");
-    return `${wetness.toLowerCase()} antecedent soil · ${forcing.toLowerCase()}-led rainfall`;
+    const soil = wetness === "All" ? "all antecedent wetness" : `${wetness.toLowerCase()} antecedent soil`;
+    const rain = forcing === "All" ? "all rainfall forcing" : `${forcing.toLowerCase()}-led`;
+    return `${soil} · ${rain}`;
   }
 
   redraw() {
@@ -217,11 +220,11 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     this.redraw();
   }
 
-  setPopulation(population) {
-    if (!["all", "process"].includes(population)) return;
-    this.population = population;
+  setMechanism(mechanism) {
+    if (!this.data.meta.filterGroups.includes(mechanism)) return;
+    this.mechanism = mechanism;
     if (this.scope === "overall" && ["exceedance_frequency", "mechanism_frequency"].includes(this.outcomeKey)) {
-      this.outcomeKey = population === "process" ? "mechanism_frequency" : "exceedance_frequency";
+      this.outcomeKey = this.population === "process" ? "mechanism_frequency" : "exceedance_frequency";
     }
     if (!this.availableOutcomes().includes(this.outcomeKey)) this.outcomeKey = this.availableOutcomes()[0];
     this.updateToolbar();
@@ -233,15 +236,6 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
   setOutcome(outcome) {
     if (!this.availableOutcomes().includes(outcome)) return;
     this.outcomeKey = outcome;
-    this.updateToolbar();
-    this.updateLegend();
-    if (this.selected) this.showInspector(this.selected);
-    this.redraw();
-  }
-
-  setMechanism(mechanism) {
-    if (!this.data.meta.mechanisms.some((item) => item.id === mechanism)) return;
-    this.mechanism = mechanism;
     this.updateToolbar();
     this.updateLegend();
     if (this.selected) this.showInspector(this.selected);
@@ -270,29 +264,24 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
           <span>Metric</span>
           <select data-outcome-select aria-label="Displayed metric"></select>
         </label>
-        <label class="fce-field fce-population-field" data-population-field>
-          <span>Event sample</span>
-          <select data-population aria-label="Event sample">
-            <option value="all">All selected floods</option>
-            <option value="process">Filter by process</option>
-          </select>
-        </label>
-        <label class="fce-field fce-wetness-field" data-condition-field hidden>
+        <label class="fce-field fce-wetness-field">
           <span>Antecedent wetness</span>
           <select data-wetness aria-label="Antecedent wetness class" aria-describedby="fce-wetness-definition">
+            <option value="All">All</option>
             <option value="Dry">Dry</option>
             <option value="Moderate">Moderate</option>
             <option value="Wet">Wet</option>
           </select>
         </label>
-        <label class="fce-field fce-forcing-field" data-condition-field hidden>
+        <label class="fce-field fce-forcing-field">
           <span>Rainfall forcing</span>
           <select data-forcing aria-label="Rainfall forcing class" aria-describedby="fce-forcing-definition">
-            <option value="Intensity">Intensity-led rainfall</option>
-            <option value="Volume">Volume-led rainfall</option>
+            <option value="All">All</option>
+            <option value="Intensity">Intensity-led</option>
+            <option value="Volume">Volume-led</option>
           </select>
         </label>
-        <button class="fce-help" data-definitions-toggle data-population-field aria-label="Explain condition metrics and event groups" aria-expanded="false" aria-controls="fce-class-definitions" title="Metrics and optional event groups">?</button>
+        <button class="fce-help" data-definitions-toggle aria-label="Explain condition metrics and event groups" aria-expanded="false" aria-controls="fce-class-definitions" title="Metrics and optional event groups">?</button>
         <div class="fce-summary" data-count aria-live="polite"></div>
         <label class="fce-field fce-evidence-field">
           <span>Map display</span>
@@ -305,16 +294,16 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       </div>
       <div class="fce-definitions" id="fce-class-definitions" hidden>
         <div class="fce-definitions-header"><strong>Continuous conditions and optional groups</strong><button data-definitions-close aria-label="Close classification explanation">×</button></div>
-        <p><b>Object chooses what is measured.</b> Flood characteristics contains flood volume, flood peak and Q95 frequency. Flood-generating conditions contains rainfall concentration and antecedent SSI, plus Process share when a group is selected. Event sample only changes which floods contribute; it does not change the measurement object.</p>
+        <p><b>Object chooses what is measured.</b> Flood characteristics contains flood volume, flood peak and Q95 frequency. Flood-generating conditions contains rainfall concentration and antecedent SSI, plus Process share when a group is selected.</p>
+        <p><b>All leaves a filter unrestricted.</b> All + All uses all selected Q95 floods. Wet + All includes both rainfall types over wet soil; All + Intensity-led includes all wetness states with intensity-led rainfall. Matching events are pooled before fitting each trend.</p>
         <p><b>All selected floods.</b> Rainfall concentration is 100 × Pmax / Pevent (%). Antecedent wetness is the source catalogue's pre-event soil saturation index (SSI, 0–1). Their full-sample trends use every valid selected event, regardless of its class. A trend describes generating conditions, not proof of a causal mechanism.</p>
         <p id="fce-wetness-definition"><b>Antecedent wetness.</b> Dry, Moderate and Wet follow the source catalogue's global SSI terciles, with approximate boundaries of 0.3994 and 0.5640. These are relative wetness groups, not universal soil-saturation thresholds.</p>
         <p id="fce-forcing-definition"><b>Rainfall forcing.</b> Intensity-led requires both Pmax / Pevent &gt; 0.50 and daily rainfall CV &gt; 1. Volume-led contains the remaining events; the label alone does not establish a large rainfall total or a particular runoff mechanism.</p>
-        <p><b>A catchment's event mix can change.</b> Each event is classified separately. With a process filter, Process share uses all selected floods as its denominator; concentration and wetness use only the selected group. Use All selected floods for the whole-sample continuous trend.</p>
+        <p><b>A catchment's event mix can change.</b> Each event is classified separately. Process share uses all selected Q95 floods as its denominator; concentration and wetness use only matching events. Select All in both filters for the whole-sample continuous trend.</p>
         <a href="https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2019WR026951" target="_blank" rel="noopener noreferrer">Rainfall rule: Tarasova et al. (2020)</a>
       </div>`;
     document.body.appendChild(this.toolbar);
     this.toolbar.querySelector("[data-scope-select]").onchange = (event) => this.setScope(event.target.value);
-    this.toolbar.querySelector("[data-population]").onchange = (event) => this.setPopulation(event.target.value);
     const selectConditions = () => this.setMechanism(`${this.toolbar.querySelector("[data-wetness]").value}-${this.toolbar.querySelector("[data-forcing]").value}`);
     this.toolbar.querySelector("[data-wetness]").onchange = selectConditions;
     this.toolbar.querySelector("[data-forcing]").onchange = selectConditions;
@@ -336,9 +325,6 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     if (!this.toolbar) return;
     const outcomeKeys = this.availableOutcomes();
     this.toolbar.querySelector("[data-scope-select]").value = this.scope;
-    this.toolbar.querySelectorAll("[data-population-field]").forEach((field) => { field.hidden = false; });
-    this.toolbar.querySelector("[data-population]").value = this.population;
-    this.toolbar.querySelectorAll("[data-condition-field]").forEach((field) => { field.hidden = this.population !== "process"; });
     const [wetness, forcing] = this.mechanism.split("-");
     this.toolbar.querySelector("[data-wetness]").value = wetness;
     this.toolbar.querySelector("[data-forcing]").value = forcing;
@@ -382,7 +368,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const checks = [
       { name: "p < 0.05", pass: metric.pPass, detail: `two-sided p = ${this.prob(metric.p)}` },
       { name: "Alternative extreme samples", pass: metric.sampleStable, detail: sampleDetail },
-      ...(this.population === "process" ? [{ name: "Classification threshold", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
+      ...(this.population === "process" && !this.mechanism.endsWith("-All") ? [{ name: "Classification threshold", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
       { name: "Leave-one-year-out", pass: metric.leaveOneYearStable, detail: "removing any one year does not reverse direction" },
     ];
     const passed = checks.filter((check) => check.pass).length;
@@ -526,7 +512,7 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
       .fce-field{display:grid;flex:0 0 auto;gap:1px;min-width:0;padding:4px 8px 5px;border:1px solid #dce6eb;border-radius:10px;background:#f7fafb}
       .fce-field>span{font-size:10px;font-weight:650;letter-spacing:.035em;color:#607184}
       .fce-field select{height:22px;box-sizing:border-box;padding:0 18px 0 0;border:0;background:transparent;color:#293a4d;font:650 12px Inter,system-ui;cursor:pointer}
-      .fce-scope-field select{width:222px}.fce-population-field select{width:163px}.fce-wetness-field select{width:115px}.fce-forcing-field select{width:182px}.fce-outcome-field select{width:188px}.fce-evidence-field select{width:125px}
+      .fce-scope-field select{width:222px}.fce-wetness-field select{width:115px}.fce-forcing-field select{width:125px}.fce-outcome-field select{width:188px}.fce-evidence-field select{width:125px}
       .fce-grid small{display:block;font-size:11px;color:#64778c;font-weight:400;margin-top:3px}
       .fce-trajectory{margin:16px 0;color:#334c5e}.fce-trajectory>p{margin:5px 0;color:#64778c;font-size:12px}.fce-trajectory svg{display:block;width:100%;height:auto;font:11px Inter,system-ui;fill:#526679}.fce-trajectory small{display:block;font-size:11px;line-height:1.5;color:#64778c}.fce-trajectory .fce-chart-key{display:flex;justify-content:space-between;font-size:11px}.fce-chart-key span:first-child{color:#758592}.fce-chart-key span:last-child{color:#2f6688}
       .fce-summary{display:flex;flex:0 0 auto;align-items:baseline;gap:4px;align-self:center;white-space:nowrap;padding:0 3px;color:#607184}

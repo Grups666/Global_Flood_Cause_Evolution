@@ -7,8 +7,12 @@ The compact **Object** selector has two choices:
 1. **Flood-generating conditions** — rainfall concentration and antecedent SSI; a selected process also exposes its share of the Q95-event sample.
 2. **Flood characteristics** — direct stormflow volume, daily flood peak and annual Q95-event frequency, for all selected floods or a selected process.
 
-**Object** determines the metric family. **Event sample** independently selects
-all Q95 floods or a process, with separate wetness and rainfall-forcing filters.
+**Object** determines the metric family. **Antecedent wetness** (All, Dry,
+Moderate, Wet) and **Rainfall forcing** (All, Intensity-led, Volume-led) independently
+filter contributing events. All + All uses every selected Q95 flood; a single
+restriction pools matching events across the unrestricted axis before fitting.
+There is no separate event-sample control. Process share always has all selected
+Q95 floods as its denominator, including for a one-axis filter.
 The default is unclassified, continuous generating conditions. Changing the
 event population never moves flood-response metrics into generating conditions.
 

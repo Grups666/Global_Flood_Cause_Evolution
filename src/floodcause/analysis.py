@@ -30,12 +30,28 @@ MECHANISMS = [
     "Wet-Intensity",
     "Wet-Volume",
 ]
+MARGINAL_GROUPS = ["Dry-All", "Moderate-All", "Wet-All", "All-Intensity", "All-Volume"]
 MAGNITUDE_VARIABLES = {
     "flood_peak": ("q_peak_mm_day", "mm/day per decade"),
     "direct_runoff_volume": ("q_direct_volume_mm", "mm per decade"),
     "rainfall_concentration": ("intensity_fraction", "percentage points per decade"),
     "antecedent_wetness": ("source_ssi", "SSI units per decade"),
 }
+
+
+def _group_mask(sample: pd.DataFrame, group: str) -> pd.Series:
+    """Select events on two independent axes; All leaves that axis unrestricted."""
+    wetness, forcing = group.split("-")
+    if wetness not in {"All", "Dry", "Moderate", "Wet"} or forcing not in {"All", "Intensity", "Volume"}:
+        raise ValueError(f"Unknown event group: {group}")
+    if wetness != "All" and forcing != "All":
+        return sample["mechanism"].eq(group)
+    mask = pd.Series(True, index=sample.index)
+    if wetness != "All":
+        mask &= sample["antecedent_state"].eq(wetness)
+    if forcing != "All":
+        mask &= sample["rainfall_organization"].eq(forcing)
+    return mask
 
 
 def _study_events(features: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
@@ -150,7 +166,7 @@ def _magnitude_trends(
     mechanism: str | None = None,
     outcomes: list[str] | None = None,
 ) -> pd.DataFrame:
-    data = sample if mechanism is None else sample[sample["mechanism"].eq(mechanism)]
+    data = sample if mechanism is None else sample[_group_mask(sample, mechanism)]
     selected_outcomes = outcomes or list(MAGNITUDE_VARIABLES)
     trends = fit_continuous_trends(
         data,
@@ -196,7 +212,9 @@ def _magnitude_trends(
     return trends
 
 
-def _composition_trends(sample: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+def _composition_trends(
+    sample: pd.DataFrame, config: dict[str, Any], groups: list[str] | None = None,
+) -> pd.DataFrame:
     settings = config["trends"]
     rows: list[dict[str, Any]] = []
     for gcin, catchment in sample.groupby("GCIN", sort=False):
@@ -204,8 +222,8 @@ def _composition_trends(sample: pd.DataFrame, config: dict[str, Any]) -> pd.Data
         if span < config["event_samples"]["minimum_selected_span_years"]:
             continue
         totals = catchment.groupby("peak_year").size().rename("total")
-        for mechanism in MECHANISMS:
-            positives = catchment["mechanism"].eq(mechanism)
+        for mechanism in MECHANISMS if groups is None else groups:
+            positives = _group_mask(catchment, mechanism)
             n_yes = int(positives.sum())
             n_no = int((~positives).sum())
             if n_yes < settings["minimum_mechanism_events"] or n_no < settings["minimum_mechanism_other_events"]:
@@ -240,11 +258,12 @@ def _composition_trends(sample: pd.DataFrame, config: dict[str, Any]) -> pd.Data
 
 
 def _mechanism_trends(
-    sample: pd.DataFrame, record_years: pd.DataFrame, config: dict[str, Any]
+    sample: pd.DataFrame, record_years: pd.DataFrame, config: dict[str, Any],
+    groups: list[str] | None = None,
 ) -> pd.DataFrame:
     settings = config["trends"]
-    frames = [_composition_trends(sample, config)]
-    for mechanism in MECHANISMS:
+    frames = [_composition_trends(sample, config, groups=groups)]
+    for mechanism in MECHANISMS if groups is None else groups:
         frame = _magnitude_trends(
             sample,
             minimum_years=settings["minimum_mechanism_years"],
@@ -259,7 +278,7 @@ def _mechanism_trends(
         )
         if not frame.empty:
             frames.append(frame)
-    frequency = _event_rate_trends(sample, record_years, config, by_mechanism=True)
+    frequency = _event_rate_trends(sample, record_years, config, by_mechanism=True, groups=groups)
     if not frequency.empty:
         frames.append(frequency)
     frames = [frame for frame in frames if not frame.empty]
@@ -271,12 +290,13 @@ def _event_rate_trends(
     record_years: pd.DataFrame,
     config: dict[str, Any],
     by_mechanism: bool = False,
+    groups: list[str] | None = None,
 ) -> pd.DataFrame:
     settings = config["trends"]
     rows: list[dict[str, Any]] = []
-    mechanisms = MECHANISMS if by_mechanism else ["All selected floods"]
+    mechanisms = (MECHANISMS if groups is None else groups) if by_mechanism else ["All selected floods"]
     for mechanism in mechanisms:
-        source = sample if not by_mechanism else sample[sample["mechanism"].eq(mechanism)]
+        source = sample if not by_mechanism else sample[_group_mask(sample, mechanism)]
         counts = source.groupby(["GCIN", "peak_year"]).size().rename("count")
         for gcin, years in record_years.groupby("GCIN", sort=False):
             annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year").copy()
@@ -389,6 +409,7 @@ def _direction_only_trends(
     record_years: pd.DataFrame,
     config: dict[str, Any],
     include_overall: bool = True,
+    groups: list[str] | None = None,
 ) -> pd.DataFrame:
     """Fast slopes used only to check direction in sensitivity samples."""
     settings = config["trends"]
@@ -414,8 +435,8 @@ def _direction_only_trends(
                              "display_slope_per_decade": estimate["display_slope_per_decade"]})
 
     totals = sample.groupby(["GCIN", "peak_year"]).size().rename("total")
-    for mechanism in MECHANISMS:
-        selected = sample[sample["mechanism"].eq(mechanism)]
+    for mechanism in MECHANISMS if groups is None else groups:
+        selected = sample[_group_mask(sample, mechanism)]
         event_counts = selected.groupby("GCIN").size()
         other_counts = sample.groupby("GCIN").size().sub(event_counts, fill_value=0)
         for outcome in ["flood_peak", "direct_runoff_volume", "rainfall_concentration", "antecedent_wetness"]:
@@ -468,7 +489,7 @@ def _refit_without_year(
     mechanism = str(row["mechanism"])
     outcome = str(row["outcome"])
     if outcome == "mechanism_share":
-        yes_mask = catchment["mechanism"].eq(mechanism)
+        yes_mask = _group_mask(catchment, mechanism)
         minimum = max(4, int(config["trends"]["minimum_mechanism_events"]) - 1)
         if int(yes_mask.sum()) < minimum or int((~yes_mask).sum()) < minimum:
             return None
@@ -487,7 +508,7 @@ def _refit_without_year(
         ]
         annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year").copy()
         if outcome == "mechanism_frequency":
-            catchment = catchment[catchment["mechanism"].eq(mechanism)]
+            catchment = catchment[_group_mask(catchment, mechanism)]
         counts = catchment.groupby("peak_year").size()
         annual["count"] = annual["peak_year"].map(counts).fillna(0)
         estimate = poisson_rate_trend(
@@ -505,7 +526,7 @@ def _refit_without_year(
             minimum_span = settings["minimum_mechanism_span_years"]
             mechanism_arg = mechanism
         if mechanism_arg is not None:
-            catchment = catchment[catchment["mechanism"].eq(mechanism_arg)]
+            catchment = catchment[_group_mask(catchment, mechanism_arg)]
         variable = MAGNITUDE_VARIABLES[outcome][0]
         annual = (
             catchment[["peak_year", variable]].dropna()
@@ -545,7 +566,7 @@ def _leave_one_year_stability(
             )
         elif candidate.outcome in MAGNITUDE_VARIABLES and candidate.mechanism != "All selected floods":
             observed_years = sorted(
-                catchment.loc[catchment["mechanism"].eq(candidate.mechanism), "peak_year"]
+                catchment.loc[_group_mask(catchment, candidate.mechanism), "peak_year"]
                 .dropna().astype(int).unique()
             )
         else:
@@ -573,7 +594,10 @@ def _leave_one_year_stability(
             "leave_one_year_min": min(slopes) if slopes else np.nan,
             "leave_one_year_max": max(slopes) if slopes else np.nan,
         })
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=[
+        "GCIN", "mechanism", "outcome", "leave_one_year_replicates",
+        "leave_one_year_stable", "leave_one_year_min", "leave_one_year_max",
+    ])
 
 
 def _finalize_evidence(

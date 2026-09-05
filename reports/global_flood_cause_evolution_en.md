@@ -12,13 +12,13 @@ The study asks what happened to the selected large floods and how their generati
 
 ### Reading the map: choose a physical quantity before an optional group
 
-Under **Object → Flood-generating conditions**, select **Rainfall concentration** or **Antecedent wetness (SSI)**. The default **All selected floods** uses all valid events in the same Q95 sample without a wetness or rainfall-class filter.
+Under **Object → Flood-generating conditions**, select **Rainfall concentration** or **Antecedent wetness (SSI)**. Both wetness and rainfall-forcing filters default to **All**, using all valid events in the same Q95 sample.
 
 The two metrics each have **2,497** estimable catchments; **85** rainfall-concentration trends and **87** SSI trends pass the project's complete local screen (p<0.05, alternative-sample direction agreement, and leave-one-year-out direction stability). Each metric requires at least 10 valid event-years and a first-to-last span of at least 20 years inclusive. Years without valid selected events are not filled with zeros.
 
 In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
 
-**Object** determines the metric family; **Event sample** independently selects all events or a process. Both objects support **Filter by process**, with separate antecedent-wetness and rainfall-organization controls. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (the selected type's share of all Q95 events). Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
+**Object** determines the metric family. **Antecedent wetness** and **Rainfall forcing** independently filter events; **All** leaves that axis unrestricted. Wet + All pools wet-soil events across both rainfall types; All + Intensity-led pools intensity-led events across all wetness states. Trends are refitted from matching events, not averaged from class slopes. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (matching events' share of all Q95 events). A wetness-only filter does not depend on rainfall-class cutoffs, so that stability check is not applied. Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
 
 ## 2. Data boundary
 
