@@ -71,7 +71,8 @@ def _style() -> None:
 
 def _header(fig: plt.Figure, title: str, subtitle: str) -> None:
     fig.text(0.055, 0.972, title, ha="left", va="top", fontsize=17, weight="bold")
-    fig.text(0.055, 0.928, subtitle, ha="left", va="top", fontsize=9.5, color=MUTED)
+    subtitle_y = 0.972 - max(0.044, 0.34 / fig.get_figheight())
+    fig.text(0.055, subtitle_y, subtitle, ha="left", va="top", fontsize=9.5, color=MUTED)
 
 
 def _footer(fig: plt.Figure, text: str) -> None:
@@ -141,7 +142,7 @@ def figure_sample_and_process_coverage(config: dict[str, Any]) -> None:
 
     fig = plt.figure(figsize=(13.5, 7.2))
     grid = fig.add_gridspec(1, 2, width_ratios=[3.25, 1.35], left=0.055, right=0.96,
-                            bottom=0.11, top=0.84, wspace=0.10)
+                            bottom=0.11, top=0.84, wspace=0.43)
     ax = fig.add_subplot(grid[0, 0])
     _base_map(ax, world)
     ax.scatter(catchments["longitude"], catchments["latitude"], s=5.8,
@@ -165,7 +166,7 @@ def figure_sample_and_process_coverage(config: dict[str, Any]) -> None:
 
     _header(fig, "The primary sample is global; its process mixture is not",
             "Catchment-specific Q95 of direct stormflow volume · rainfall-driven low-snow events · 1982–2019")
-    _footer(fig, "Points are observed catchments, not an area-complete global sample. Process = antecedent state × rainfall temporal organization.")
+    _footer(fig, f"Composition uses {int(composition.events.sum()):,} classifiable events; {len(sample) - int(composition.events.sum())} lack previous-day SSI. Points represent observed catchments, not area-complete coverage.")
     _save(fig, config["paths"]["figures"] / "figure_01_sample_and_process_coverage", config["plotting"]["dpi"])
 
 
@@ -211,7 +212,7 @@ def _six_process_maps(config: dict[str, Any], outcome: str, filename: str, title
         cbar.set_label(unit.iloc[0] if len(unit) else "change per decade", fontsize=8.5)
     _header(fig, title,
             "Each panel follows one flood-generating process within each gauged catchment; opposing local directions are retained")
-    _footer(fig, "A process is estimated with ≥5 selected events. Supported points pass p<0.05, alternative-sample, classification-threshold and leave-one-year checks.")
+    _footer(fig, "A process is estimated with ≥5 selected events. Supported points pass p<0.05, alternative-sample, rainfall-cutoff and leave-one-year checks.")
     _save(fig, config["paths"]["figures"] / filename, config["plotting"]["dpi"])
 
 
@@ -270,7 +271,7 @@ def figure_example_trajectories(config: dict[str, Any]) -> None:
     sample = pd.read_parquet(config["paths"]["derived_data"] / "primary_extreme_events.parquet")
     fig, axes = plt.subplots(1, max(1, len(examples)), figsize=(13.5, 4.8), squeeze=False)
     for ax, row in zip(axes.ravel(), examples.itertuples(index=False)):
-        catchment = sample[sample["GCIN"].eq(row.GCIN)]
+        catchment = sample[sample["GCIN"].eq(row.GCIN) & sample["mechanism"].isin(MECHANISMS)]
         totals = catchment.groupby("peak_year").size().rename("total")
         yes = catchment[catchment["mechanism"].eq(row.mechanism)].groupby("peak_year").size().rename("success")
         annual = pd.concat([totals, yes], axis=1).fillna(0).reset_index()

@@ -66,15 +66,19 @@ All other rainfall events are **Volume**. The concentration threshold is repeate
 
 ## 5. Antecedent wetness
 
-The event catalogue supplies a soil saturation index (SSI), bounded from 0 to 1, and an audited antecedent state: `Dry`, `Moderate` or `Wet`. SSI summarizes storage relative to modelled field capacity. It is not soil-water depth in millimetres. The empirical boundaries in the source catalogue are approximately
+SSI is a normalized 0–1 soil-wetness index, not soil-water depth in millimetres. The analytical event value is daily SSI on the calendar day before rainfall begins: `ssi_1d = SSI(start_precip_date − 1 day)`. The cutoffs are recalculated by pooling all 35,918,563 valid daily SSI values from the 2,637 primary-sample catchments over 1982–2019, including non-event days. Each valid catchment-day has equal weight. The pooled one-third and two-thirds quantiles (linear interpolation) give:
 
 \[
-SSI\leq0.3994:\ Dry,\qquad
-0.3994<SSI\leq0.5640:\ Moderate,\qquad
-SSI>0.5640:\ Wet.
+SSI\leq0.404690:\ Dry,\qquad
+0.404690<SSI\leq0.576339:\ Moderate,\qquad
+SSI>0.576339:\ Wet.
 \]
 
-The three states preserve physically intermediate conditions. For example, SSI = 0.25 is dry, SSI = 0.48 is moderate and SSI = 0.75 is wet under the catalogue thresholds. The continuous SSI remains available for trend estimation; the label is used only to form process groups.
+For example, rainfall starting on 10 June uses SSI on 9 June; values of 0.30, 0.50 and 0.70 correspond to Dry, Moderate and Wet. Full-precision cutoffs are stored in the calibration receipt and frozen across all years and extreme-event sensitivity samples. Continuous SSI remains the primary wetness quantity; classes only form event groups. These network-relative terciles are not universal physical thresholds.
+
+Seven Q95 events begin on 1 January 1982 and lack previous-day SSI. They remain in flood/rainfall analysis but receive `Unknown` wetness and `Unclassified` joint labels. Wetness-group shares exclude them from the denominator; wetness-group frequency excludes the affected catchment-years to avoid false zero counts. Forcing-only groups do not require wetness classification.
+
+Diagnostics repeat wetness classification at pooled 25/75 and 40/60 percentiles, and repeat full-sample continuous SSI trends with complete 3-, 7- and 30-day pre-rainfall means. These are reported sensitivity diagnostics, not additional support gates. Outputs include per-catchment/day coverage, event-time alignment and per-catchment/year event missingness.
 
 ## 6. Six rainfall-driven processes
 

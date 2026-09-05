@@ -296,10 +296,10 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
         <div class="fce-definitions-header"><strong>Continuous conditions and optional groups</strong><button data-definitions-close aria-label="Close classification explanation">×</button></div>
         <p><b>Object chooses what is measured.</b> Flood characteristics contains flood volume, flood peak and Q95 frequency. Flood-generating conditions contains rainfall concentration and antecedent SSI, plus Process share when a group is selected.</p>
         <p><b>All leaves a filter unrestricted.</b> All + All uses all selected Q95 floods. Wet + All includes both rainfall types over wet soil; All + Intensity-led includes all wetness states with intensity-led rainfall. Matching events are pooled before fitting each trend.</p>
-        <p><b>All selected floods.</b> Rainfall concentration is 100 × Pmax / Pevent (%). Antecedent wetness is the source catalogue's pre-event soil saturation index (SSI, 0–1). Their full-sample trends use every valid selected event, regardless of its class. A trend describes generating conditions, not proof of a causal mechanism.</p>
-        <p id="fce-wetness-definition"><b>Antecedent wetness.</b> Dry, Moderate and Wet follow the source catalogue's global SSI terciles, with approximate boundaries of 0.3994 and 0.5640. These are relative wetness groups, not universal soil-saturation thresholds.</p>
+        <p><b>All selected floods.</b> Rainfall concentration is 100 × Pmax / Pevent (%). Antecedent wetness is the soil saturation index (SSI, 0–1) on the day before rainfall begins. Their full-sample trends use every valid selected event, regardless of its class. A trend describes generating conditions, not proof of a causal mechanism.</p>
+        <p id="fce-wetness-definition"><b>Antecedent wetness.</b> Dry: SSI ≤ ${this.num(this.data.meta.wetnessCalibration.lower, 4)}; Moderate: between the two cutoffs; Wet: SSI > ${this.num(this.data.meta.wetnessCalibration.upper, 4)}. The cutoffs are the 1/3 and 2/3 quantiles of ${this.data.meta.wetnessCalibration.dailyValues.toLocaleString()} valid daily SSI values from all ${this.data.meta.wetnessCalibration.catchments.toLocaleString()} included catchments, 1982–2019—not only flood days. These are relative wetness groups, not universal soil-saturation thresholds.</p>
         <p id="fce-forcing-definition"><b>Rainfall forcing.</b> Intensity-led requires both Pmax / Pevent &gt; 0.50 and daily rainfall CV &gt; 1. Volume-led contains the remaining events; the label alone does not establish a large rainfall total or a particular runoff mechanism.</p>
-        <p><b>A catchment's event mix can change.</b> Each event is classified separately. Process share uses all selected Q95 floods as its denominator; concentration and wetness use only matching events. Select All in both filters for the whole-sample continuous trend.</p>
+        <p><b>A catchment's event mix can change.</b> Each event is classified separately. Process share uses selected Q95 floods with the required classification observed as its denominator; concentration and wetness use only matching events with valid values. ${this.data.meta.wetnessCalibration.missingPrimaryEvents} events lack previous-day SSI: they remain available for flood and rainfall analyses, but not for wetness classification. Wetness-filtered frequency excludes years containing an unclassifiable selected event. Select All in both filters for the whole-sample continuous trend.</p>
         <a href="https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2019WR026951" target="_blank" rel="noopener noreferrer">Rainfall rule: Tarasova et al. (2020)</a>
       </div>`;
     document.body.appendChild(this.toolbar);
@@ -368,12 +368,13 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const checks = [
       { name: "p < 0.05", pass: metric.pPass, detail: `two-sided p = ${this.prob(metric.p)}` },
       { name: "Alternative extreme samples", pass: metric.sampleStable, detail: sampleDetail },
-      ...(this.population === "process" && !this.mechanism.endsWith("-All") ? [{ name: "Classification threshold", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
+      ...(this.population === "process" && !this.mechanism.endsWith("-All") ? [{ name: "Rainfall cutoff", pass: metric.classificationStable, detail: "same direction at concentration cutoffs 0.40 and 0.60" }] : []),
       { name: "Leave-one-year-out", pass: metric.leaveOneYearStable, detail: "removing any one year does not reverse direction" },
     ];
     const passed = checks.filter((check) => check.pass).length;
     this.app.showInspector?.(`GCIN ${item.id} · ${item.country}`, `
       <p class="fce-inspector-lead">${this.escape(process)} · ${this.escape(outcome.label)}</p>
+      ${item.missingPreviousDaySSI && (this.outcomeKey === "antecedent_wetness" || !this.mechanism.startsWith("All-")) ? `<p class="fce-note">${item.missingPreviousDaySSI} selected event(s) lack previous-day SSI. They do not enter wetness values or class shares; affected years are omitted from wetness-filtered frequency.</p>` : ""}
       ${this.population === "process" && ["rainfall_concentration", "antecedent_wetness"].includes(this.outcomeKey) ? '<p class="fce-note">Within the selected event group. Group membership can change over time; use Process share to inspect shifts between types.</p>' : ""}
       <div class="fce-result"><span>${this.escape(this.direction(metric.slope))}</span><strong style="color:${Number(metric.slope) >= 0 ? '#d96b3f' : '#2f6688'}">${this.displayEffect(metric.slope, outcome.digits)}</strong><small>${this.escape(outcome.unit)}</small><p>${this.escape(this.physicalMeaning(metric))}</p></div>
       ${this.annualChart(metric)}
@@ -396,9 +397,9 @@ window.FloodCauseEvolutionModule = class FloodCauseEvolutionModule {
     const from = this.num(metric.from, this.outcome().digits);
     const to = this.num(metric.to, this.outcome().digits);
     const slope = this.signed(metric.slope, this.outcome().digits);
-    if (this.outcomeKey === "mechanism_share") return `Among selected large floods, this process changes from about ${from}% to ${to}% across the fitted record (${slope} percentage points per 10 years).`;
+    if (this.outcomeKey === "mechanism_share") return `Among selected large floods with the required classification observed, this process changes from about ${from}% to ${to}% across the fitted record (${slope} percentage points per 10 years).`;
     if (this.outcomeKey === "rainfall_concentration") return `For ${this.population === "process" ? "floods in this event group" : "all selected floods"}, the fitted rainfall-concentration trend is ${slope} percentage points per 10 years: the share of event rainfall falling on its rainiest day ${Number(metric.slope) >= 0 ? "increases" : "decreases"}.`;
-    if (this.outcomeKey === "antecedent_wetness") return `Before ${this.population === "process" ? "floods in this event group" : "all selected floods"}, the fitted soil saturation index ${Number(metric.slope) >= 0 ? "increases" : "decreases"} by ${this.num(Math.abs(metric.slope), 3)} SSI units per 10 years.`;
+    if (this.outcomeKey === "antecedent_wetness") return `On the day before rainfall begins ${this.population === "process" ? "for this event group" : "for the selected large floods"}, soil saturation index ${Number(metric.slope) >= 0 ? "increases" : "decreases"} by ${this.num(Math.abs(metric.slope), 3)} SSI units per 10 years.`;
     if (this.outcomeKey === "mechanism_frequency") return `This process changes from about ${from} to ${to} selected large floods per observed year across the fitted record.`;
     if (this.outcomeKey === "exceedance_frequency") return `The fixed-threshold Q95-event frequency changes from about ${from} to ${to} events per observed year across the fitted record.`;
     if (this.outcomeKey === "direct_runoff_volume") return `Mean selected-event direct stormflow volume changes from about ${from} to ${to} mm across the fitted record.`;

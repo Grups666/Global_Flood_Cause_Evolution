@@ -15,7 +15,7 @@ import pandas as pd
 from .analysis import (
     MARGINAL_GROUPS, SAMPLE_FILES, _assign_mechanism, _attach_sensitivity,
     _direction_only_trends, _finalize_evidence, _group_mask, _mechanism_trends,
-    _record_eligibility, _study_events,
+    _record_eligibility, _study_events, _group_observed,
 )
 
 
@@ -58,10 +58,13 @@ def run_filter_groups(config: dict[str, Any]) -> dict[str, Any]:
     counts = []
     for group in MARGINAL_GROUPS:
         matching = primary[_group_mask(primary, group)].groupby("GCIN").size()
+        known = primary[_group_observed(primary, group)].groupby("GCIN").size()
         for gcin, total in primary.groupby("GCIN").size().items():
             count = int(matching.get(gcin, 0))
+            valid = int(known.get(gcin, 0))
             counts.append({"GCIN": int(gcin), "group": group, "events": count,
-                           "other_events": int(total) - count, "all_q95_events": int(total)})
+                           "other_events": valid - count, "known_group_events": valid,
+                           "unknown_group_events": int(total) - valid, "all_q95_events": int(total)})
     pd.DataFrame(counts).to_csv(tables / "catchment_filter_group_counts.csv", index=False)
     summary = {
         "status": "complete", "sample": "pot_q95", "events": len(primary),

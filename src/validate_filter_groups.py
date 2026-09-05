@@ -28,17 +28,20 @@ def main() -> None:
     all_counts = sample.groupby("GCIN").size()
     for group in MARGINAL_GROUPS:
         wetness, forcing = group.split("-")
-        # Independent membership from the six saved event labels, without
-        # using the implementation's axis selector to build the expected set.
-        labels = sample.mechanism.str.split("-", expand=True)
-        expected = (labels[0].eq(wetness) if wetness != "All" else pd.Series(True, index=sample.index))
-        expected &= (labels[1].eq(forcing) if forcing != "All" else pd.Series(True, index=sample.index))
+        # Independent rainfall membership remains known even without SSI.
+        intensity = sample.intensity_fraction.gt(.5) & sample.precipitation_cv.gt(1)
+        expected = (sample.antecedent_state.eq(wetness) if wetness != "All" else pd.Series(True, index=sample.index))
+        expected &= (intensity.eq(forcing == "Intensity") if forcing != "All" else pd.Series(True, index=sample.index))
+        known = sample if wetness == "All" else sample[sample.ssi_1d.notna()]
+        known_counts = known.groupby("GCIN").size().reindex(all_counts.index, fill_value=0)
         assert expected.equals(_group_mask(sample, group))
         selected = sample[expected]
         observed = selected.groupby("GCIN").size().reindex(all_counts.index, fill_value=0)
         audit = counts[counts.group.eq(group)].set_index("GCIN").reindex(all_counts.index)
         np.testing.assert_array_equal(audit.events, observed)
-        np.testing.assert_array_equal(audit.other_events, all_counts - observed)
+        np.testing.assert_array_equal(audit.other_events, known_counts - observed)
+        np.testing.assert_array_equal(audit.known_group_events, known_counts)
+        np.testing.assert_array_equal(audit.unknown_group_events, all_counts - known_counts)
         np.testing.assert_array_equal(audit.all_q95_events, all_counts)
         part = table[table.mechanism.eq(group)]
         assert part.classification_check_applies.eq(forcing != "All").all()
@@ -66,9 +69,9 @@ def main() -> None:
         shares = part[part.outcome.eq("mechanism_share")].set_index("GCIN")
         for gcin, row in shares.iterrows():
             assert row.n_mechanism_events == observed[gcin]
-            assert row.n_other_events == all_counts[gcin] - observed[gcin]
-            assert row.n_observations == all_counts[gcin]
-            np.testing.assert_allclose(row.mean_level, 100 * observed[gcin] / all_counts[gcin])
+            assert row.n_other_events == known_counts[gcin] - observed[gcin]
+            assert row.n_observations == known_counts[gcin]
+            np.testing.assert_allclose(row.mean_level, 100 * observed[gcin] / known_counts[gcin])
         for row in part.itertuples(index=False):
             metric = web[row.GCIN]["processes"][group][row.outcome]
             assert metric["slope"] == round(row.display_slope_per_decade, 6)
@@ -91,10 +94,14 @@ def main() -> None:
             selected = catchment[_group_mask(catchment, group)]
             yes = selected.groupby("peak_year").size()
             if outcome == "mechanism_share":
-                totals = catchment.groupby("peak_year").size()
+                known = catchment if group.startswith("All-") else catchment[catchment.ssi_1d.notna()]
+                totals = known.groupby("peak_year").size()
                 fit = binomial_probability_trend(totals.index.to_numpy(float), yes.reindex(totals.index, fill_value=0).to_numpy(float), totals.to_numpy(float))
             else:
                 years = record.loc[record.GCIN.eq(row.GCIN), "peak_year"].sort_values().to_numpy(float)
+                if not group.startswith("All-"):
+                    unknown_years = catchment.loc[catchment.ssi_1d.isna(), "peak_year"]
+                    years = years[~np.isin(years, unknown_years)]
                 values = yes.reindex(years, fill_value=0).to_numpy(float)
                 fit = poisson_rate_trend(years, values)
                 assert row.n_years == len(years)

@@ -22,7 +22,7 @@ def main() -> None:
     checks = []
     for outcome, variable, factor, bound in [
         ("rainfall_concentration", "intensity_fraction", 100., 100.),
-        ("antecedent_wetness", "source_ssi", 1., 1.),
+        ("antecedent_wetness", "ssi_1d", 1., 1.),
     ]:
         valid = sample.dropna(subset=[variable])
         expected = valid.groupby(["GCIN", "peak_year"])[variable].agg(["mean", "size"]).reset_index()

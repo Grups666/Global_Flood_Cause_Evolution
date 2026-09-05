@@ -64,9 +64,9 @@ OUTCOMES = {
     },
     "antecedent_wetness": {
         "short": "Antecedent wetness",
-        "label": "Soil saturation index before the selected flood events",
+        "label": "Soil saturation index on the day before rainfall begins",
         "unit": "SSI units per 10 years",
-        "meaning": "The normalized 0–1 soil saturation state preceding the selected events.",
+        "meaning": "The normalized 0–1 soil saturation index on the calendar day before each event's rainfall begins.",
         "digits": 3,
     },
 }
@@ -103,6 +103,7 @@ def _metric(row: pd.Series) -> dict[str, Any]:
         "relative": _native(row.get("relative_slope_percent_per_decade"), 5),
         "events": _native(row.n_observations),
         "mechanismEvents": _native(row.get("n_mechanism_events")),
+        "classificationMissingEvents": _native(row.get("classification_missing_events", 0)),
         "years": _native(row.n_years),
         "firstYear": _native(row.first_year),
         "lastYear": _native(row.last_year),
@@ -139,6 +140,8 @@ def build_web_data() -> dict[str, Any]:
     sample = pd.read_parquet(ROOT / "data" / "derived" / "primary_extreme_events.parquet")
     metadata = sample[["GCIN", "country", "continent", "longitude", "latitude"]].drop_duplicates("GCIN")
     composition = pd.read_csv(TABLES / "mechanism_composition.csv")
+    missing_ssi = sample.ssi_1d.isna().groupby(sample.GCIN).sum()
+    wetness = summary["classification"]["wetness"]
 
     overall_groups = {int(key): frame for key, frame in overall.groupby("GCIN", sort=False)}
     condition_groups = {int(key): frame for key, frame in conditions.groupby("GCIN", sort=False)}
@@ -183,6 +186,7 @@ def build_web_data() -> dict[str, Any]:
             "continent": item.continent,
             "lon": round(float(item.longitude), 5),
             "lat": round(float(item.latitude), 5),
+            "missingPreviousDaySSI": int(missing_ssi.get(gcin, 0)),
             "overall": overall_metrics,
             "conditions": condition_metrics,
             "processes": process_metrics,
@@ -210,6 +214,14 @@ def build_web_data() -> dict[str, Any]:
             "period": "1982–2019",
             "primaryEvents": summary["sample_counts"]["pot_q95"]["events"],
             "primaryCatchments": summary["sample_counts"]["pot_q95"]["catchments"],
+            "wetnessCalibration": {
+                "dayOffset": -1, "lower": wetness["terciles"]["lower"],
+                "upper": wetness["terciles"]["upper"],
+                "catchments": wetness["cohort_catchments"], "dailyValues": wetness["valid_ssi_days"],
+                "startDate": wetness["start_date"], "endDate": wetness["end_date"],
+                "missingPrimaryEvents": summary["unclassified_primary_events"],
+                "classifiedPrimaryEvents": summary["classified_primary_events"],
+            },
             "rankingVariable": "Event direct stormflow volume",
             "outcomes": outcome_meta,
             "mechanisms": [{"id": key, "label": key.replace("-", " + "), "meaning": MECHANISM_TEXT[key]} for key in MECHANISMS],

@@ -28,11 +28,12 @@
 | `p_volume_daily_mm` | Sum of daily precipitation over the event |
 | `intensity_fraction` | `p_max_daily_mm / p_volume_daily_mm`; rainiest-day share of event rainfall |
 | `precipitation_cv` | Temporal coefficient of variation of daily event precipitation |
-| `source_ssi` | Source event-catalogue soil saturation index |
-| `antecedent_state` | `Dry`, `Moderate` or `Wet` from the audited source classification |
+| `source_ssi` | Audit-only source-catalogue SSI; verified as rainfall-start-day SSI, not used for the analytical antecedent metric |
+| `antecedent_state` | `Dry`, `Moderate` or `Wet` from previous-day SSI and recalibrated pooled daily terciles; `Unknown` when missing |
 | `rainfall_organization` | `Intensity` if concentration >0.50 and precipitation CV >1; otherwise `Volume` |
-| `mechanism` | Cross of antecedent state and rainfall organization |
-| `ssi_1d`, `ssi_3d`, `ssi_7d`, `ssi_30d` | Reconstructed mean SSI over complete days before rainfall starts; retained for diagnostics |
+| `mechanism` | Cross of antecedent state and rainfall organization; `Unclassified` if antecedent SSI is missing |
+| `ssi_1d` | Primary antecedent metric: daily SSI on the day before rainfall begins |
+| `ssi_3d`, `ssi_7d`, `ssi_30d` | Mean SSI over complete 3-, 7- or 30-day windows ending the day before rainfall begins; sensitivity diagnostics |
 
 ## Trend outputs
 

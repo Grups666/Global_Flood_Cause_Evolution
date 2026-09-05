@@ -35,7 +35,7 @@ MAGNITUDE_VARIABLES = {
     "flood_peak": ("q_peak_mm_day", "mm/day per decade"),
     "direct_runoff_volume": ("q_direct_volume_mm", "mm per decade"),
     "rainfall_concentration": ("intensity_fraction", "percentage points per decade"),
-    "antecedent_wetness": ("source_ssi", "SSI units per decade"),
+    "antecedent_wetness": ("ssi_1d", "SSI units per decade"),
 }
 
 
@@ -60,16 +60,41 @@ def _study_events(features: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
         "q_direct_volume_mm",
         "peak_year",
         "intensity_fraction",
-        "event_type_source",
     ]
     data = features.dropna(subset=required).copy()
     study = config["study"]
     data = data[data["peak_year"].between(study["start_year"], study["end_year"])]
-    states = data["event_type_source"].astype(str).str.split("-").str[-1]
-    data["antecedent_state"] = states.replace({"Mod": "Moderate"})
-    data = data[data["antecedent_state"].isin(config["classification"]["antecedent_states"])]
+    # Flood selection does not depend on a source catalogue's wetness label.
     data["continent"] = assign_continent(data["country"])
     return data
+
+
+def _assign_wetness(frame: pd.DataFrame, lower: float, upper: float) -> pd.DataFrame:
+    data = frame.copy()
+    ssi = pd.to_numeric(data["ssi_1d"], errors="coerce")
+    valid = np.isfinite(ssi) & ssi.between(0, 1)
+    data["ssi_1d"] = ssi.where(valid)
+    data["antecedent_state"] = np.select(
+        [valid & ssi.le(lower), valid & ssi.le(upper), valid & ssi.gt(upper)],
+        ["Dry", "Moderate", "Wet"], default="Unknown",
+    )
+    return data
+
+
+def _group_observed(sample: pd.DataFrame, group: str) -> pd.Series:
+    """Can membership be determined? Unknown wetness is never a negative case."""
+    observed = sample["rainfall_organization"].isin(["Intensity", "Volume"])
+    if not group.startswith("All-"):
+        observed &= sample["antecedent_state"].isin(["Dry", "Moderate", "Wet"])
+    return observed
+
+
+def _usable_rate_years(sample: pd.DataFrame, years: pd.DataFrame, group: str) -> pd.DataFrame:
+    unknown = sample.loc[~_group_observed(sample, group), ["GCIN", "peak_year"]].drop_duplicates()
+    if unknown.empty:
+        return years
+    bad = pd.MultiIndex.from_frame(unknown)
+    return years.loc[~pd.MultiIndex.from_frame(years[["GCIN", "peak_year"]]).isin(bad)]
 
 
 def _assign_mechanism(
@@ -83,6 +108,7 @@ def _assign_mechanism(
         "Volume",
     )
     data["mechanism"] = data["antecedent_state"] + "-" + data["rainfall_organization"]
+    data.loc[data["antecedent_state"].eq("Unknown"), "mechanism"] = "Unclassified"
     return data
 
 
@@ -152,9 +178,13 @@ def _select_samples(
         "pot_q90": _select_pot(events, eligible_ids, 0.90, config),
         "pot_q975": _select_pot(events, eligible_ids, 0.975, config),
     }
+    from calibrate_wetness import calibrate
+
+    calibration = calibrate(samples["pot_q95"], config)
+    lower, upper = calibration["terciles"]["lower"], calibration["terciles"]["upper"]
     cv_threshold = float(config["classification"]["rainfall_temporal_cv_threshold"])
     return {
-        name: _assign_mechanism(sample, threshold, cv_threshold)
+        name: _assign_mechanism(_assign_wetness(sample, lower, upper), threshold, cv_threshold)
         for name, sample in samples.items()
     }
 
@@ -221,14 +251,15 @@ def _composition_trends(
         span = int(catchment["peak_year"].max() - catchment["peak_year"].min() + 1)
         if span < config["event_samples"]["minimum_selected_span_years"]:
             continue
-        totals = catchment.groupby("peak_year").size().rename("total")
         for mechanism in MECHANISMS if groups is None else groups:
-            positives = _group_mask(catchment, mechanism)
+            known = catchment[_group_observed(catchment, mechanism)]
+            totals = known.groupby("peak_year").size().rename("total")
+            positives = _group_mask(known, mechanism)
             n_yes = int(positives.sum())
             n_no = int((~positives).sum())
             if n_yes < settings["minimum_mechanism_events"] or n_no < settings["minimum_mechanism_other_events"]:
                 continue
-            yes = catchment.loc[positives].groupby("peak_year").size().rename("success")
+            yes = known.loc[positives].groupby("peak_year").size().rename("success")
             annual = pd.concat([totals, yes], axis=1).fillna(0).reset_index()
             estimate = binomial_probability_trend(
                 annual["peak_year"].to_numpy(float),
@@ -242,14 +273,15 @@ def _composition_trends(
                 "mechanism": mechanism,
                 "outcome": "mechanism_share",
                 "variable": "mechanism_share",
-                "n_observations": int(len(catchment)),
+                "n_observations": int(len(known)),
+                "classification_missing_events": int(len(catchment) - len(known)),
                 "n_mechanism_events": n_yes,
                 "n_other_events": n_no,
                 "n_years": int(annual["peak_year"].nunique()),
                 "first_year": int(annual["peak_year"].min()),
                 "last_year": int(annual["peak_year"].max()),
                 "year_span": span,
-                "mean_level": 100.0 * n_yes / len(catchment),
+                "mean_level": 100.0 * n_yes / len(known),
                 "display_unit": "percentage points per decade",
                 "relative_slope_percent_per_decade": np.nan,
                 **estimate,
@@ -298,7 +330,8 @@ def _event_rate_trends(
     for mechanism in mechanisms:
         source = sample if not by_mechanism else sample[_group_mask(sample, mechanism)]
         counts = source.groupby(["GCIN", "peak_year"]).size().rename("count")
-        for gcin, years in record_years.groupby("GCIN", sort=False):
+        usable_years = _usable_rate_years(sample, record_years, mechanism) if by_mechanism else record_years
+        for gcin, years in usable_years.groupby("GCIN", sort=False):
             annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year").copy()
             annual["count"] = [counts.get((gcin, year), 0) for year in annual["peak_year"]]
             n_events = int(annual["count"].sum())
@@ -434,14 +467,15 @@ def _direction_only_trends(
                 rows.append({"GCIN": int(gcin), "mechanism": "All selected floods", "outcome": "exceedance_frequency",
                              "display_slope_per_decade": estimate["display_slope_per_decade"]})
 
-    totals = sample.groupby(["GCIN", "peak_year"]).size().rename("total")
     for mechanism in MECHANISMS if groups is None else groups:
+        known = sample[_group_observed(sample, mechanism)]
+        totals = known.groupby(["GCIN", "peak_year"]).size().rename("total")
         selected = sample[_group_mask(sample, mechanism)]
         event_counts = selected.groupby("GCIN").size()
-        other_counts = sample.groupby("GCIN").size().sub(event_counts, fill_value=0)
+        other_counts = known.groupby("GCIN").size().sub(event_counts, fill_value=0)
         for outcome in ["flood_peak", "direct_runoff_volume", "rainfall_concentration", "antecedent_wetness"]:
             variable = MAGNITUDE_VARIABLES[outcome][0]
-            annual = selected.groupby(["GCIN", "peak_year"], as_index=False)[variable].mean()
+            annual = selected.dropna(subset=[variable]).groupby(["GCIN", "peak_year"], as_index=False)[variable].mean()
             for gcin, frame in annual.groupby("GCIN", sort=False):
                 span = int(frame.peak_year.max() - frame.peak_year.min() + 1)
                 if len(frame) >= settings["minimum_mechanism_years"] and span >= settings["minimum_mechanism_span_years"]:
@@ -467,7 +501,7 @@ def _direction_only_trends(
                         "display_slope_per_decade": estimate["display_slope_per_decade"],
                     })
         process_counts = selected.groupby(["GCIN", "peak_year"]).size()
-        for gcin, years in record_years.groupby("GCIN", sort=False):
+        for gcin, years in _usable_rate_years(sample, record_years, mechanism).groupby("GCIN", sort=False):
             if event_counts.get(gcin, 0) < settings["minimum_mechanism_events"]:
                 continue
             annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year")
@@ -489,6 +523,7 @@ def _refit_without_year(
     mechanism = str(row["mechanism"])
     outcome = str(row["outcome"])
     if outcome == "mechanism_share":
+        catchment = catchment[_group_observed(catchment, mechanism)]
         yes_mask = _group_mask(catchment, mechanism)
         minimum = max(4, int(config["trends"]["minimum_mechanism_events"]) - 1)
         if int(yes_mask.sum()) < minimum or int((~yes_mask).sum()) < minimum:
@@ -506,9 +541,10 @@ def _refit_without_year(
         years = catchment_record_years[
             catchment_record_years["peak_year"].ne(int(row["removed_year"]))
         ]
-        annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year").copy()
         if outcome == "mechanism_frequency":
+            years = _usable_rate_years(catchment, years, mechanism)
             catchment = catchment[_group_mask(catchment, mechanism)]
+        annual = years[["peak_year"]].drop_duplicates().sort_values("peak_year").copy()
         counts = catchment.groupby("peak_year").size()
         annual["count"] = annual["peak_year"].map(counts).fillna(0)
         estimate = poisson_rate_trend(
@@ -560,8 +596,10 @@ def _leave_one_year_stability(
         catchment = sample_groups[int(candidate.GCIN)]
         catchment_record_years = record_groups[int(candidate.GCIN)]
         if candidate.outcome in {"exceedance_frequency", "mechanism_frequency"}:
+            if candidate.outcome == "mechanism_frequency":
+                catchment_record_years = _usable_rate_years(catchment, catchment_record_years, candidate.mechanism)
             observed_years = sorted(
-                record_years.loc[record_years["GCIN"].eq(candidate.GCIN), "peak_year"]
+                catchment_record_years["peak_year"]
                 .dropna().astype(int).unique()
             )
         elif candidate.outcome in MAGNITUDE_VARIABLES and candidate.mechanism != "All selected floods":
@@ -625,6 +663,7 @@ def _finalize_evidence(
 
 
 def _annual_mechanism_summary(sample: pd.DataFrame) -> pd.DataFrame:
+    sample = sample[sample["mechanism"].isin(MECHANISMS)]
     catchment_year = (
         sample.groupby(["GCIN", "peak_year", "mechanism"]).size().rename("events").reset_index()
     )
@@ -676,6 +715,13 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
         sample.to_parquet(
             config["paths"]["derived_data"] / SAMPLE_FILES[name], index=False, compression="zstd"
         )
+    pd.concat([
+        sample.assign(sample=name, missing_previous_day_ssi=sample["ssi_1d"].isna())
+        .groupby(["sample", "GCIN", "peak_year"], as_index=False)
+        .agg(selected_events=("event_key", "size"), missing_previous_day_ssi=("missing_previous_day_ssi", "sum"))
+        for name, sample in samples.items()
+    ], ignore_index=True).to_csv(config["paths"]["tables"] / "wetness_event_missingness.csv", index=False)
+    print("Samples calibrated and saved with previous-day SSI. Fitting main trends...", flush=True)
 
     overall_primary = _overall_trends(samples["pot_q95"], record_years, config)
     mechanism_primary = _mechanism_trends(samples["pot_q95"], record_years, config)
@@ -731,7 +777,7 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
     annual = _annual_mechanism_summary(samples["pot_q95"])
     annual.to_csv(tables / "global_mechanism_annual.csv", index=False)
     composition = (
-        samples["pot_q95"].groupby("mechanism").size().rename("events").reset_index()
+        samples["pot_q95"].loc[lambda data: data.mechanism.isin(MECHANISMS)].groupby("mechanism").size().rename("events").reset_index()
     )
     composition["share_percent"] = 100.0 * composition["events"] / composition["events"].sum()
     composition.to_csv(tables / "mechanism_composition.csv", index=False)
@@ -756,6 +802,7 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
             "rainfall_intensity_share_threshold": threshold,
             "antecedent_states": config["classification"]["antecedent_states"],
             "mechanisms": MECHANISMS,
+            "wetness": json.loads((config["paths"]["logs"] / "wetness_daily_calibration.json").read_text(encoding="utf-8")),
         },
         "eligible_record_catchments": len(eligible_ids),
         "sample_counts": {
@@ -763,6 +810,8 @@ def run_analysis(config: dict[str, Any], force: bool = False) -> dict[str, Any]:
             for name, sample in samples.items()
         },
         "mechanism_counts": composition.set_index("mechanism")["events"].astype(int).to_dict(),
+        "classified_primary_events": int(samples["pot_q95"].mechanism.isin(MECHANISMS).sum()),
+        "unclassified_primary_events": int(samples["pot_q95"].mechanism.eq("Unclassified").sum()),
         "overall_trends": len(overall),
         "supported_overall_trends": int(overall["supported_shift"].sum()),
         "mechanism_trends": len(mechanism),

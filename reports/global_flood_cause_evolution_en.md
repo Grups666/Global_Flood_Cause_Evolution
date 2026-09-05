@@ -14,11 +14,11 @@ The study asks what happened to the selected large floods and how their generati
 
 Under **Object → Flood-generating conditions**, select **Rainfall concentration** or **Antecedent wetness (SSI)**. Both wetness and rainfall-forcing filters default to **All**, using all valid events in the same Q95 sample.
 
-The two metrics each have **2,497** estimable catchments; **85** rainfall-concentration trends and **87** SSI trends pass the project's complete local screen (p<0.05, alternative-sample direction agreement, and leave-one-year-out direction stability). Each metric requires at least 10 valid event-years and a first-to-last span of at least 20 years inclusive. Years without valid selected events are not filled with zeros.
+The two metrics each have **2,497** estimable catchments; **85** rainfall-concentration trends and **89** SSI trends pass the project's complete local screen (p<0.05, alternative-sample direction agreement, and leave-one-year-out direction stability). Each metric requires at least 10 valid event-years and a first-to-last span of at least 20 years inclusive. Years without valid selected events are not filled with zeros.
 
 In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
 
-**Object** determines the metric family. **Antecedent wetness** and **Rainfall forcing** independently filter events; **All** leaves that axis unrestricted. Wet + All pools wet-soil events across both rainfall types; All + Intensity-led pools intensity-led events across all wetness states. Trends are refitted from matching events, not averaged from class slopes. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (matching events' share of all Q95 events). A wetness-only filter does not depend on rainfall-class cutoffs, so that stability check is not applied. Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
+**Object** determines the metric family. **Antecedent wetness** and **Rainfall forcing** independently filter events; **All** leaves that axis unrestricted. Wet + All pools wet-soil events across both rainfall types; All + Intensity-led pools intensity-led events across all antecedent states, including events with missing SSI but known rainfall class. Trends are refitted from matching events, not averaged from class slopes. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (matching events' share of Q95 events with the required classification observed). A wetness-only filter does not depend on rainfall-class cutoffs, so that stability check is not applied. Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
 
 ## 2. Data boundary
 
@@ -60,16 +60,34 @@ If 42 mm falls on the rainiest day and 70 mm over the event, \(C=0.60\): 60% of 
 
 ## 6. Antecedent wetness and the six processes
 
-The soil saturation index (SSI) is a dimensionless 0–1 model state. The source catalogue's empirical boundaries are approximately SSI ≤0.3994 (dry), 0.3994–0.5640 (moderate) and >0.5640 (wet). Crossing the three states with intensity/volume rainfall organization produces six event processes. These are event labels, not permanent catchment labels.
+The soil saturation index (SSI) is a normalized 0–1 soil-wetness indicator, not a water depth in millimetres. This study uses **daily SSI on the day before rainfall begins**:
 
-| Process | Q95 events | Primary-sample share |
+$$SSI_e=SSI_i(t_{\mathrm{rain,start},e}-1\ \mathrm{day}).$$
+
+If rainfall starts on 10 June, use SSI on 9 June—not rainfall-start-day SSI or the day before the flood peak.
+
+Cutoffs are recalibrated from the **2,637 included catchments**: pool all **35,918,563 valid catchment-day SSI values** throughout 1982–2019, including non-flood days, giving each valid catchment-day equal weight. Missing dates are not filled with zero. The pooled 1/3 and 2/3 quantiles are **0.404690** and **0.576339**.
+
+$$q_L=Q_{1/3}(SSI_{\mathrm{all\ valid\ days}}),\quad q_U=Q_{2/3}(SSI_{\mathrm{all\ valid\ days}}).$$
+
+Dry means SSI ≤ 0.404690; Moderate means 0.404690 < SSI ≤ 0.576339; Wet means SSI > 0.576339. SSI values of 0.30, 0.50 and 0.70 illustrate the three groups. These are relative wetness groups for this observational network, not universal saturation thresholds. Continuous SSI is retained. The same cutoffs apply to every year and to Q90, Q97.5 and annual-maximum samples.
+
+**7 selected events** lack previous-day SSI because their rainfall starts on 1 January 1982. They remain in flood and rainfall analyses but receive no wetness class. Six-process composition therefore uses **58,984 classifiable events**. Wetness-group shares likewise use events with the required classification observed; wetness-group frequency excludes catchment-years containing an unclassifiable selected event rather than treating unknown membership as zero.
+
+**Wetness-cutoff sensitivity.** with 25%/75% quantiles, 907 of 1038 primary-screen-supported wetness-dependent group trends remain estimable and 894 retain their direction; with 40%/60% quantiles, 991 of 1038 primary-screen-supported wetness-dependent group trends remain estimable and 980 retain their direction. These counts include overlapping one-axis and joint filters; they count trend estimates, not independent catchments.
+
+**Antecedent-window sensitivity.** Replacing the previous-day value with the mean over complete days preceding rainfall: the 3-day window retains the direction in 89 of 89 supported primary SSI catchments (89 estimable); the 7-day window retains the direction in 89 of 89 supported primary SSI catchments (89 estimable); the 30-day window retains the direction in 85 of 89 supported primary SSI catchments (89 estimable). These diagnostics describe sensitivity, not additional support gates; direction agreement does not imply identical magnitudes or significance.
+
+Crossing the three wetness states with intensity/volume rainfall organization produces six event processes. These are event labels, not permanent catchment labels.
+
+| Process | Q95 events | Share of classifiable primary events |
 |---|---:|---:|
-| wet + volume | 25,973 | 44.0% |
-| moderate + volume | 15,960 | 27.1% |
-| dry + volume | 11,325 | 19.2% |
-| wet + intensity | 2,920 | 4.9% |
-| moderate + intensity | 1,776 | 3.0% |
-| dry + intensity | 1,037 | 1.8% |
+| wet + volume | 21,704 | 36.8% |
+| moderate + volume | 18,491 | 31.3% |
+| dry + volume | 13,057 | 22.1% |
+| wet + intensity | 2,528 | 4.3% |
+| moderate + intensity | 1,936 | 3.3% |
+| dry + intensity | 1,268 | 2.1% |
 
 ## 7. Why five process events
 
@@ -123,14 +141,14 @@ The largest supported absolute changes are listed below. A plus sign means that 
 
 | Catchment | Country | Generating process | Annual-frequency trend |
 |---|---|---|---:|
+| 3968 | AU | moderate + volume | -0.58 events per year per decade |
 | 2810 | US | wet + volume | -0.55 events per year per decade |
-| 887 | DK | moderate + volume | +0.55 events per year per decade |
+| 1325 | FR | moderate + volume | -0.51 events per year per decade |
 | 955 | DK | dry + volume | +0.51 events per year per decade |
+| 51 | DE | wet + volume | +0.47 events per year per decade |
+| 603 | AU | moderate + volume | -0.46 events per year per decade |
 | 520 | DE | wet + volume | -0.46 events per year per decade |
-| 51 | DE | wet + volume | +0.45 events per year per decade |
-| 3813 | BR | wet + volume | +0.44 events per year per decade |
 | 682 | DE | dry + volume | -0.43 events per year per decade |
-| 648 | AU | moderate + volume | -0.43 events per year per decade |
 
 ## 12. Process composition
 
@@ -140,25 +158,25 @@ Process share asks whether a process occupied a larger or smaller fraction of a 
 
 | Catchment | Country | Generating process | Q95-sample share trend |
 |---|---|---|---:|
-| 1076 | FR | moderate + volume | +27.35 percentage points per decade |
-| 3587 | AU | wet + volume | -23.87 percentage points per decade |
-| 548 | AU | wet + volume | +23.13 percentage points per decade |
-| 1216 | FR | moderate + volume | -22.82 percentage points per decade |
-| 1216 | FR | dry + volume | +22.82 percentage points per decade |
-| 703 | AU | moderate + intensity | +22.54 percentage points per decade |
+| 537 | AU | dry + volume | +24.55 percentage points per decade |
+| 3353 | ZA | moderate + volume | -24.44 percentage points per decade |
+| 1383 | FR | wet + volume | +23.65 percentage points per decade |
+| 2878 | US | wet + volume | -23.08 percentage points per decade |
+| 3415 | ZA | wet + volume | -23.04 percentage points per decade |
 | 703 | AU | moderate + volume | -22.54 percentage points per decade |
-| 1734 | AU | moderate + volume | -21.90 percentage points per decade |
+| 3353 | ZA | dry + volume | +22.45 percentage points per decade |
+| 1606 | FR | moderate + volume | -20.49 percentage points per decade |
 
 ## 13. Complete process-specific evidence counts
 
 | Outcome | Estimates | p<0.05 | Complete screen | Decrease | Increase |
 |---|---:|---:|---:|---:|---:|
-| annual process frequency | 3,562 | 337 | 132 | 93 | 39 |
-| process share among selected floods | 2,102 | 47 | 19 | 13 | 6 |
-| event direct stormflow volume | 3,409 | 155 | 63 | 29 | 34 |
-| event daily flood peak | 3,409 | 170 | 90 | 54 | 36 |
-| within-process rainfall concentration | 3,409 | 162 | 102 | 69 | 33 |
-| within-process antecedent wetness | 3,409 | 186 | 117 | 46 | 71 |
+| annual process frequency | 3,652 | 363 | 135 | 87 | 48 |
+| process share among selected floods | 2,272 | 54 | 15 | 6 | 9 |
+| event direct stormflow volume | 3,491 | 144 | 51 | 24 | 27 |
+| event daily flood peak | 3,491 | 171 | 89 | 58 | 31 |
+| within-process rainfall concentration | 3,491 | 168 | 110 | 73 | 37 |
+| within-process antecedent wetness | 3,491 | 191 | 119 | 54 | 65 |
 
 ## 14. Process-specific flood response
 
@@ -172,50 +190,50 @@ Rainfall concentration indicates whether rainfall became further concentrated wi
 
 | Catchment | Country | Generating process | Rainfall-concentration trend |
 |---|---|---|---:|
-| 3060 | US | wet + volume | -18.28 percentage points per decade |
 | 2981 | US | wet + volume | +14.46 percentage points per decade |
-| 1311 | FR | wet + volume | -13.17 percentage points per decade |
+| 2571 | US | wet + volume | -14.18 percentage points per decade |
 | 896 | DK | dry + volume | +13.02 percentage points per decade |
-| 3332 | ZA | dry + volume | -11.68 percentage points per decade |
-| 3181 | US | moderate + volume | -11.61 percentage points per decade |
+| 1212 | FR | wet + volume | -12.37 percentage points per decade |
+| 3332 | ZA | dry + volume | -12.32 percentage points per decade |
+| 600 | DE | moderate + volume | -11.88 percentage points per decade |
 
 | Catchment | Country | Generating process | Antecedent-wetness trend |
 |---|---|---|---:|
-| 2791 | US | wet + volume | +0.06 SSI units per decade |
-| 3145 | US | moderate + volume | +0.06 SSI units per decade |
-| 3118 | US | moderate + volume | -0.05 SSI units per decade |
-| 3756 | BR | wet + volume | -0.05 SSI units per decade |
-| 2953 | US | wet + volume | -0.05 SSI units per decade |
-| 3761 | BR | wet + volume | -0.04 SSI units per decade |
+| 2953 | US | wet + volume | -0.07 SSI units per decade |
+| 3757 | BR | wet + volume | -0.06 SSI units per decade |
+| 2956 | US | wet + volume | -0.06 SSI units per decade |
+| 2952 | US | wet + volume | -0.06 SSI units per decade |
+| 1431 | FR | wet + volume | +0.06 SSI units per decade |
+| 2936 | US | wet + volume | -0.05 SSI units per decade |
 
 ## 16. Worked trajectories
 
 ![Observed annual process shares and fitted trajectories](assets/figure_06_example_process_trajectories.png)
 
-1. **GCIN 2771 (US), moderate + volume.** The event direct stormflow volume trend is -39.72 mm per decade; the fitted record endpoints are 110.71 → 0.00. This is a within-catchment temporal result, not proof of causation.
+1. **GCIN 2677 (US), moderate + volume.** The event daily flood peak trend is -18.21 mm/day per decade; the fitted record endpoints are 83.13 → 23.02. This is a within-catchment temporal result, not proof of causation.
 
-2. **GCIN 2677 (US), moderate + volume.** The event daily flood peak trend is -18.21 mm/day per decade; the fitted record endpoints are 83.13 → 23.02. This is a within-catchment temporal result, not proof of causation.
+2. **GCIN 3329 (ZA), dry + volume.** The event daily flood peak trend is -8.09 mm/day per decade; the fitted record endpoints are 26.47 → 3.82. This is a within-catchment temporal result, not proof of causation.
 
-3. **GCIN 3756 (BR), wet + volume.** The event daily flood peak trend is -15.10 mm/day per decade; the fitted record endpoints are 60.93 → 11.11. This is a within-catchment temporal result, not proof of causation.
+3. **GCIN 3085 (US), wet + volume.** The event daily flood peak trend is +8.08 mm/day per decade; the fitted record endpoints are 15.97 → 40.21. This is a within-catchment temporal result, not proof of causation.
 
-4. **GCIN 348 (AU), moderate + volume.** The event direct stormflow volume trend is +22.07 mm per decade; the fitted record endpoints are 1.93 → 61.52. This is a within-catchment temporal result, not proof of causation.
+4. **GCIN 2566 (US), wet + volume.** The event daily flood peak trend is +7.81 mm/day per decade; the fitted record endpoints are 28.50 → 50.38. This is a within-catchment temporal result, not proof of causation.
 
 ## 17. Geographic context
 
 The table counts supported observed points. It is not an area-weighted continental trend.
 
 - Q95-event frequency — Africa: 6 (0 decreases, 6 increases); Europe: 83 (49 decreases, 34 increases); North America: 30 (24 decreases, 6 increases); Oceania: 21 (18 decreases, 3 increases); South America: 24 (18 decreases, 6 increases).
-- Process frequency — Africa: 2 (0 decreases, 2 increases); Europe: 66 (43 decreases, 23 increases); North America: 26 (22 decreases, 4 increases); Oceania: 22 (20 decreases, 2 increases); South America: 16 (8 decreases, 8 increases).
-- Within-process rainfall concentration — Africa: 7 (6 decreases, 1 increases); Europe: 67 (49 decreases, 18 increases); North America: 14 (5 decreases, 9 increases); Oceania: 7 (3 decreases, 4 increases); South America: 7 (6 decreases, 1 increases).
-- Within-process antecedent wetness — Africa: 3 (1 decreases, 2 increases); Europe: 73 (16 decreases, 57 increases); North America: 18 (10 decreases, 8 increases); Oceania: 15 (13 decreases, 2 increases); South America: 8 (6 decreases, 2 increases).
+- Process frequency — Africa: 3 (0 decreases, 3 increases); Europe: 80 (45 decreases, 35 increases); North America: 26 (20 decreases, 6 increases); Oceania: 14 (14 decreases, 0 increases); South America: 12 (8 decreases, 4 increases).
+- Within-process rainfall concentration — Africa: 8 (7 decreases, 1 increases); Europe: 76 (53 decreases, 23 increases); North America: 14 (4 decreases, 10 increases); Oceania: 6 (3 decreases, 3 increases); South America: 6 (6 decreases, 0 increases).
+- Within-process antecedent wetness — Africa: 5 (3 decreases, 2 increases); Europe: 82 (26 decreases, 56 increases); North America: 22 (16 decreases, 6 increases); Oceania: 1 (1 decreases, 0 increases); South America: 9 (8 decreases, 1 increases).
 
 | Continent | Supported process-frequency results | Decrease | Increase |
 |---|---:|---:|---:|
-| Africa | 2 | 0 | 2 |
-| Europe | 66 | 43 | 23 |
-| North America | 26 | 22 | 4 |
-| Oceania | 22 | 20 | 2 |
-| South America | 16 | 8 | 8 |
+| Africa | 3 | 0 | 3 |
+| Europe | 80 | 45 | 35 |
+| North America | 26 | 20 | 6 |
+| Oceania | 14 | 14 | 0 |
+| South America | 12 | 8 | 4 |
 
 ## 18. Sensitivity and event independence
 
@@ -223,13 +241,13 @@ Supported directions must agree with the applicable Q90, Q97.5 and annual-maximu
 
 ## 19. Limitations
 
-SSI is model-derived; classification thresholds compress continuous variation; gauge coverage is densest in Europe and North America; 38 years cannot resolve every multidecadal oscillation; trend coincidence is not causal attribution; and land-use, regulation or measurement changes may contribute to local results.
+SSI has soil-moisture-product and normalization uncertainty; classification thresholds compress continuous variation, with cutoff sensitivity reported in the wetness section; gauge coverage is densest in Europe and North America; 38 years cannot resolve every multidecadal oscillation; trend coincidence is not causal attribution; and land-use, regulation or measurement changes may contribute to local results.
 
 ## 20. Hydrological conclusions
 
 1. Across all selected floods, **46**, **54** and **164** catchments pass the complete screen for direct stormflow volume, daily peak and Q95-event frequency, respectively. Flood change is therefore a local result, not one global sign.
-2. Process frequency has **132** supported catchment–process results: **93** decreases and **39** increases. Separating mechanisms exposes locally opposing replacements that a pooled trend would hide.
-3. Process share has **19** supported results. These directly identify persistent changes in the composition of a catchment's Q95 floods and are central evidence for changing flood-generation pathways.
+2. Process frequency has **135** supported catchment–process results: **87** decreases and **48** increases. Separating mechanisms exposes locally opposing replacements that a pooled trend would hide.
+3. Process share has **15** supported results. These directly identify persistent changes in the composition of a catchment's Q95 floods and are central evidence for changing flood-generation pathways.
 4. Rainfall concentration, antecedent SSI, direct stormflow volume and daily peak also retain reproducible within-process changes. Occurrence, generating conditions and flood response should be interpreted together; temporal co-change alone is not causal attribution.
 
 ## 21. Reproducibility

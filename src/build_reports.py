@@ -51,6 +51,7 @@ def _load() -> dict[str, Any]:
         "composition": pd.read_csv(TABLES / "mechanism_composition.csv"),
         "diagnostics": pd.read_csv(TABLES / "extreme_sample_diagnostics.csv").set_index("sample"),
         "coverage": pd.read_csv(TABLES / "record_eligibility.csv"),
+        "wetness_sensitivity": json.loads((LOGS / "wetness_sensitivity_summary.json").read_text(encoding="utf-8")),
     }
 
 
@@ -157,6 +158,58 @@ def _worked_examples(table: pd.DataFrame, zh: bool, n: int = 4) -> str:
     return "\n\n".join(blocks) if blocks else ("当前没有通过完整筛选的示例。" if zh else "No example passes the complete screen.")
 
 
+def _wetness_method(stats: dict[str, Any], zh: bool) -> str:
+    summary = stats["summary"]
+    w = summary["classification"]["wetness"]
+    low, high = w["terciles"]["lower"], w["terciles"]["upper"]
+    if zh:
+        text = fr"""土壤饱和指数（soil saturation index，SSI）是0–1的归一化土壤湿润指标，不是毫米水深。本研究取**降雨开始前一天**的日SSI：
+
+$$SSI_e=SSI_i(t_{{\mathrm{{rain,start}},e}}-1\ \mathrm{{day}}).$$
+
+例如降雨于6月10日开始，就取6月9日的SSI，不取降雨当天，也不取洪峰前一天。
+
+分类分界由本研究实际入选的 **{w['cohort_catchments']:,}个流域**重新计算：汇集1982–2019完整期间 **{w['valid_ssi_days']:,}个有效流域—日SSI值**，包括无洪水日，每个有效流域—日等权；缺测日期不补0。取合并分布的1/3和2/3分位点，得到 **{low:.6f}** 和 **{high:.6f}**。
+
+$$q_L=Q_{{1/3}}(SSI_{{\mathrm{{all\ valid\ days}}}}),\quad q_U=Q_{{2/3}}(SSI_{{\mathrm{{all\ valid\ days}}}}).$$
+
+SSI ≤ {low:.6f} 为Dry（干燥），{low:.6f} < SSI ≤ {high:.6f} 为Moderate（中等湿润），SSI > {high:.6f} 为Wet（湿润）。例如SSI=0.30、0.50、0.70分别对应三类。这是该观测网的相对干湿分组，不是通用的土壤饱和物理界限；完整的连续SSI同时保留。分界固定用于全部年份及Q90、Q97.5、年最大样本。
+
+主样本有 **{summary['unclassified_primary_events']}场**事件缺少前一天SSI，均因降雨从1982年1月1日开始。它们保留在洪水与降雨分析中，但不归入干湿类别。因此六类组成的分母为 **{summary['classified_primary_events']:,}场可分类事件**；流域内的干湿组占比也只以所需分类已知的事件为分母。干湿组频次计算排除含此类未知事件的流域—年份，避免把未知类别当成零次。
+"""
+    else:
+        text = fr"""The soil saturation index (SSI) is a normalized 0–1 soil-wetness indicator, not a water depth in millimetres. This study uses **daily SSI on the day before rainfall begins**:
+
+$$SSI_e=SSI_i(t_{{\mathrm{{rain,start}},e}}-1\ \mathrm{{day}}).$$
+
+If rainfall starts on 10 June, use SSI on 9 June—not rainfall-start-day SSI or the day before the flood peak.
+
+Cutoffs are recalibrated from the **{w['cohort_catchments']:,} included catchments**: pool all **{w['valid_ssi_days']:,} valid catchment-day SSI values** throughout 1982–2019, including non-flood days, giving each valid catchment-day equal weight. Missing dates are not filled with zero. The pooled 1/3 and 2/3 quantiles are **{low:.6f}** and **{high:.6f}**.
+
+$$q_L=Q_{{1/3}}(SSI_{{\mathrm{{all\ valid\ days}}}}),\quad q_U=Q_{{2/3}}(SSI_{{\mathrm{{all\ valid\ days}}}}).$$
+
+Dry means SSI ≤ {low:.6f}; Moderate means {low:.6f} < SSI ≤ {high:.6f}; Wet means SSI > {high:.6f}. SSI values of 0.30, 0.50 and 0.70 illustrate the three groups. These are relative wetness groups for this observational network, not universal saturation thresholds. Continuous SSI is retained. The same cutoffs apply to every year and to Q90, Q97.5 and annual-maximum samples.
+
+**{summary['unclassified_primary_events']} selected events** lack previous-day SSI because their rainfall starts on 1 January 1982. They remain in flood and rainfall analyses but receive no wetness class. Six-process composition therefore uses **{summary['classified_primary_events']:,} classifiable events**. Wetness-group shares likewise use events with the required classification observed; wetness-group frequency excludes catchment-years containing an unclassifiable selected event rather than treating unknown membership as zero.
+"""
+    checks = stats["wetness_sensitivity"]
+    if zh:
+        text += "\n**干湿分界敏感性。** " + "；".join(
+            f"改用{r['quantiles'][0]:.0%}/{r['quantiles'][1]:.0%}分位点时，{r['primary_supported']}个通过主筛选的干湿相关组内趋势中，{r['estimable']}个仍可估计，{r['same_direction']}个保持同方向"
+            for r in checks["thresholds"]) + "。这些汇总包括相互重叠的单轴和双轴筛选，是趋势条目数，不是独立流域数。\n\n"
+        text += "**前期窗口敏感性。** 以降雨前连续3、7、30日均值替代前一天值时，" + "；".join(
+            f"{r['days']}日窗口下，主SSI结果的{r['primary_supported']}个通过筛选的流域中，{r['same_direction']}个保持同方向（{r['estimable']}个可估计）"
+            for r in checks["windows"] if r["days"] != 1) + "。这两项是解释结果适用范围的诊断，不新增筛选门槛；方向一致也不意味着幅度或显著性完全一致。"
+    else:
+        text += "\n**Wetness-cutoff sensitivity.** " + "; ".join(
+            f"with {r['quantiles'][0]:.0%}/{r['quantiles'][1]:.0%} quantiles, {r['estimable']} of {r['primary_supported']} primary-screen-supported wetness-dependent group trends remain estimable and {r['same_direction']} retain their direction"
+            for r in checks["thresholds"]) + ". These counts include overlapping one-axis and joint filters; they count trend estimates, not independent catchments.\n\n"
+        text += "**Antecedent-window sensitivity.** Replacing the previous-day value with the mean over complete days preceding rainfall: " + "; ".join(
+            f"the {r['days']}-day window retains the direction in {r['same_direction']} of {r['primary_supported']} supported primary SSI catchments ({r['estimable']} estimable)"
+            for r in checks["windows"] if r["days"] != 1) + ". These diagnostics describe sensitivity, not additional support gates; direction agreement does not imply identical magnitudes or significance."
+    return text
+
+
 def _zh(stats: dict[str, Any]) -> str:
     s, o, m, c, d = stats["summary"], stats["overall"], stats["mechanism"], stats["composition"], stats["diagnostics"]
     primary = s["sample_counts"]["pot_q95"]
@@ -184,7 +237,7 @@ def _zh(stats: dict[str, Any]) -> str:
 
 点击流域后，灰点是各年的事件均值，蓝线是Theil–Sen拟合；拟合起止值标明具体年份，不能当作那两年的实测值。比如从30%拟合到40%的降雨集中度，表示整场事件降雨落在最多雨那一天的比例提高了10个百分点，并非洪峰提高10%。这是说明单位的例子，不是某个流域的观测结果。
 
-**Object** 决定研究哪个物理量。**Antecedent wetness** 和 **Rainfall forcing** 各自筛选事件，选 **All** 表示不限该条件。例如 Wet + All 汇集两种降雨组织下的湿润前期事件；All + Intensity-led 汇集所有干湿状态下的强度型事件。先汇集事件再重新拟合趋势，不平均各类别的斜率。**Flood characteristics** 只显示洪水量、日洪峰和Q95年频次；**Flood-generating conditions** 显示降雨集中度、SSI，以及筛选时的Process share（匹配事件占全部Q95事件的比例）。只限定干湿状态时，降雨分类阈值不参与筛选，也不作为该结果的稳定性检验。分类逐事件进行，流域不会被永久归为一类；组内趋势不能替代整体趋势，跨过分类边界也不自动证明物理机制转换。
+**Object** 决定研究哪个物理量。**Antecedent wetness** 和 **Rainfall forcing** 各自筛选事件，选 **All** 表示不限该条件。例如 Wet + All 汇集两种降雨组织下的湿润前期事件；All + Intensity-led 汇集所有前期状态下的强度型事件，包括SSI缺失但降雨分类已知的事件。先汇集事件再重新拟合趋势，不平均各类别的斜率。**Flood characteristics** 只显示洪水量、日洪峰和Q95年频次；**Flood-generating conditions** 显示降雨集中度、SSI，以及筛选时的Process share（匹配事件占所需分类已知的Q95事件的比例）。只限定干湿状态时，降雨分类阈值不参与筛选，也不作为该结果的稳定性检验。分类逐事件进行，流域不会被永久归为一类；组内趋势不能替代整体趋势，跨过分类边界也不自动证明物理机制转换。
 
 ## 2. 数据与研究边界
 
@@ -228,13 +281,13 @@ $$
 
 ## 6. 前期湿润状态
 
-土壤饱和指数（soil saturation index，SSI）在0到1之间，表示土壤储水相对于模型田间持水能力的状态。源事件目录的经验边界约为：\(SSI\leq0.3994\) 为干燥，\(0.3994<SSI\leq0.5640\) 为中等湿润，\(SSI>0.5640\) 为湿润。这里不把中间状态强行塞进干/湿二分，因而不会丢掉大量物理上处于中间状态的事件。
+{_wetness_method(stats, True)}
 
 ## 7. 六种生成机制
 
 六类分别为干燥–强度型、干燥–总量型、中等湿润–强度型、中等湿润–总量型、湿润–强度型和湿润–总量型。它们是**事件标签**，不是给流域贴上的永久标签；同一流域在不同年份可以出现不同机制。
 
-| 机制 | Q95事件数 | 占主样本 |
+| 机制 | Q95事件数 | 占可分类主样本 |
 |---|---:|---:|
 {_composition_rows(c, True)}
 
@@ -373,7 +426,7 @@ $$
 
 ## 22. 限制
 
-SSI来自水文模型状态，存在模型结构和参数不确定性；阈值分类会压缩连续差异；观测网在欧洲和北美更密集；1982–2019的38年记录适合识别持续方向，但不足以穷尽多年代际振荡；趋势并不自动等于因果归因；土地利用、水库调度和测站变化仍可能影响局部结果。
+SSI存在土壤水分数据产品及归一化不确定性；阈值分类会压缩连续差异，其敏感性见前期湿润状态一节；观测网在欧洲和北美更密集；1982–2019的38年记录适合识别持续方向，但不足以穷尽多年代际振荡；趋势并不自动等于因果归因；土地利用、水库调度和测站变化仍可能影响局部结果。
 
 ## 23. 水文学结论
 
@@ -425,7 +478,7 @@ The two metrics each have **{_counts(stats['conditions'], 'rainfall_concentratio
 
 In the catchment inspector, grey points are annual event means and the blue line is the Theil–Sen fit. Fitted endpoint levels are labelled with their years; they are not the observed values in those years. For illustration, a fitted concentration change from 30% to 40% means that the share of event rainfall falling on its rainiest day rises by 10 percentage points, not that the flood peak rises by 10%.
 
-**Object** determines the metric family. **Antecedent wetness** and **Rainfall forcing** independently filter events; **All** leaves that axis unrestricted. Wet + All pools wet-soil events across both rainfall types; All + Intensity-led pools intensity-led events across all wetness states. Trends are refitted from matching events, not averaged from class slopes. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (matching events' share of all Q95 events). A wetness-only filter does not depend on rainfall-class cutoffs, so that stability check is not applied. Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
+**Object** determines the metric family. **Antecedent wetness** and **Rainfall forcing** independently filter events; **All** leaves that axis unrestricted. Wet + All pools wet-soil events across both rainfall types; All + Intensity-led pools intensity-led events across all antecedent states, including events with missing SSI but known rainfall class. Trends are refitted from matching events, not averaged from class slopes. **Flood characteristics** contains volume, daily peak and Q95 frequency. **Flood-generating conditions** contains concentration and SSI, plus Process share when filtered (matching events' share of Q95 events with the required classification observed). A wetness-only filter does not depend on rainfall-class cutoffs, so that stability check is not applied. Events are classified individually; a catchment has no permanent class. A within-group trend is not the full-sample trend, and crossing a class boundary alone is not proof of physical mechanism conversion.
 
 ## 2. Data boundary
 
@@ -465,9 +518,11 @@ If 42 mm falls on the rainiest day and 70 mm over the event, \(C=0.60\): 60% of 
 
 ## 6. Antecedent wetness and the six processes
 
-The soil saturation index (SSI) is a dimensionless 0–1 model state. The source catalogue's empirical boundaries are approximately SSI ≤0.3994 (dry), 0.3994–0.5640 (moderate) and >0.5640 (wet). Crossing the three states with intensity/volume rainfall organization produces six event processes. These are event labels, not permanent catchment labels.
+{_wetness_method(stats, False)}
 
-| Process | Q95 events | Primary-sample share |
+Crossing the three wetness states with intensity/volume rainfall organization produces six event processes. These are event labels, not permanent catchment labels.
+
+| Process | Q95 events | Share of classifiable primary events |
 |---|---:|---:|
 {_composition_rows(c, False)}
 
@@ -584,7 +639,7 @@ Supported directions must agree with the applicable Q90, Q97.5 and annual-maximu
 
 ## 19. Limitations
 
-SSI is model-derived; classification thresholds compress continuous variation; gauge coverage is densest in Europe and North America; 38 years cannot resolve every multidecadal oscillation; trend coincidence is not causal attribution; and land-use, regulation or measurement changes may contribute to local results.
+SSI has soil-moisture-product and normalization uncertainty; classification thresholds compress continuous variation, with cutoff sensitivity reported in the wetness section; gauge coverage is densest in Europe and North America; 38 years cannot resolve every multidecadal oscillation; trend coincidence is not causal attribution; and land-use, regulation or measurement changes may contribute to local results.
 
 ## 20. Hydrological conclusions
 

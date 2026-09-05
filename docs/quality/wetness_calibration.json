@@ -1,0 +1,111 @@
+{
+  "status": "complete",
+  "event_ssi_day_offset": -1,
+  "event_ssi_variable": "ssi_1d",
+  "cohort": "Unique catchments in this project's primary Q95 event sample",
+  "cohort_catchments": 2637,
+  "primary_events": 58991,
+  "cohort_id_sha256": "f7f6d2dbb2e3dd0d9bb5efcee902d1f635c7881867eb597203bcfe1e9d0f2867",
+  "primary_event_keys_sha256": "e2cbd1ff3377dbf5751e24f23e4db0b635c98426704bd66073014a80084866f3",
+  "start_date": "1982-01-01",
+  "end_date": "2019-12-31",
+  "weighting": "One equal weight per valid unique catchment-day; all days, not only event days",
+  "quantile_method": "numpy linear interpolation; h=(N-1)*q, zero-based sorted ranks",
+  "valid_ssi_days": 35918563,
+  "present_days": 35918563,
+  "absent_days": 680360,
+  "missing_ssi_days": 0,
+  "out_of_range_ssi_days": 0,
+  "terciles": {
+    "lower": 0.4046899440231695,
+    "upper": 0.5763393470152963
+  },
+  "sensitivity_quantiles": {
+    "0.25": 0.3557645538802664,
+    "0.3333333333333333": 0.4046899440231695,
+    "0.4": 0.4422198065703401,
+    "0.6": 0.5416481421192911,
+    "0.6666666666666666": 0.5763393470152963,
+    "0.75": 0.6231073031497442
+  },
+  "daily_class_counts": {
+    "Dry": 11972856,
+    "Moderate": 11972857,
+    "Wet": 11972850
+  },
+  "event_time_alignment": {
+    "matches_start_day": 58991,
+    "matches_previous_day": 670,
+    "previous_day_missing": 7,
+    "classification_differs_between_days": 5605
+  },
+  "source": "Event_Typology: Global Data/daily_data/observations (read-only)",
+  "sensitivity": {
+    "status": "complete",
+    "role": "Diagnostics; not additional support gates",
+    "thresholds": [
+      {
+        "quantiles": [
+          0.25,
+          0.75
+        ],
+        "ssi_cutoffs": [
+          0.3557645538802664,
+          0.6231073031497442
+        ],
+        "primary_supported": 1038,
+        "estimable": 907,
+        "same_direction": 894
+      },
+      {
+        "quantiles": [
+          0.4,
+          0.6
+        ],
+        "ssi_cutoffs": [
+          0.4422198065703401,
+          0.5416481421192911
+        ],
+        "primary_supported": 1038,
+        "estimable": 991,
+        "same_direction": 980
+      }
+    ],
+    "windows": [
+      {
+        "days": 1,
+        "estimated": 2497,
+        "primary_supported": 89,
+        "estimable": 89,
+        "same_direction": 89
+      },
+      {
+        "days": 3,
+        "estimated": 2497,
+        "primary_supported": 89,
+        "estimable": 89,
+        "same_direction": 89
+      },
+      {
+        "days": 7,
+        "estimated": 2497,
+        "primary_supported": 89,
+        "estimable": 89,
+        "same_direction": 89
+      },
+      {
+        "days": 30,
+        "estimated": 2492,
+        "primary_supported": 89,
+        "estimable": 89,
+        "same_direction": 85
+      }
+    ]
+  },
+  "validation": {
+    "status": "passed",
+    "aligned_primary_events": 58991,
+    "unchanged_flood_and_concentration_trends": 10128,
+    "baseline_commit": "1112b2e787fd071e9a99a7e6df56217647941696"
+  }
+}

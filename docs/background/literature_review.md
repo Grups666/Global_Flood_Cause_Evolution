@@ -68,7 +68,7 @@ This is the closest precedent for the temporal question. It estimates catchment-
 
 **Adopted from the literature:** event-level classification; the joint `CV > 1` and `Pmax/Pevent > 0.5` rainfall-organization rule; a five-event process minimum; Sen-slope/Mann–Kendall trend estimation; Q90, Q97.5 and annual-maximum sensitivity samples.
 
-**Adapted to the available global data:** antecedent wetness uses the audited soil-saturation categories already attached to each event (`Dry`, `Moderate`, `Wet`). Retaining the middle category avoids forcing physically intermediate events into an artificial binary split. The analysis is limited to rainfall-driven, low-snow catchments and 1982–2019, the verified common record.
+**Adapted to the available global data:** antecedent wetness uses daily SSI on the day before rainfall starts. `Dry`, `Moderate` and `Wet` are defined by recalculated pooled 1/3 and 2/3 quantiles of all valid daily SSI values throughout 1982–2019 in the primary-sample catchments, including non-flood days. The resulting 0.404690 and 0.576339 cutoffs are dataset-derived, not numerical constants borrowed from Tarasova et al. Retaining the middle category avoids forcing intermediate states into a binary split. Wetness cut-point and antecedent-window sensitivities are reported separately. The analysis is limited to rainfall-driven, low-snow catchments and the verified common record.
 
 **Not claimed:** classification proves causal attribution; a trend in a driver proves it caused a flood-magnitude trend; points between gauges represent ungauged catchments; or a single global direction exists. The output identifies observed catchments where process occurrence, process conditions or associated flood response changed consistently through time.
 

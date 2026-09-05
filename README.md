@@ -2,9 +2,9 @@
 
 This repository contains a reproducible, catchment-first study of how the generating processes and hydrological response of large rainfall-driven floods changed during 1982–2019.
 
-The primary sample selects each catchment's upper 5% of reconstructed events by **event direct stormflow volume**. It contains **58,991 events in 2,637 long-record catchments**. Each event is then assigned to one of six processes formed by:
+The primary sample selects each catchment's upper 5% of reconstructed events by **event direct stormflow volume**. It contains **58,991 events in 2,637 long-record catchments**. The 58,984 events with previous-day SSI are assigned to six processes formed by:
 
-- antecedent state: dry, moderate or wet; and
+- antecedent state: dry, moderate or wet, using SSI on the day before rainfall begins and pooled daily terciles recalculated from the included catchments; and
 - rainfall temporal organization: intensity or volume.
 
 The analysis estimates, for each observed catchment, changes in flood volume, daily flood peak, large-flood frequency, process frequency, process share, rainfall concentration and antecedent wetness. The web map contains observed catchment points only; no trend is assigned to ungauged areas.
@@ -17,7 +17,7 @@ The analysis estimates, for each observed catchment, changes in flood volume, da
 - [Literature review](docs/background/literature_review.md)
 - [Validation report](docs/quality/validation_report.md)
 
-The explorer's **Object** selects **Flood-generating conditions** (rainfall concentration and antecedent SSI) or **Flood characteristics** (volume, peak and Q95 frequency). **Antecedent wetness** and **Rainfall forcing** each include **All**: both All gives the full Q95 sample; either can be restricted independently. Filtered conditions also expose the matching events' share of all Q95 floods. `All estimates` retains pale directional context, while `Supported focus` emphasizes results that pass the declared significance and sensitivity checks.
+The explorer's **Object** selects **Flood-generating conditions** (rainfall concentration and antecedent SSI) or **Flood characteristics** (volume, peak and Q95 frequency). **Antecedent wetness** and **Rainfall forcing** each include **All**: both All gives the full Q95 sample; either can be restricted independently. Filtered conditions expose the matching events' share of Q95 floods with the required classification observed. `All estimates` retains pale directional context, while `Supported focus` emphasizes results that pass the declared significance and sensitivity checks.
 
 ## Repository structure
 
@@ -37,6 +37,7 @@ $projectPython = 'D:/Program Files/python-envs/Global_Flood_Cause_Evolution/Scri
 & $projectPython src/validate_outputs.py
 & $projectPython src/validate_conditions.py
 & $projectPython src/validate_filter_groups.py
+& $projectPython src/validate_wetness.py
 node src/test_explorer_controls.cjs
 ```
 

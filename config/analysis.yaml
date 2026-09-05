@@ -36,6 +36,10 @@ classification:
   rainfall_intensity_share_threshold: 0.50
   rainfall_intensity_share_sensitivity: [0.40, 0.60]
   antecedent_states: [Dry, Moderate, Wet]
+  event_ssi_variable: ssi_1d
+  event_ssi_day_offset: -1
+  wetness_quantiles: [0.3333333333333333, 0.6666666666666666]
+  wetness_quantile_sensitivity: [[0.25, 0.75], [0.40, 0.60]]
   ssi_windows_days: [1, 3, 7, 30]
 
 trends:

@@ -57,14 +57,11 @@ def sha256(path: Path) -> str:
 def study_events(features: pd.DataFrame) -> pd.DataFrame:
     required = [
         "q_peak_mm_day", "q_direct_volume_mm", "peak_year",
-        "intensity_fraction", "event_type_source",
+        "intensity_fraction",
     ]
     data = features.dropna(subset=required).copy()
     data = data[data["peak_year"].between(CONFIG["study"]["start_year"], CONFIG["study"]["end_year"])]
-    data["antecedent_state"] = (
-        data["event_type_source"].astype(str).str.split("-").str[-1].replace({"Mod": "Moderate"})
-    )
-    return data[data["antecedent_state"].isin(CONFIG["classification"]["antecedent_states"])]
+    return data
 
 
 def expected_eligibility(events: pd.DataFrame) -> pd.DataFrame:
@@ -195,11 +192,16 @@ def main() -> None:
         "Intensity", "Volume",
     )
     labels_ok = np.array_equal(primary["rainfall_organization"].to_numpy(), expected_org)
-    labels_ok &= set(primary["mechanism"].dropna().unique()) == MECHANISMS
-    labels_ok &= np.array_equal(
-        primary["mechanism"].to_numpy(),
-        (primary["antecedent_state"].astype(str) + "-" + pd.Series(expected_org, index=primary.index)).to_numpy(),
-    )
+    calibration = json.loads((LOGS / "wetness_daily_calibration.json").read_text(encoding="utf-8"))
+    lower, upper = calibration["terciles"].values()
+    expected_state = pd.Series(np.select(
+        [primary.ssi_1d.le(lower), primary.ssi_1d.le(upper), primary.ssi_1d.gt(upper)],
+        ["Dry", "Moderate", "Wet"], default="Unknown"), index=primary.index)
+    expected_label = expected_state + "-" + pd.Series(expected_org, index=primary.index)
+    expected_label.loc[expected_state.eq("Unknown")] = "Unclassified"
+    labels_ok &= np.array_equal(primary.antecedent_state, expected_state)
+    labels_ok &= set(primary.mechanism) == MECHANISMS | {"Unclassified"}
+    labels_ok &= np.array_equal(primary.mechanism, expected_label)
     record(checks, "six_process_classification_exact", labels_ok,
            ", ".join(f"{key}={value:,}" for key, value in primary.mechanism.value_counts().sort_index().items()))
 

@@ -11,8 +11,11 @@ The compact **Object** selector has two choices:
 Moderate, Wet) and **Rainfall forcing** (All, Intensity-led, Volume-led) independently
 filter contributing events. All + All uses every selected Q95 flood; a single
 restriction pools matching events across the unrestricted axis before fitting.
-There is no separate event-sample control. Process share always has all selected
-Q95 floods as its denominator, including for a one-axis filter.
+There is no separate event-sample control. Process share uses selected Q95
+floods with the required classification observed as its denominator. Forcing-only
+filters retain events without SSI; wetness-dependent filters exclude unknown
+wetness. SSI always refers to the day before rainfall starts. The help panel
+shows recalibrated pooled daily terciles and the calibration population.
 The default is unclassified, continuous generating conditions. Changing the
 event population never moves flood-response metrics into generating conditions.
 
